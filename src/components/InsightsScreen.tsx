@@ -1,9 +1,36 @@
 
+import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { TrendingUp, Brain, Calendar, Tag } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { TrendingUp, Brain, Calendar, Tag, ChevronLeft, ChevronRight } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, ResponsiveContainer } from "recharts";
+import { InsightSnapshot } from "./InsightSnapshot";
 
 export const InsightsScreen = () => {
+  const [currentPeriod, setCurrentPeriod] = useState("This Week");
+  const [viewMode, setViewMode] = useState<"current" | "historical">("current");
+
+  const periods = [
+    "This Week",
+    "Last Week", 
+    "2 Weeks Ago",
+    "3 Weeks Ago",
+    "This Month",
+    "Last Month",
+    "2 Months Ago"
+  ];
+
+  const currentPeriodIndex = periods.indexOf(currentPeriod);
+
+  const navigatePeriod = (direction: "prev" | "next") => {
+    const currentIndex = periods.indexOf(currentPeriod);
+    if (direction === "prev" && currentIndex < periods.length - 1) {
+      setCurrentPeriod(periods[currentIndex + 1]);
+    } else if (direction === "next" && currentIndex > 0) {
+      setCurrentPeriod(periods[currentIndex - 1]);
+    }
+  };
+
   const moodData = [
     { day: "Mon", mood: 7 },
     { day: "Tue", mood: 6 },
@@ -21,10 +48,118 @@ export const InsightsScreen = () => {
     { name: "Sleep", count: 6, color: "bg-purple-100 text-purple-700" },
   ];
 
+  const getHistoricalInsight = (period: string) => {
+    const insights = {
+      "Last Week": {
+        date: "Dec 16-22, 2024",
+        keyThemes: ["Morning Routine", "Work Balance", "Exercise"],
+        aiSummary: "You showed remarkable consistency in your morning routine last week, which correlated with higher energy levels throughout the day. Your reflections revealed a growing awareness of work-life boundaries.",
+        moodTrend: "Steady improvement with a peak mid-week",
+        highlights: [
+          "Completed morning meditation 6/7 days",
+          "Identified key work stress triggers",
+          "Established evening wind-down routine"
+        ]
+      },
+      "2 Weeks Ago": {
+        date: "Dec 9-15, 2024",
+        keyThemes: ["Relationships", "Self-Care", "Productivity"],
+        aiSummary: "This period showed a focus on nurturing relationships and finding balance. You made significant progress in recognizing your self-care needs and setting healthy boundaries.",
+        moodTrend: "Variable with upward trajectory",
+        highlights: [
+          "Had meaningful conversation with family",
+          "Started weekly friend check-ins",
+          "Implemented digital detox evenings"
+        ]
+      },
+      "Last Month": {
+        date: "November 2024",
+        keyThemes: ["Goal Setting", "Mindfulness", "Health"],
+        aiSummary: "November was a transformative month where you laid the foundation for sustainable habits. Your journal entries showed increased self-awareness and commitment to personal growth.",
+        moodTrend: "Consistent positive growth",
+        highlights: [
+          "Set clear health and wellness goals",
+          "Established daily mindfulness practice",
+          "Improved sleep quality significantly"
+        ]
+      }
+    };
+
+    return insights[period as keyof typeof insights] || {
+      date: period,
+      keyThemes: ["Reflection", "Growth"],
+      aiSummary: "This period showed continued progress in your personal development journey.",
+      moodTrend: "Positive overall trend",
+      highlights: ["Maintained consistent journaling", "Focused on self-improvement"]
+    };
+  };
+
+  if (viewMode === "historical") {
+    const insight = getHistoricalInsight(currentPeriod);
+    
+    return (
+      <div className="p-6 pb-24 max-w-md mx-auto">
+        <div className="mb-6">
+          <Button 
+            variant="ghost" 
+            onClick={() => setViewMode("current")}
+            className="mb-4 text-green-600"
+          >
+            ← Back to Current Insights
+          </Button>
+          <div className="flex items-center justify-between mb-4">
+            <h1 className="text-2xl font-bold text-gray-800">Insight History</h1>
+          </div>
+          
+          {/* Period Navigation */}
+          <div className="flex items-center justify-between mb-4">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigatePeriod("prev")}
+              disabled={currentPeriodIndex >= periods.length - 1}
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </Button>
+            <h2 className="text-lg font-semibold text-gray-700">{currentPeriod}</h2>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigatePeriod("next")}
+              disabled={currentPeriodIndex <= 0}
+            >
+              <ChevronRight className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
+
+        <InsightSnapshot
+          date={insight.date}
+          period={currentPeriod}
+          keyThemes={insight.keyThemes}
+          aiSummary={insight.aiSummary}
+          moodTrend={insight.moodTrend}
+          highlights={insight.highlights}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="p-6 pb-24 max-w-md mx-auto">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-800 mb-2">Your Insights</h1>
+        <div className="flex items-center justify-between mb-2">
+          <h1 className="text-2xl font-bold text-gray-800">Your Insights</h1>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setViewMode("historical")}
+            className="text-blue-600"
+          >
+            <Calendar className="w-4 h-4 mr-1" />
+            History
+          </Button>
+        </div>
         <p className="text-gray-600">
           Insights are updated after each GPT session
         </p>

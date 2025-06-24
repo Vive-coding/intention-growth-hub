@@ -2,6 +2,7 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { MessageCircle, Smile, TrendingUp, Star } from "lucide-react";
+import { LifeMetricsDashboard } from "./LifeMetricsDashboard";
 
 interface DashboardProps {
   onOpenGPT: () => void;
@@ -23,6 +24,9 @@ export const Dashboard = ({ onOpenGPT }: DashboardProps) => {
           Ready to reflect and grow today?
         </p>
       </div>
+
+      {/* Life Metrics Dashboard */}
+      <LifeMetricsDashboard />
 
       {/* Primary CTA */}
       <Card className="mb-6 shadow-lg border-0 bg-gradient-to-r from-green-500 to-green-600">

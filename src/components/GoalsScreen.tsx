@@ -3,10 +3,12 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { Target, Plus, ChevronRight, CheckCircle } from "lucide-react";
+import { Target, Plus, ChevronRight, CheckCircle, History } from "lucide-react";
+import { GoalSnapshot } from "./GoalSnapshot";
 
 export const GoalsScreen = () => {
   const [selectedGoal, setSelectedGoal] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<"current" | "history">("current");
 
   const goals = [
     {
@@ -43,6 +45,78 @@ export const GoalsScreen = () => {
       ]
     }
   ];
+
+  const completedGoals = [
+    {
+      title: "Establish Morning Routine",
+      category: "Productivity",
+      completedDate: "December 15, 2024",
+      finalProgress: 95,
+      successFactors: [
+        "Started with just 5 minutes and gradually increased",
+        "Linked routine to existing habit (making coffee)",
+        "Consistent tracking and self-compassion"
+      ],
+      lessonsLearned: "Small, consistent actions compound over time. The key was not perfection but persistence. Starting small and building momentum proved more effective than attempting dramatic changes immediately.",
+      habits: [
+        { name: "Wake up at 6:30 AM", finalCompletion: 85 },
+        { name: "5-minute meditation", finalCompletion: 92 },
+        { name: "Write 3 gratitudes", finalCompletion: 98 }
+      ]
+    },
+    {
+      title: "Reduce Social Media Usage",
+      category: "Mental Health",
+      completedDate: "November 28, 2024",
+      finalProgress: 88,
+      successFactors: [
+        "Used app time limits effectively",
+        "Replaced scrolling with reading",
+        "Found accountability partner"
+      ],
+      lessonsLearned: "Digital wellness requires intentional design of your environment. Removing apps from home screen and creating friction was more effective than relying on willpower alone.",
+      habits: [
+        { name: "Max 30min social media daily", finalCompletion: 82 },
+        { name: "No phone first hour awake", finalCompletion: 95 },
+        { name: "Evening phone in another room", finalCompletion: 87 }
+      ]
+    }
+  ];
+
+  if (viewMode === "history") {
+    return (
+      <div className="p-6 pb-24 max-w-md mx-auto">
+        <div className="mb-6">
+          <Button 
+            variant="ghost" 
+            onClick={() => setViewMode("current")}
+            className="mb-4 text-green-600"
+          >
+            ← Back to Current Goals
+          </Button>
+          <h1 className="text-2xl font-bold text-gray-800 mb-2">Goal History</h1>
+          <p className="text-gray-600">
+            Your completed goals and their success stories
+          </p>
+        </div>
+
+        <div className="space-y-4">
+          {completedGoals.map((goal, index) => (
+            <GoalSnapshot
+              key={index}
+              title={goal.title}
+              category={goal.category}
+              completedDate={goal.completedDate}
+              finalProgress={goal.finalProgress}
+              successFactors={goal.successFactors}
+              lessonsLearned={goal.lessonsLearned}
+              habits={goal.habits}
+            />
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   if (selectedGoal) {
     const goal = goals.find(g => g.id === selectedGoal);
@@ -103,7 +177,18 @@ export const GoalsScreen = () => {
   return (
     <div className="p-6 pb-24 max-w-md mx-auto">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-800 mb-2">Your Goals</h1>
+        <div className="flex items-center justify-between mb-2">
+          <h1 className="text-2xl font-bold text-gray-800">Your Goals</h1>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setViewMode("history")}
+            className="text-blue-600"
+          >
+            <History className="w-4 h-4 mr-1" />
+            History
+          </Button>
+        </div>
         <p className="text-gray-600">
           Personal growth goals based on your insights
         </p>
