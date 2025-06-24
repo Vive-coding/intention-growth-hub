@@ -1,17 +1,31 @@
 
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { MessageCircle, Smile, TrendingUp, Star } from "lucide-react";
 import { LifeMetricsDashboard } from "./LifeMetricsDashboard";
+import { DetailedLifeOverview } from "./DetailedLifeOverview";
 
 interface DashboardProps {
   onOpenGPT: () => void;
 }
 
 export const Dashboard = ({ onOpenGPT }: DashboardProps) => {
+  const [selectedMetric, setSelectedMetric] = useState<string | null>(null);
+  
   const currentTime = new Date().getHours();
   const greeting = currentTime < 12 ? "Good morning" : currentTime < 18 ? "Good afternoon" : "Good evening";
   const userName = "Alex";
+
+  // If a metric is selected, show the detailed view
+  if (selectedMetric) {
+    return (
+      <DetailedLifeOverview 
+        metric={selectedMetric} 
+        onBack={() => setSelectedMetric(null)} 
+      />
+    );
+  }
 
   return (
     <div className="p-6 pb-24 max-w-md mx-auto">
@@ -26,7 +40,7 @@ export const Dashboard = ({ onOpenGPT }: DashboardProps) => {
       </div>
 
       {/* Life Metrics Dashboard */}
-      <LifeMetricsDashboard />
+      <LifeMetricsDashboard onMetricClick={setSelectedMetric} />
 
       {/* Primary CTA */}
       <Card className="mb-6 shadow-lg border-0 bg-gradient-to-r from-green-500 to-green-600">

@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,7 +10,11 @@ interface LifeMetric {
   bgColor: string;
 }
 
-export const LifeMetricsDashboard = () => {
+interface LifeMetricsDashboardProps {
+  onMetricClick?: (metric: string) => void;
+}
+
+export const LifeMetricsDashboard = ({ onMetricClick }: LifeMetricsDashboardProps) => {
   const [selectedPeriod, setSelectedPeriod] = useState("This Month");
   const [showDropdown, setShowDropdown] = useState(false);
 
@@ -112,7 +115,11 @@ export const LifeMetricsDashboard = () => {
       <CardContent>
         <div className="grid grid-cols-3 gap-4">
           {metrics.map((metric) => (
-            <div key={metric.category} className="flex flex-col items-center space-y-2">
+            <div 
+              key={metric.category} 
+              className="flex flex-col items-center space-y-2 cursor-pointer hover:bg-gray-50 p-2 rounded-lg transition-colors"
+              onClick={() => onMetricClick?.(metric.category)}
+            >
               <CircularProgress 
                 progress={metric.progress} 
                 color={metric.color}
