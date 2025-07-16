@@ -12,13 +12,20 @@ interface LifeMetric {
 
 interface LifeMetricsDashboardProps {
   onMetricClick?: (metric: string) => void;
+  selectedPeriod?: string;
+  onPeriodChange?: (period: string) => void;
 }
 
-export const LifeMetricsDashboard = ({ onMetricClick }: LifeMetricsDashboardProps) => {
-  const [selectedPeriod, setSelectedPeriod] = useState("This Month");
+export const LifeMetricsDashboard = ({ 
+  onMetricClick, 
+  selectedPeriod: externalPeriod, 
+  onPeriodChange 
+}: LifeMetricsDashboardProps) => {
+  const [selectedPeriod, setSelectedPeriod] = useState(externalPeriod || "This Month");
   const [showDropdown, setShowDropdown] = useState(false);
 
   const periods = ["This Month", "Last 3 Months", "Last 6 Months", "This Year", "All Time"];
+  const currentPeriod = externalPeriod || selectedPeriod;
 
   const getMetricsForPeriod = (period: string): LifeMetric[] => {
     const baseMetrics = [
@@ -38,7 +45,7 @@ export const LifeMetricsDashboard = ({ onMetricClick }: LifeMetricsDashboardProp
     }));
   };
 
-  const metrics = getMetricsForPeriod(selectedPeriod);
+  const metrics = getMetricsForPeriod(currentPeriod);
 
   const CircularProgress = ({ progress, color, bgColor }: { progress: number; color: string; bgColor: string }) => {
     const radius = 35;
@@ -90,7 +97,7 @@ export const LifeMetricsDashboard = ({ onMetricClick }: LifeMetricsDashboardProp
               onClick={() => setShowDropdown(!showDropdown)}
               className="flex items-center space-x-2"
             >
-              <span className="text-sm">{selectedPeriod}</span>
+              <span className="text-sm">{currentPeriod}</span>
               <ChevronDown className="w-4 h-4" />
             </Button>
             {showDropdown && (
@@ -100,6 +107,7 @@ export const LifeMetricsDashboard = ({ onMetricClick }: LifeMetricsDashboardProp
                     key={period}
                     onClick={() => {
                       setSelectedPeriod(period);
+                      onPeriodChange?.(period);
                       setShowDropdown(false);
                     }}
                     className="block w-full text-left px-3 py-2 text-sm hover:bg-gray-50 first:rounded-t-lg last:rounded-b-lg"

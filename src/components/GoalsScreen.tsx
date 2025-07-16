@@ -3,12 +3,25 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { Target, Plus, ChevronRight, CheckCircle, History } from "lucide-react";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Target, Plus, ChevronRight, CheckCircle, History, ArrowLeft } from "lucide-react";
 import { GoalSnapshot } from "./GoalSnapshot";
+import { LifeMetricsDashboard } from "./LifeMetricsDashboard";
+import { useLifeMetricView } from "@/hooks/useLifeMetricView";
 
 export const GoalsScreen = () => {
   const [selectedGoal, setSelectedGoal] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"current" | "history">("current");
+  const {
+    viewMode: metricViewMode,
+    selectedMetric,
+    timePeriod,
+    handleViewModeChange,
+    handleMetricClick,
+    clearMetricFilter,
+    setTimePeriod,
+    getBreadcrumbs
+  } = useLifeMetricView();
 
   const goals = [
     {
@@ -82,6 +95,10 @@ export const GoalsScreen = () => {
       ]
     }
   ];
+
+  const getGoalsByMetric = (metric: string) => {
+    return goals.filter(goal => goal.category === metric);
+  };
 
   if (viewMode === "history") {
     return (
@@ -174,11 +191,26 @@ export const GoalsScreen = () => {
     );
   }
 
+  const currentGoals = selectedMetric ? getGoalsByMetric(selectedMetric) : goals;
+
   return (
     <div className="p-6 pb-24 max-w-md mx-auto">
       <div className="mb-6">
         <div className="flex items-center justify-between mb-2">
-          <h1 className="text-2xl font-bold text-gray-800">Your Goals</h1>
+          <div className="flex items-center space-x-2">
+            <h1 className="text-2xl font-bold text-gray-800">Your Goals</h1>
+            {selectedMetric && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={clearMetricFilter}
+                className="text-gray-600"
+              >
+                <ArrowLeft className="w-4 h-4 mr-1" />
+                Back
+              </Button>
+            )}
+          </div>
           <Button
             variant="outline"
             size="sm"
@@ -189,50 +221,119 @@ export const GoalsScreen = () => {
             History
           </Button>
         </div>
+        
+        {/* Breadcrumbs */}
+        {(selectedMetric || getBreadcrumbs().length > 0) && (
+          <div className="flex items-center space-x-2 mb-2">
+            <span className="text-sm text-gray-500">Goals</span>
+            {getBreadcrumbs().map((crumb, index) => (
+              <span key={index} className="text-sm text-gray-500">
+                › {crumb}
+              </span>
+            ))}
+          </div>
+        )}
+        
         <p className="text-gray-600">
           Personal growth goals based on your insights
         </p>
       </div>
 
-      <div className="space-y-4 mb-6">
-        {goals.map((goal) => (
-          <Card 
-            key={goal.id} 
-            className="shadow-md border-0 bg-white/80 backdrop-blur-sm cursor-pointer hover:shadow-lg transition-shadow"
-            onClick={() => setSelectedGoal(goal.id)}
-          >
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between mb-3">
-                <div>
-                  <h3 className="font-semibold text-gray-800">{goal.title}</h3>
-                  <p className="text-sm text-gray-600">{goal.category}</p>
-                </div>
-                <ChevronRight className="w-5 h-5 text-gray-400" />
+      <Tabs value={metricViewMode} onValueChange={handleViewModeChange} className="mb-6">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="overall">Overall View</TabsTrigger>
+          <TabsTrigger value="by-metric">By Life Metric</TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value="overall" className="space-y-4">
+          {renderGoalsContent()}
+        </TabsContent>
+        
+        <TabsContent value="by-metric" className="space-y-4">
+          <LifeMetricsDashboard 
+            onMetricClick={handleMetricClick} 
+            selectedPeriod={timePeriod}
+            onPeriodChange={setTimePeriod}
+          />
+          {selectedMetric && (
+            <div className="space-y-4">
+              <div className="text-center">
+                <h2 className="text-lg font-semibold text-gray-800 mb-2">
+                  {selectedMetric} Goals
+                </h2>
+                <p className="text-sm text-gray-600">
+                  Your active goals for {selectedMetric.toLowerCase()}
+                </p>
               </div>
-              
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium text-gray-700">Progress</span>
-                <span className="text-sm font-bold text-green-600">{goal.progress}%</span>
-              </div>
-              <Progress value={goal.progress} />
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      <Card className="shadow-md border-0 bg-gradient-to-r from-green-500 to-green-600">
-        <CardContent className="p-4">
-          <Button 
-            className="w-full bg-white text-green-600 hover:bg-green-50 py-3 rounded-full font-semibold"
-          >
-            <Plus className="w-5 h-5 mr-2" />
-            Add New Goal
-          </Button>
-          <p className="text-center text-green-100 text-sm mt-2">
-            Based on your GPT conversations, we'll suggest personalized goals
-          </p>
-        </CardContent>
-      </Card>
+              {renderGoalsContent()}
+            </div>
+          )}
+          {!selectedMetric && (
+            <div className="text-center py-8">
+              <p className="text-gray-600">
+                Click on a life metric above to see related goals
+              </p>
+            </div>
+          )}
+        </TabsContent>
+      </Tabs>
     </div>
   );
+
+  function renderGoalsContent() {
+    return (
+      <>
+        <div className="space-y-4 mb-6">
+          {currentGoals.length === 0 ? (
+            <div className="text-center py-8">
+              <p className="text-gray-600">
+                {selectedMetric ? `No active goals for ${selectedMetric}` : "No active goals"}
+              </p>
+              <p className="text-sm text-gray-500 mt-1">
+                Add a new goal to get started!
+              </p>
+            </div>
+          ) : (
+            currentGoals.map((goal) => (
+              <Card 
+                key={goal.id} 
+                className="shadow-md border-0 bg-white/80 backdrop-blur-sm cursor-pointer hover:shadow-lg transition-shadow"
+                onClick={() => setSelectedGoal(goal.id)}
+              >
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <div>
+                      <h3 className="font-semibold text-gray-800">{goal.title}</h3>
+                      <p className="text-sm text-gray-600">{goal.category}</p>
+                    </div>
+                    <ChevronRight className="w-5 h-5 text-gray-400" />
+                  </div>
+                  
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium text-gray-700">Progress</span>
+                    <span className="text-sm font-bold text-green-600">{goal.progress}%</span>
+                  </div>
+                  <Progress value={goal.progress} />
+                </CardContent>
+              </Card>
+            ))
+          )}
+        </div>
+
+        <Card className="shadow-md border-0 bg-gradient-to-r from-green-500 to-green-600">
+          <CardContent className="p-4">
+            <Button 
+              className="w-full bg-white text-green-600 hover:bg-green-50 py-3 rounded-full font-semibold"
+            >
+              <Plus className="w-5 h-5 mr-2" />
+              {selectedMetric ? `Add ${selectedMetric} Goal` : "Add New Goal"}
+            </Button>
+            <p className="text-center text-green-100 text-sm mt-2">
+              Based on your GPT conversations, we'll suggest personalized goals
+            </p>
+          </CardContent>
+        </Card>
+      </>
+    );
+  }
 };
