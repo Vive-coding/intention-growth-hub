@@ -54,8 +54,8 @@ export const LifeMetricsDashboard = ({
     const strokeDashoffset = circumference - (progress / 100) * circumference;
 
     return (
-      <div className="relative w-20 h-20">
-        <svg className="w-20 h-20 transform -rotate-90" viewBox="0 0 80 80">
+      <div className="relative w-20 h-20 lg:w-24 lg:h-24">
+        <svg className="w-20 h-20 lg:w-24 lg:h-24 transform -rotate-90" viewBox="0 0 80 80">
           <circle
             cx="40"
             cy="40"
@@ -79,7 +79,7 @@ export const LifeMetricsDashboard = ({
           />
         </svg>
         <div className="absolute inset-0 flex items-center justify-center">
-          <span className={`text-sm font-bold ${color}`}>{progress}%</span>
+          <span className={`text-sm lg:text-base font-bold ${color}`}>{progress}%</span>
         </div>
       </div>
     );
@@ -121,7 +121,7 @@ export const LifeMetricsDashboard = ({
         </div>
       </CardHeader>
       <CardContent>
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-3 lg:grid-cols-6 gap-4">
           {metrics.map((metric) => (
             <div 
               key={metric.category} 

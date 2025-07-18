@@ -7,6 +7,7 @@ import { GoalsScreen } from "@/components/GoalsScreen";
 import { CommunityScreen } from "@/components/CommunityScreen";
 import { ProfileScreen } from "@/components/ProfileScreen";
 import { NavigationBar } from "@/components/NavigationBar";
+import { ResponsiveSidebar } from "@/components/ResponsiveSidebar";
 import { GPTModal } from "@/components/GPTModal";
 
 const Index = () => {
@@ -42,7 +43,16 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-blue-50">
-      {renderScreen()}
+      {hasCompletedOnboarding && (
+        <ResponsiveSidebar 
+          currentScreen={currentScreen} 
+          onNavigate={setCurrentScreen} 
+        />
+      )}
+      
+      <div className={hasCompletedOnboarding ? "lg:ml-64" : ""}>
+        {renderScreen()}
+      </div>
       
       {hasCompletedOnboarding && (
         <NavigationBar 

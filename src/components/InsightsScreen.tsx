@@ -207,90 +207,92 @@ export const InsightsScreen = () => {
   const currentData = selectedMetric ? getInsightsByMetric(selectedMetric) : { moodData, themes, aiInsight: "I've noticed you feel most energized and creative when you complete your morning routine. Consider protecting this time as it seems to set a positive tone for your entire day." };
 
   return (
-    <div className="p-6 pb-24 max-w-md mx-auto">
-      <div className="mb-6">
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center space-x-2">
-            <h1 className="text-2xl font-bold text-gray-800">Your Insights</h1>
-            {selectedMetric && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={clearMetricFilter}
-                className="text-gray-600"
-              >
-                <ArrowLeft className="w-4 h-4 mr-1" />
-                Back
-              </Button>
-            )}
+    <div className="p-4 lg:p-8 pb-24 lg:pb-8">
+      <div className="max-w-7xl mx-auto">
+        <div className="mb-6">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center space-x-2">
+              <h1 className="text-2xl lg:text-3xl font-bold text-gray-800">Your Insights</h1>
+              {selectedMetric && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={clearMetricFilter}
+                  className="text-gray-600"
+                >
+                  <ArrowLeft className="w-4 h-4 mr-1" />
+                  Back
+                </Button>
+              )}
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setViewMode("historical")}
+              className="text-blue-600"
+            >
+              <Calendar className="w-4 h-4 mr-1" />
+              History
+            </Button>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setViewMode("historical")}
-            className="text-blue-600"
-          >
-            <Calendar className="w-4 h-4 mr-1" />
-            History
-          </Button>
+          
+          {/* Breadcrumbs */}
+          {(selectedMetric || getBreadcrumbs().length > 0) && (
+            <div className="flex items-center space-x-2 mb-2">
+              <span className="text-sm text-gray-500">Insights</span>
+              {getBreadcrumbs().map((crumb, index) => (
+                <span key={index} className="text-sm text-gray-500">
+                  › {crumb}
+                </span>
+              ))}
+            </div>
+          )}
+          
+          <p className="text-gray-600">
+            Insights are updated after each GPT session
+          </p>
         </div>
-        
-        {/* Breadcrumbs */}
-        {(selectedMetric || getBreadcrumbs().length > 0) && (
-          <div className="flex items-center space-x-2 mb-2">
-            <span className="text-sm text-gray-500">Insights</span>
-            {getBreadcrumbs().map((crumb, index) => (
-              <span key={index} className="text-sm text-gray-500">
-                › {crumb}
-              </span>
-            ))}
-          </div>
-        )}
-        
-        <p className="text-gray-600">
-          Insights are updated after each GPT session
-        </p>
-      </div>
 
-      <Tabs value={metricViewMode} onValueChange={handleViewModeChange} className="mb-6">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="overall">Overall View</TabsTrigger>
-          <TabsTrigger value="by-metric">By Life Metric</TabsTrigger>
-        </TabsList>
-        
-        <TabsContent value="overall" className="space-y-4">
-          {/* Overall insights content */}
-          {renderInsightsContent()}
-        </TabsContent>
-        
-        <TabsContent value="by-metric" className="space-y-4">
-          <LifeMetricsDashboard 
-            onMetricClick={handleMetricClick} 
-            selectedPeriod={timePeriod}
-            onPeriodChange={setTimePeriod}
-          />
-          {selectedMetric && (
-            <div className="space-y-4">
-              <div className="text-center">
-                <h2 className="text-lg font-semibold text-gray-800 mb-2">
-                  {selectedMetric} Insights
-                </h2>
-                <p className="text-sm text-gray-600">
-                  Focused insights for your {selectedMetric.toLowerCase()} journey
+        <Tabs value={metricViewMode} onValueChange={handleViewModeChange} className="mb-6">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="overall">Overall View</TabsTrigger>
+            <TabsTrigger value="by-metric">By Life Metric</TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="overall" className="space-y-4">
+            {/* Overall insights content */}
+            {renderInsightsContent()}
+          </TabsContent>
+          
+          <TabsContent value="by-metric" className="space-y-4">
+            <LifeMetricsDashboard 
+              onMetricClick={handleMetricClick} 
+              selectedPeriod={timePeriod}
+              onPeriodChange={setTimePeriod}
+            />
+            {selectedMetric && (
+              <div className="space-y-4">
+                <div className="text-center">
+                  <h2 className="text-lg font-semibold text-gray-800 mb-2">
+                    {selectedMetric} Insights
+                  </h2>
+                  <p className="text-sm text-gray-600">
+                    Focused insights for your {selectedMetric.toLowerCase()} journey
+                  </p>
+                </div>
+                {renderInsightsContent()}
+              </div>
+            )}
+            {!selectedMetric && (
+              <div className="text-center py-8">
+                <p className="text-gray-600">
+                  Click on a life metric above to see focused insights
                 </p>
               </div>
-              {renderInsightsContent()}
-            </div>
-          )}
-          {!selectedMetric && (
-            <div className="text-center py-8">
-              <p className="text-gray-600">
-                Click on a life metric above to see focused insights
-              </p>
-            </div>
-          )}
-        </TabsContent>
-      </Tabs>
+            )}
+          </TabsContent>
+        </Tabs>
+      </div>
     </div>
   );
 

@@ -16,7 +16,7 @@ export const NavigationBar = ({ currentScreen, onNavigate }: NavigationBarProps)
   ];
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-md border-t border-gray-200">
+    <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-md border-t border-gray-200">
       <div className="flex justify-around items-center py-2 max-w-md mx-auto">
         {navItems.map((item) => {
           const Icon = item.icon;
