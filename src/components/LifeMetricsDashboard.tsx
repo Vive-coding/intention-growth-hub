@@ -54,8 +54,8 @@ export const LifeMetricsDashboard = ({
     const strokeDashoffset = circumference - (progress / 100) * circumference;
 
     return (
-      <div className="relative w-20 h-20 lg:w-24 lg:h-24">
-        <svg className="w-20 h-20 lg:w-24 lg:h-24 transform -rotate-90" viewBox="0 0 80 80">
+      <div className="relative w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 lg:w-20 lg:h-20 xl:w-24 xl:h-24">
+        <svg className="w-full h-full transform -rotate-90" viewBox="0 0 80 80">
           <circle
             cx="40"
             cy="40"
@@ -79,7 +79,7 @@ export const LifeMetricsDashboard = ({
           />
         </svg>
         <div className="absolute inset-0 flex items-center justify-center">
-          <span className={`text-sm lg:text-base font-bold ${color}`}>{progress}%</span>
+          <span className={`text-xs sm:text-sm md:text-base lg:text-sm xl:text-base font-bold ${color}`}>{progress}%</span>
         </div>
       </div>
     );
@@ -121,7 +121,7 @@ export const LifeMetricsDashboard = ({
         </div>
       </CardHeader>
       <CardContent>
-        <div className="grid grid-cols-3 lg:grid-cols-6 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4">
           {metrics.map((metric) => (
             <div 
               key={metric.category} 
@@ -133,7 +133,7 @@ export const LifeMetricsDashboard = ({
                 color={metric.color}
                 bgColor={metric.bgColor}
               />
-              <span className="text-xs font-medium text-gray-700 text-center leading-tight">
+              <span className="text-xs sm:text-xs md:text-sm lg:text-xs xl:text-sm font-medium text-gray-700 text-center leading-tight">
                 {metric.category}
               </span>
             </div>
