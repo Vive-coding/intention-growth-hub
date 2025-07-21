@@ -87,7 +87,7 @@ export const LifeMetricsDashboard = ({
   };
 
   return (
-    <Card className="mb-6 shadow-md border-0 bg-white/80 backdrop-blur-sm">
+    <Card className="mb-6 shadow-md border-0 bg-white/80 backdrop-blur-sm h-[400px]">
       <CardHeader className="pb-4">
         <div className="flex items-center justify-between">
           <CardTitle className="text-lg">Your Life Overview</CardTitle>

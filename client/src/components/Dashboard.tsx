@@ -97,8 +97,8 @@ export const Dashboard = ({ onOpenGPT }: DashboardProps) => {
 
           {/* Right Column - Chat with Companion (Desktop) */}
           <div className="hidden lg:block">
-            <Card className="shadow-lg border-0 bg-gradient-to-r from-green-500 to-green-600">
-              <CardContent className="p-6 flex flex-col justify-center">
+            <Card className="shadow-lg border-0 bg-gradient-to-r from-green-500 to-green-600 h-[400px]">
+              <CardContent className="p-6 h-full flex flex-col justify-center">
                 <div className="text-center text-white">
                   <MessageCircle className="w-12 h-12 mx-auto mb-4 opacity-90" />
                   <h2 className="text-xl font-semibold mb-3">
