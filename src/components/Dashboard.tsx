@@ -45,30 +45,9 @@ export const Dashboard = ({ onOpenGPT }: DashboardProps) => {
           {/* Left Column - Life Metrics */}
           <div className="space-y-6">
             <LifeMetricsDashboard onMetricClick={setSelectedMetric} />
-            
-            {/* Primary CTA */}
-            <Card className="shadow-lg border-0 bg-gradient-to-r from-green-500 to-green-600">
-              <CardContent className="p-6">
-                <div className="text-center text-white">
-                  <MessageCircle className="w-12 h-12 mx-auto mb-4 opacity-90" />
-                  <h2 className="text-xl font-semibold mb-3">
-                    Chat with your Companion
-                  </h2>
-                  <p className="text-green-100 mb-6">
-                    Your AI companion is ready to listen and guide you through your thoughts
-                  </p>
-                  <Button 
-                    onClick={onOpenGPT}
-                    className="w-full bg-white text-green-600 hover:bg-green-50 py-3 rounded-full font-semibold"
-                  >
-                    Open GPT Chat
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
           </div>
 
-          {/* Right Column - Daily Cards */}
+          {/* Right Column - Daily Cards + Chat Button */}
           <div className="space-y-4 mt-6 lg:mt-0">
             {/* Today's Mood */}
             <Card className="shadow-md border-0 bg-white/80 backdrop-blur-sm">
@@ -111,6 +90,27 @@ export const Dashboard = ({ onOpenGPT }: DashboardProps) => {
                     <h3 className="font-semibold text-gray-800">AI Insight</h3>
                     <p className="text-sm text-gray-600">Your energy levels peak when you journal in the morning</p>
                   </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Chat with Companion - Moved to bottom */}
+            <Card className="shadow-lg border-0 bg-gradient-to-r from-green-500 to-green-600">
+              <CardContent className="p-6">
+                <div className="text-center text-white">
+                  <MessageCircle className="w-12 h-12 mx-auto mb-4 opacity-90" />
+                  <h2 className="text-xl font-semibold mb-3">
+                    Chat with your Companion
+                  </h2>
+                  <p className="text-green-100 mb-6">
+                    Your AI companion is ready to listen and guide you through your thoughts
+                  </p>
+                  <Button 
+                    onClick={onOpenGPT}
+                    className="w-full bg-white text-green-600 hover:bg-green-50 py-3 rounded-full font-semibold"
+                  >
+                    Open GPT Chat
+                  </Button>
                 </div>
               </CardContent>
             </Card>

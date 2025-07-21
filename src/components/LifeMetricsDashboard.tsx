@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -48,29 +49,29 @@ export const LifeMetricsDashboard = ({
   const metrics = getMetricsForPeriod(currentPeriod);
 
   const CircularProgress = ({ progress, color, bgColor }: { progress: number; color: string; bgColor: string }) => {
-    const radius = 35;
+    const radius = 30;
     const circumference = 2 * Math.PI * radius;
     const strokeDasharray = circumference;
     const strokeDashoffset = circumference - (progress / 100) * circumference;
 
     return (
-      <div className="relative w-20 h-20 lg:w-24 lg:h-24">
-        <svg className="w-20 h-20 lg:w-24 lg:h-24 transform -rotate-90" viewBox="0 0 80 80">
+      <div className="relative w-16 h-16 sm:w-20 sm:h-20">
+        <svg className="w-16 h-16 sm:w-20 sm:h-20 transform -rotate-90" viewBox="0 0 64 64">
           <circle
-            cx="40"
-            cy="40"
+            cx="32"
+            cy="32"
             r={radius}
             stroke="currentColor"
-            strokeWidth="6"
+            strokeWidth="4"
             fill="transparent"
             className="text-gray-200"
           />
           <circle
-            cx="40"
-            cy="40"
+            cx="32"
+            cy="32"
             r={radius}
             stroke="currentColor"
-            strokeWidth="6"
+            strokeWidth="4"
             fill="transparent"
             strokeDasharray={strokeDasharray}
             strokeDashoffset={strokeDashoffset}
@@ -79,7 +80,7 @@ export const LifeMetricsDashboard = ({
           />
         </svg>
         <div className="absolute inset-0 flex items-center justify-center">
-          <span className={`text-sm lg:text-base font-bold ${color}`}>{progress}%</span>
+          <span className={`text-xs sm:text-sm font-bold ${color}`}>{progress}%</span>
         </div>
       </div>
     );
@@ -121,7 +122,7 @@ export const LifeMetricsDashboard = ({
         </div>
       </CardHeader>
       <CardContent>
-        <div className="grid grid-cols-3 lg:grid-cols-6 gap-4">
+        <div className="grid grid-cols-3 grid-rows-2 gap-3 sm:gap-4">
           {metrics.map((metric) => (
             <div 
               key={metric.category} 
