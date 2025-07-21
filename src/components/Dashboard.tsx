@@ -42,59 +42,61 @@ export const Dashboard = ({ onOpenGPT }: DashboardProps) => {
 
         {/* Desktop Layout: Two Column */}
         <div className="lg:grid lg:grid-cols-2 lg:gap-8">
-          {/* Left Column - Life Metrics */}
+          {/* Left Column - Life Metrics + Daily Cards */}
           <div className="space-y-6">
             <LifeMetricsDashboard onMetricClick={setSelectedMetric} />
+            
+            {/* Daily Cards - Moved from right column */}
+            <div className="space-y-4">
+              {/* Today's Mood */}
+              <Card className="shadow-md border-0 bg-white/80 backdrop-blur-sm">
+                <CardContent className="p-4">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center">
+                      <Smile className="w-6 h-6 text-yellow-600" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-gray-800">Today's Mood</h3>
+                      <p className="text-sm text-gray-600">Feeling optimistic and focused</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Small Win */}
+              <Card className="shadow-md border-0 bg-white/80 backdrop-blur-sm">
+                <CardContent className="p-4">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
+                      <Star className="w-6 h-6 text-purple-600" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-gray-800">Small Win 🎉</h3>
+                      <p className="text-sm text-gray-600">Completed morning meditation - 5 days in a row!</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Recent Insight */}
+              <Card className="shadow-md border-0 bg-white/80 backdrop-blur-sm">
+                <CardContent className="p-4">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+                      <TrendingUp className="w-6 h-6 text-blue-600" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-gray-800">AI Insight</h3>
+                      <p className="text-sm text-gray-600">Your energy levels peak when you journal in the morning</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
           </div>
 
-          {/* Right Column - Daily Cards + Chat Button */}
-          <div className="space-y-4 mt-6 lg:mt-0">
-            {/* Today's Mood */}
-            <Card className="shadow-md border-0 bg-white/80 backdrop-blur-sm">
-              <CardContent className="p-4">
-                <div className="flex items-center space-x-3">
-                  <div className="w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center">
-                    <Smile className="w-6 h-6 text-yellow-600" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-gray-800">Today's Mood</h3>
-                    <p className="text-sm text-gray-600">Feeling optimistic and focused</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Small Win */}
-            <Card className="shadow-md border-0 bg-white/80 backdrop-blur-sm">
-              <CardContent className="p-4">
-                <div className="flex items-center space-x-3">
-                  <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
-                    <Star className="w-6 h-6 text-purple-600" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-gray-800">Small Win 🎉</h3>
-                    <p className="text-sm text-gray-600">Completed morning meditation - 5 days in a row!</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Recent Insight */}
-            <Card className="shadow-md border-0 bg-white/80 backdrop-blur-sm">
-              <CardContent className="p-4">
-                <div className="flex items-center space-x-3">
-                  <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
-                    <TrendingUp className="w-6 h-6 text-blue-600" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-gray-800">AI Insight</h3>
-                    <p className="text-sm text-gray-600">Your energy levels peak when you journal in the morning</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Chat with Companion - Moved to bottom */}
+          {/* Right Column - Chat with Companion */}
+          <div className="mt-6 lg:mt-0">
             <Card className="shadow-lg border-0 bg-gradient-to-r from-green-500 to-green-600">
               <CardContent className="p-6">
                 <div className="text-center text-white">
