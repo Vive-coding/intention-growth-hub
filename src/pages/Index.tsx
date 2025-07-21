@@ -8,11 +8,11 @@ import { CommunityScreen } from "@/components/CommunityScreen";
 import { ProfileScreen } from "@/components/ProfileScreen";
 import { NavigationBar } from "@/components/NavigationBar";
 import { ResponsiveSidebar } from "@/components/ResponsiveSidebar";
-import { ChatPanel } from "@/components/ChatPanel";
+import { GPTModal } from "@/components/GPTModal";
 
 const Index = () => {
   const [currentScreen, setCurrentScreen] = useState("onboarding");
-  const [showChatPanel, setShowChatPanel] = useState(false);
+  const [showGPTModal, setShowGPTModal] = useState(false);
   const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState(false);
 
   const handleOnboardingComplete = () => {
@@ -27,7 +27,7 @@ const Index = () => {
 
     switch (currentScreen) {
       case "home":
-        return <Dashboard onOpenGPT={() => setShowChatPanel(true)} />;
+        return <Dashboard onOpenGPT={() => setShowGPTModal(true)} />;
       case "insights":
         return <InsightsScreen />;
       case "goals":
@@ -37,7 +37,7 @@ const Index = () => {
       case "profile":
         return <ProfileScreen />;
       default:
-        return <Dashboard onOpenGPT={() => setShowChatPanel(true)} />;
+        return <Dashboard onOpenGPT={() => setShowGPTModal(true)} />;
     }
   };
 
@@ -50,7 +50,7 @@ const Index = () => {
         />
       )}
       
-      <div className={`${hasCompletedOnboarding ? "lg:ml-64" : ""} ${showChatPanel ? "xl:mr-80 2xl:mr-96" : ""}`}>
+      <div className={hasCompletedOnboarding ? "lg:ml-64" : ""}>
         {renderScreen()}
       </div>
       
@@ -61,12 +61,10 @@ const Index = () => {
         />
       )}
       
-      {hasCompletedOnboarding && (
-        <ChatPanel 
-          isOpen={showChatPanel} 
-          onToggle={() => setShowChatPanel(!showChatPanel)} 
-        />
-      )}
+      <GPTModal 
+        isOpen={showGPTModal} 
+        onClose={() => setShowGPTModal(false)} 
+      />
     </div>
   );
 };

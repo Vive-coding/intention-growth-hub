@@ -46,8 +46,8 @@ export const Dashboard = ({ onOpenGPT }: DashboardProps) => {
           <div className="space-y-6">
             <LifeMetricsDashboard onMetricClick={setSelectedMetric} />
             
-            {/* Primary CTA - Hidden on larger screens when chat panel is available */}
-            <Card className="shadow-lg border-0 bg-gradient-to-r from-green-500 to-green-600 xl:hidden">
+            {/* Primary CTA */}
+            <Card className="shadow-lg border-0 bg-gradient-to-r from-green-500 to-green-600">
               <CardContent className="p-6">
                 <div className="text-center text-white">
                   <MessageCircle className="w-12 h-12 mx-auto mb-4 opacity-90" />
@@ -61,7 +61,7 @@ export const Dashboard = ({ onOpenGPT }: DashboardProps) => {
                     onClick={onOpenGPT}
                     className="w-full bg-white text-green-600 hover:bg-green-50 py-3 rounded-full font-semibold"
                   >
-                    Open Chat Panel
+                    Open GPT Chat
                   </Button>
                 </div>
               </CardContent>
