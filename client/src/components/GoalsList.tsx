@@ -123,8 +123,8 @@ export const GoalsList = () => {
                     <div className="flex-1">
                       <div className="flex items-center gap-3 mb-2">
                         <h3 className="font-semibold text-gray-800">{goal.title}</h3>
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${getCategoryColor(goal.category)}`}>
-                          {goal.category}
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${getCategoryColor(goal.category || 'Personal Growth')}`}>
+                          {goal.category || 'Personal Growth'}
                         </span>
                       </div>
                       
