@@ -31,6 +31,7 @@ export interface IStorage {
   // Goal operations
   getUserGoals(userId: string): Promise<GoalDefinition[]>;
   getUserGoalInstances(userId: string): Promise<GoalInstance[]>;
+  updateGoalProgress(goalInstanceId: string, currentValue: number): Promise<GoalInstance>;
   createGoal(goal: InsertGoalDefinition): Promise<GoalDefinition>;
   createGoalInstance(instance: InsertGoalInstance): Promise<GoalInstance>;
 }
@@ -153,6 +154,21 @@ export class DatabaseStorage implements IStorage {
       .values(instance)
       .returning();
     return created;
+  }
+
+  async updateGoalProgress(goalInstanceId: string, currentValue: number): Promise<GoalInstance> {
+    const [updatedInstance] = await db
+      .update(goalInstances)
+      .set({ 
+        currentValue: currentValue,
+        status: sql`CASE 
+          WHEN ${currentValue} >= target_value THEN 'completed'
+          ELSE 'active'
+        END`,
+      })
+      .where(eq(goalInstances.id, goalInstanceId))
+      .returning();
+    return updatedInstance;
   }
 }
 

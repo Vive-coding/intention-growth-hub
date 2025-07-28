@@ -7,6 +7,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Target, Plus, ChevronRight, CheckCircle, History, ArrowLeft } from "lucide-react";
 import { GoalSnapshot } from "./GoalSnapshot";
 import { LifeMetricsDashboard } from "./LifeMetricsDashboard";
+import { GoalsList } from "./GoalsList";
 import { useLifeMetricView } from "@/hooks/useLifeMetricView";
 
 export const GoalsScreen = () => {
@@ -247,7 +248,7 @@ export const GoalsScreen = () => {
           </TabsList>
           
           <TabsContent value="overall" className="space-y-4">
-            {renderGoalsContent()}
+            <GoalsList />
           </TabsContent>
           
           <TabsContent value="by-metric" className="space-y-4">

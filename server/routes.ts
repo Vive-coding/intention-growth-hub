@@ -91,6 +91,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Update goal progress
+  app.patch('/api/goals/:instanceId/progress', isAuthenticated, async (req: any, res) => {
+    try {
+      const { instanceId } = req.params;
+      const { currentValue } = req.body;
+      
+      if (typeof currentValue !== 'number' || currentValue < 0) {
+        return res.status(400).json({ message: "Invalid progress value" });
+      }
+
+      const updatedInstance = await storage.updateGoalProgress(instanceId, currentValue);
+      res.json(updatedInstance);
+    } catch (error) {
+      console.error("Error updating goal progress:", error);
+      res.status(500).json({ message: "Failed to update goal progress" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
