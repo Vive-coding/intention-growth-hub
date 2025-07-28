@@ -6,6 +6,7 @@ import {
   type User,
   type UpsertUser,
   type LifeMetricDefinition,
+  type LifeMetricWithProgress,
   type InsertLifeMetricDefinition,
   type GoalDefinition,
   type InsertGoalDefinition,
@@ -13,7 +14,7 @@ import {
   type InsertGoalInstance,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 
 // Interface for storage operations
 export interface IStorage {
@@ -24,6 +25,7 @@ export interface IStorage {
   
   // Life metrics operations
   getUserLifeMetrics(userId: string): Promise<LifeMetricDefinition[]>;
+  getUserLifeMetricsWithProgress(userId: string): Promise<LifeMetricWithProgress[]>;
   createLifeMetric(metric: InsertLifeMetricDefinition): Promise<LifeMetricDefinition>;
   
   // Goal operations
@@ -71,6 +73,47 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(lifeMetricDefinitions)
       .where(eq(lifeMetricDefinitions.userId, userId));
+  }
+
+  async getUserLifeMetricsWithProgress(userId: string): Promise<LifeMetricWithProgress[]> {
+    // Get life metrics with goal progress calculations
+    const metrics = await db
+      .select({
+        id: lifeMetricDefinitions.id,
+        userId: lifeMetricDefinitions.userId,
+        name: lifeMetricDefinitions.name,
+        description: lifeMetricDefinitions.description,
+        color: lifeMetricDefinitions.color,
+        isActive: lifeMetricDefinitions.isActive,
+        createdAt: lifeMetricDefinitions.createdAt,
+        totalGoals: sql<number>`COUNT(DISTINCT ${goalDefinitions.id})`.as('totalGoals'),
+        completedGoals: sql<number>`COUNT(DISTINCT CASE WHEN ${goalInstances.status} = 'completed' THEN ${goalInstances.id} END)`.as('completedGoals'),
+        averageProgress: sql<number>`COALESCE(AVG(CAST(${goalInstances.currentValue} AS FLOAT) / NULLIF(${goalInstances.targetValue}, 0) * 100), 0)`.as('averageProgress'),
+      })
+      .from(lifeMetricDefinitions)
+      .leftJoin(goalDefinitions, and(
+        eq(goalDefinitions.userId, lifeMetricDefinitions.userId),
+        eq(goalDefinitions.category, lifeMetricDefinitions.name),
+        eq(goalDefinitions.isActive, true)
+      ))
+      .leftJoin(goalInstances, and(
+        eq(goalInstances.goalDefinitionId, goalDefinitions.id),
+        eq(goalInstances.status, 'active')
+      ))
+      .where(and(
+        eq(lifeMetricDefinitions.userId, userId),
+        eq(lifeMetricDefinitions.isActive, true)
+      ))
+      .groupBy(lifeMetricDefinitions.id);
+
+    // Transform to LifeMetricWithProgress format
+    return metrics.map(metric => ({
+      ...metric,
+      progress: Math.min(Math.round(metric.averageProgress), 100),
+      totalGoals: Number(metric.totalGoals),
+      completedGoals: Number(metric.completedGoals),
+      averageProgress: Number(metric.averageProgress),
+    }));
   }
 
   async createLifeMetric(metric: InsertLifeMetricDefinition): Promise<LifeMetricDefinition> {

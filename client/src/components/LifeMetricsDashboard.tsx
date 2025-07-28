@@ -3,6 +3,8 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ChevronDown } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import type { LifeMetricWithProgress } from "@shared/schema";
 
 interface LifeMetric {
   category: string;
@@ -10,6 +12,19 @@ interface LifeMetric {
   color: string;
   bgColor: string;
 }
+
+// Color mapping for life metrics
+const getMetricColors = (name: string) => {
+  const colorMap: Record<string, { text: string; bg: string }> = {
+    "Physical Health": { text: "text-green-600", bg: "bg-green-100" },
+    "Mental Wellness": { text: "text-blue-600", bg: "bg-blue-100" },
+    "Career Growth": { text: "text-purple-600", bg: "bg-purple-100" },
+    "Relationships": { text: "text-orange-600", bg: "bg-orange-100" },
+    "Personal Growth": { text: "text-red-600", bg: "bg-red-100" },
+    "Financial Health": { text: "text-cyan-600", bg: "bg-cyan-100" },
+  };
+  return colorMap[name] || { text: "text-gray-600", bg: "bg-gray-100" };
+};
 
 interface LifeMetricsDashboardProps {
   onMetricClick?: (metric: string) => void;
@@ -28,25 +43,62 @@ export const LifeMetricsDashboard = ({
   const periods = ["This Month", "Last 3 Months", "Last 6 Months", "This Year", "All Time"];
   const currentPeriod = externalPeriod || selectedPeriod;
 
-  const getMetricsForPeriod = (period: string): LifeMetric[] => {
-    const baseMetrics = [
-      { category: "Mental Health", progress: 85, color: "text-blue-600", bgColor: "bg-blue-100" },
-      { category: "Physical Health", progress: 72, color: "text-green-600", bgColor: "bg-green-100" },
-      { category: "Social", progress: 68, color: "text-purple-600", bgColor: "bg-purple-100" },
-      { category: "Productivity", progress: 91, color: "text-orange-600", bgColor: "bg-orange-100" },
-      { category: "Nutrition", progress: 78, color: "text-yellow-600", bgColor: "bg-yellow-100" },
-      { category: "Investments", progress: 65, color: "text-red-600", bgColor: "bg-red-100" },
-    ];
+  // Fetch real user life metrics with progress
+  const { data: lifeMetrics, isLoading, error } = useQuery({
+    queryKey: ['/api/life-metrics/progress'],
+    retry: 1,
+  });
 
-    // Simulate different values for different periods
-    const multiplier = period === "All Time" ? 0.95 : period === "This Year" ? 0.9 : 1;
-    return baseMetrics.map(metric => ({
-      ...metric,
-      progress: Math.round(metric.progress * multiplier)
-    }));
+  const getMetricsForPeriod = (period: string): LifeMetric[] => {
+    if (!lifeMetrics || isLoading) {
+      return []; // Return empty array while loading
+    }
+
+    // Convert database metrics to component format
+    return (lifeMetrics as LifeMetricWithProgress[]).map(metric => {
+      const colors = getMetricColors(metric.name);
+      return {
+        category: metric.name,
+        progress: metric.progress,
+        color: colors.text,
+        bgColor: colors.bg,
+      };
+    });
   };
 
   const metrics = getMetricsForPeriod(currentPeriod);
+
+  // Show loading state
+  if (isLoading) {
+    return (
+      <Card className="mb-6 shadow-md border-0 bg-white/80 backdrop-blur-sm h-[400px]">
+        <CardHeader>
+          <CardTitle>Your Life Overview</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-center py-8">
+            <div className="text-gray-600">Loading your metrics...</div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Show error state
+  if (error) {
+    return (
+      <Card className="mb-6 shadow-md border-0 bg-white/80 backdrop-blur-sm h-[400px]">
+        <CardHeader>
+          <CardTitle>Your Life Overview</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-center py-8">
+            <div className="text-red-600">Failed to load metrics. Please try again.</div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   const CircularProgress = ({ progress, color, bgColor }: { progress: number; color: string; bgColor: string }) => {
     const radius = 30;

@@ -110,6 +110,14 @@ export const goalInstancesRelations = relations(goalInstances, ({ one }) => ({
 export type UpsertUser = typeof users.$inferInsert;
 export type User = typeof users.$inferSelect;
 
+// Life metrics with progress calculation
+export interface LifeMetricWithProgress extends LifeMetricDefinition {
+  progress: number;
+  completedGoals: number;
+  totalGoals: number;
+  averageProgress: number;
+}
+
 // Types for life metrics
 export type LifeMetricDefinition = typeof lifeMetricDefinitions.$inferSelect;
 export type InsertLifeMetricDefinition = typeof lifeMetricDefinitions.$inferInsert;

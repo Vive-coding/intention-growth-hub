@@ -43,6 +43,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get('/api/life-metrics/progress', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const metrics = await storage.getUserLifeMetricsWithProgress(userId);
+      res.json(metrics);
+    } catch (error) {
+      console.error("Error fetching life metrics with progress:", error);
+      res.status(500).json({ message: "Failed to fetch life metrics with progress" });
+    }
+  });
+
   app.post('/api/life-metrics', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
