@@ -241,7 +241,7 @@ export const GoalsScreen = () => {
           </p>
         </div>
 
-        <Tabs value={metricViewMode} onValueChange={handleViewModeChange} className="mb-6">
+        <Tabs value={metricViewMode} onValueChange={(value) => handleViewModeChange(value as any)} className="mb-6">
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="overall">Overall View</TabsTrigger>
             <TabsTrigger value="by-metric">By Life Metric</TabsTrigger>

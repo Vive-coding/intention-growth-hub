@@ -97,12 +97,12 @@ export const JournalEntryDetail = ({ entry, onBack, onUpdate }: JournalEntryDeta
               <div className="flex items-center gap-6 text-sm text-gray-600 mb-4">
                 <div className="flex items-center gap-2">
                   <Calendar className="w-4 h-4" />
-                  {format(parseISO(entry.entryDate), "EEEE, MMMM d, yyyy")}
+                  {format(typeof entry.entryDate === 'string' ? parseISO(entry.entryDate) : entry.entryDate, "EEEE, MMMM d, yyyy")}
                 </div>
                 
                 <div className="flex items-center gap-2">
                   <Clock className="w-4 h-4" />
-                  {format(parseISO(entry.createdAt), "h:mm a")}
+                  {format(typeof entry.createdAt === 'string' ? parseISO(entry.createdAt) : entry.createdAt, "h:mm a")}
                 </div>
                 
                 {entry.mood && (
@@ -142,7 +142,7 @@ export const JournalEntryDetail = ({ entry, onBack, onUpdate }: JournalEntryDeta
               <div className="text-sm text-gray-500">
                 {entry.updatedAt !== entry.createdAt && (
                   <span>
-                    Last updated: {format(parseISO(entry.updatedAt), "MMM d, yyyy 'at' h:mm a")}
+                    Last updated: {format(typeof entry.updatedAt === 'string' ? parseISO(entry.updatedAt) : entry.updatedAt, "MMM d, yyyy 'at' h:mm a")}
                   </span>
                 )}
               </div>
