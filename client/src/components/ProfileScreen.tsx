@@ -2,8 +2,12 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { User, Shield, Bell, Crown, HelpCircle, LogOut, ChevronRight, Star } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
+import type { User as UserType } from "@shared/schema";
 
 export const ProfileScreen = () => {
+  const { user, isLoading } = useAuth();
+  const typedUser = user as UserType | undefined;
   const stats = [
     { label: "Days Active", value: "47", color: "text-green-600" },
     { label: "Goals Achieved", value: "8", color: "text-blue-600" },
@@ -34,8 +38,13 @@ export const ProfileScreen = () => {
           <div className="w-20 h-20 bg-gradient-to-br from-green-500 to-blue-500 rounded-full flex items-center justify-center mx-auto mb-4">
             <User className="w-10 h-10 text-white" />
           </div>
-          <h2 className="text-xl font-bold text-gray-800 mb-1">Alex Johnson</h2>
-          <p className="text-gray-600 mb-4">Member since March 2024</p>
+          <h2 className="text-xl font-bold text-gray-800 mb-1">
+            {isLoading ? "Loading..." : 
+             (typedUser?.firstName && typedUser?.lastName ? `${typedUser.firstName} ${typedUser.lastName}` : typedUser?.email || "User")}
+          </h2>
+          <p className="text-gray-600 mb-4">
+            Member since {typedUser?.createdAt ? new Date(typedUser.createdAt).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : 'Recently'}
+          </p>
           
           <div className="grid grid-cols-2 gap-4">
             {stats.map((stat, index) => (
