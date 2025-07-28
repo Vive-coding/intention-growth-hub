@@ -1,15 +1,73 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
+import { setupAuth, isAuthenticated } from "./replitAuth";
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // put application routes here
-  // prefix all routes with /api
+  // Auth middleware
+  await setupAuth(app);
 
-  // use storage to perform CRUD operations on the storage interface
-  // e.g. storage.insertUser(user) or storage.getUserByUsername(username)
+  // Auth routes
+  app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      res.json(user);
+    } catch (error) {
+      console.error("Error fetching user:", error);
+      res.status(500).json({ message: "Failed to fetch user" });
+    }
+  });
+
+  // Life metrics routes
+  app.get('/api/life-metrics', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const metrics = await storage.getUserLifeMetrics(userId);
+      res.json(metrics);
+    } catch (error) {
+      console.error("Error fetching life metrics:", error);
+      res.status(500).json({ message: "Failed to fetch life metrics" });
+    }
+  });
+
+  app.post('/api/life-metrics', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const metric = await storage.createLifeMetric({
+        ...req.body,
+        userId,
+      });
+      res.json(metric);
+    } catch (error) {
+      console.error("Error creating life metric:", error);
+      res.status(500).json({ message: "Failed to create life metric" });
+    }
+  });
+
+  // Goals routes
+  app.get('/api/goals', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const goals = await storage.getUserGoals(userId);
+      res.json(goals);
+    } catch (error) {
+      console.error("Error fetching goals:", error);
+      res.status(500).json({ message: "Failed to fetch goals" });
+    }
+  });
+
+  app.get('/api/goal-instances', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const instances = await storage.getUserGoalInstances(userId);
+      res.json(instances);
+    } catch (error) {
+      console.error("Error fetching goal instances:", error);
+      res.status(500).json({ message: "Failed to fetch goal instances" });
+    }
+  });
 
   const httpServer = createServer(app);
-
   return httpServer;
 }
