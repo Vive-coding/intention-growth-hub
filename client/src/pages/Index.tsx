@@ -9,19 +9,40 @@ import { ProfileScreen } from "@/components/ProfileScreen";
 import { NavigationBar } from "@/components/NavigationBar";
 import { ResponsiveSidebar } from "@/components/ResponsiveSidebar";
 import { GPTModal } from "@/components/GPTModal";
+import { useAuth } from "@/hooks/useAuth";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useMutation } from "@tanstack/react-query";
+import type { User as UserType } from "@shared/schema";
 
 const Index = () => {
-  const [currentScreen, setCurrentScreen] = useState("onboarding");
+  const { user, isLoading } = useAuth();
+  const typedUser = user as UserType | undefined;
+  const [currentScreen, setCurrentScreen] = useState("home");
   const [showGPTModal, setShowGPTModal] = useState(false);
-  const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState(false);
+  
+  // Check if user has completed onboarding from database
+  const hasCompletedOnboarding = typedUser?.onboardingCompleted ?? false;
+
+  const completeOnboardingMutation = useMutation({
+    mutationFn: async () => {
+      await apiRequest('/api/users/complete-onboarding', {
+        method: 'POST',
+      });
+    },
+    onSuccess: () => {
+      // Invalidate user query to refetch updated data
+      queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
+      setCurrentScreen("home");
+    },
+  });
 
   const handleOnboardingComplete = () => {
-    setHasCompletedOnboarding(true);
-    setCurrentScreen("home");
+    completeOnboardingMutation.mutate();
   };
 
   const renderScreen = () => {
-    if (!hasCompletedOnboarding && currentScreen === "onboarding") {
+    // Show onboarding if user hasn't completed it
+    if (!hasCompletedOnboarding && !isLoading) {
       return <OnboardingFlow onComplete={handleOnboardingComplete} />;
     }
 

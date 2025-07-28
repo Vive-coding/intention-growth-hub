@@ -20,6 +20,7 @@ export interface IStorage {
   // User operations (required for Replit Auth)
   getUser(id: string): Promise<User | undefined>;
   upsertUser(user: UpsertUser): Promise<User>;
+  completeOnboarding(userId: string): Promise<void>;
   
   // Life metrics operations
   getUserLifeMetrics(userId: string): Promise<LifeMetricDefinition[]>;
@@ -52,6 +53,16 @@ export class DatabaseStorage implements IStorage {
       })
       .returning();
     return user;
+  }
+
+  async completeOnboarding(userId: string): Promise<void> {
+    await db
+      .update(users)
+      .set({ 
+        onboardingCompleted: true,
+        updatedAt: new Date(),
+      })
+      .where(eq(users.id, userId));
   }
 
   // Life metrics operations

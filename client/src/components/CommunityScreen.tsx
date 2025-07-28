@@ -6,7 +6,7 @@ import { Users, UserPlus, Heart, Share2, Trophy } from "lucide-react";
 export const CommunityScreen = () => {
   const friends = [
     { name: "Sarah M.", avatar: "🌸", streak: 12, lastWin: "Completed 30-day meditation challenge" },
-    { name: "Alex K.", avatar: "🌟", streak: 8, lastWin: "Hit personal best in running" },
+    { name: "Mike C.", avatar: "🌟", streak: 8, lastWin: "Hit personal best in running" },
     { name: "Jamie L.", avatar: "🌈", streak: 15, lastWin: "Practiced gratitude for 2 weeks straight" }
   ];
 

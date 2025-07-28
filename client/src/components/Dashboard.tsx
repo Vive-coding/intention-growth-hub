@@ -5,6 +5,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { MessageCircle, Smile, TrendingUp, Star } from "lucide-react";
 import { LifeMetricsDashboard } from "./LifeMetricsDashboard";
 import { DetailedLifeOverview } from "./DetailedLifeOverview";
+import { useAuth } from "@/hooks/useAuth";
+import type { User as UserType } from "@shared/schema";
 
 interface DashboardProps {
   onOpenGPT: () => void;
@@ -12,10 +14,13 @@ interface DashboardProps {
 
 export const Dashboard = ({ onOpenGPT }: DashboardProps) => {
   const [selectedMetric, setSelectedMetric] = useState<string | null>(null);
+  const { user } = useAuth();
+  const typedUser = user as UserType | undefined;
   
   const currentTime = new Date().getHours();
   const greeting = currentTime < 12 ? "Good morning" : currentTime < 18 ? "Good afternoon" : "Good evening";
-  const userName = "Alex";
+  const userName = typedUser?.firstName || 
+                  (typedUser?.email?.split('@')[0]) || "there";
 
   // If a metric is selected, show the detailed view
   if (selectedMetric) {
