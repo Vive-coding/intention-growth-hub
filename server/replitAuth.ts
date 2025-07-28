@@ -40,6 +40,7 @@ export function getSession() {
       httpOnly: true,
       secure: false, // Set to true in production with HTTPS
       maxAge: sessionTtl,
+      sameSite: 'lax', // Allow cookies to be sent with same-site requests
     },
   });
 }
@@ -102,14 +103,24 @@ export async function setupAuth(app: Express) {
   passport.deserializeUser((user: Express.User, cb) => cb(null, user));
 
   app.get("/api/login", (req, res, next) => {
-    passport.authenticate(`replitauth:${req.hostname}`, {
+    // Use the first domain from REPLIT_DOMAINS for localhost development
+    const domain = req.hostname === 'localhost' ? 
+      process.env.REPLIT_DOMAINS!.split(",")[0] : 
+      req.hostname;
+    
+    passport.authenticate(`replitauth:${domain}`, {
       prompt: "login consent",
       scope: ["openid", "email", "profile", "offline_access"],
     })(req, res, next);
   });
 
   app.get("/api/callback", (req, res, next) => {
-    passport.authenticate(`replitauth:${req.hostname}`, {
+    // Use the first domain from REPLIT_DOMAINS for localhost development
+    const domain = req.hostname === 'localhost' ? 
+      process.env.REPLIT_DOMAINS!.split(",")[0] : 
+      req.hostname;
+      
+    passport.authenticate(`replitauth:${domain}`, {
       successReturnToOrRedirect: "/",
       failureRedirect: "/api/login",
     })(req, res, next);
