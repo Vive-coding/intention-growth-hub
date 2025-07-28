@@ -1,4 +1,4 @@
-import { Home, TrendingUp, Target, Users, User } from "lucide-react";
+import { Home, TrendingUp, Target, BookOpen, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -13,7 +13,7 @@ export const ResponsiveSidebar = ({ currentScreen, onNavigate, className }: Resp
     { id: "home", icon: Home, label: "Home" },
     { id: "insights", icon: TrendingUp, label: "Insights" },
     { id: "goals", icon: Target, label: "Goals" },
-    { id: "community", icon: Users, label: "Community" },
+    { id: "journals", icon: BookOpen, label: "Journals" },
     { id: "profile", icon: User, label: "Profile" },
   ];
 

@@ -73,11 +73,26 @@ export const goalInstances = pgTable("goal_instances", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// Journal entries
+export const journalEntries = pgTable("journal_entries", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  title: varchar("title", { length: 255 }).notNull(),
+  content: text("content").notNull(),
+  entryDate: timestamp("entry_date").defaultNow(),
+  mood: varchar("mood", { length: 50 }), // optional mood tracking
+  tags: text("tags").array(), // array of tags for categorization
+  isPrivate: boolean("is_private").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   lifeMetrics: many(lifeMetricDefinitions),
   goalDefinitions: many(goalDefinitions),
   goalInstances: many(goalInstances),
+  journalEntries: many(journalEntries),
 }));
 
 export const lifeMetricDefinitionsRelations = relations(lifeMetricDefinitions, ({ one }) => ({
@@ -106,6 +121,13 @@ export const goalInstancesRelations = relations(goalInstances, ({ one }) => ({
   }),
 }));
 
+export const journalEntriesRelations = relations(journalEntries, ({ one }) => ({
+  user: one(users, {
+    fields: [journalEntries.userId],
+    references: [users.id],
+  }),
+}));
+
 // Types for Replit Auth
 export type UpsertUser = typeof users.$inferInsert;
 export type User = typeof users.$inferSelect;
@@ -128,6 +150,10 @@ export type InsertGoalDefinition = typeof goalDefinitions.$inferInsert;
 export type GoalInstance = typeof goalInstances.$inferSelect;
 export type InsertGoalInstance = typeof goalInstances.$inferInsert;
 
+// Types for journal entries
+export type JournalEntry = typeof journalEntries.$inferSelect;
+export type InsertJournalEntry = typeof journalEntries.$inferInsert;
+
 // Insert schemas
 export const insertLifeMetricDefinitionSchema = createInsertSchema(lifeMetricDefinitions).omit({
   id: true,
@@ -142,4 +168,10 @@ export const insertGoalDefinitionSchema = createInsertSchema(goalDefinitions).om
 export const insertGoalInstanceSchema = createInsertSchema(goalInstances).omit({
   id: true,
   createdAt: true,
+});
+
+export const insertJournalEntrySchema = createInsertSchema(journalEntries).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
 });

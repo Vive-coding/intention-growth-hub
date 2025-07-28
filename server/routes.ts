@@ -109,6 +109,115 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Journal routes
+  app.get('/api/journals', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const limit = parseInt(req.query.limit) || 50;
+      const entries = await storage.getUserJournalEntries(userId, limit);
+      res.json(entries);
+    } catch (error) {
+      console.error("Error fetching journal entries:", error);
+      res.status(500).json({ message: "Failed to fetch journal entries" });
+    }
+  });
+
+  app.get('/api/journals/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { id } = req.params;
+      const entry = await storage.getJournalEntry(id, userId);
+      
+      if (!entry) {
+        return res.status(404).json({ message: "Journal entry not found" });
+      }
+      
+      res.json(entry);
+    } catch (error) {
+      console.error("Error fetching journal entry:", error);
+      res.status(500).json({ message: "Failed to fetch journal entry" });
+    }
+  });
+
+  app.post('/api/journals', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { title, content, entryDate, mood, tags, isPrivate } = req.body;
+      
+      if (!title || !content) {
+        return res.status(400).json({ message: "Title and content are required" });
+      }
+
+      const entry = await storage.createJournalEntry({
+        userId,
+        title,
+        content,
+        entryDate: entryDate ? new Date(entryDate) : new Date(),
+        mood,
+        tags,
+        isPrivate: isPrivate ?? true,
+      });
+      
+      res.status(201).json(entry);
+    } catch (error) {
+      console.error("Error creating journal entry:", error);
+      res.status(500).json({ message: "Failed to create journal entry" });
+    }
+  });
+
+  app.put('/api/journals/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { id } = req.params;
+      const { title, content, entryDate, mood, tags, isPrivate } = req.body;
+      
+      const entry = await storage.updateJournalEntry(id, userId, {
+        title,
+        content,
+        entryDate: entryDate ? new Date(entryDate) : undefined,
+        mood,
+        tags,
+        isPrivate,
+      });
+      
+      res.json(entry);
+    } catch (error) {
+      console.error("Error updating journal entry:", error);
+      res.status(500).json({ message: "Failed to update journal entry" });
+    }
+  });
+
+  app.delete('/api/journals/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { id } = req.params;
+      
+      await storage.deleteJournalEntry(id, userId);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting journal entry:", error);
+      res.status(500).json({ message: "Failed to delete journal entry" });
+    }
+  });
+
+  app.get('/api/journals/date-range/:startDate/:endDate', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { startDate, endDate } = req.params;
+      
+      const entries = await storage.getJournalEntriesByDateRange(
+        userId,
+        new Date(startDate),
+        new Date(endDate)
+      );
+      
+      res.json(entries);
+    } catch (error) {
+      console.error("Error fetching journal entries by date range:", error);
+      res.status(500).json({ message: "Failed to fetch journal entries by date range" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

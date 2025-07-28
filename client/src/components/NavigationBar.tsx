@@ -1,5 +1,5 @@
 
-import { Home, TrendingUp, Target, Users, User } from "lucide-react";
+import { Home, TrendingUp, Target, BookOpen, User } from "lucide-react";
 
 interface NavigationBarProps {
   currentScreen: string;
@@ -11,7 +11,7 @@ export const NavigationBar = ({ currentScreen, onNavigate }: NavigationBarProps)
     { id: "home", icon: Home, label: "Home" },
     { id: "insights", icon: TrendingUp, label: "Insights" },
     { id: "goals", icon: Target, label: "Goals" },
-    { id: "community", icon: Users, label: "Community" },
+    { id: "journals", icon: BookOpen, label: "Journals" },
     { id: "profile", icon: User, label: "Profile" },
   ];
 

@@ -3,6 +3,7 @@ import {
   lifeMetricDefinitions,
   goalDefinitions,
   goalInstances,
+  journalEntries,
   type User,
   type UpsertUser,
   type LifeMetricDefinition,
@@ -12,9 +13,11 @@ import {
   type InsertGoalDefinition,
   type GoalInstance,
   type InsertGoalInstance,
+  type JournalEntry,
+  type InsertJournalEntry,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, sql, desc, asc, gte, lte } from "drizzle-orm";
 
 // Interface for storage operations
 export interface IStorage {
@@ -34,6 +37,14 @@ export interface IStorage {
   updateGoalProgress(goalInstanceId: string, currentValue: number): Promise<GoalInstance>;
   createGoal(goal: InsertGoalDefinition): Promise<GoalDefinition>;
   createGoalInstance(instance: InsertGoalInstance): Promise<GoalInstance>;
+  
+  // Journal operations
+  getUserJournalEntries(userId: string, limit?: number): Promise<JournalEntry[]>;
+  getJournalEntry(id: string, userId: string): Promise<JournalEntry | undefined>;
+  createJournalEntry(entry: InsertJournalEntry): Promise<JournalEntry>;
+  updateJournalEntry(id: string, userId: string, entry: Partial<InsertJournalEntry>): Promise<JournalEntry>;
+  deleteJournalEntry(id: string, userId: string): Promise<void>;
+  getJournalEntriesByDateRange(userId: string, startDate: Date, endDate: Date): Promise<JournalEntry[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -169,6 +180,67 @@ export class DatabaseStorage implements IStorage {
       .where(eq(goalInstances.id, goalInstanceId))
       .returning();
     return updatedInstance;
+  }
+
+  // Journal operations
+  async getUserJournalEntries(userId: string, limit = 50): Promise<JournalEntry[]> {
+    return await db
+      .select()
+      .from(journalEntries)
+      .where(eq(journalEntries.userId, userId))
+      .orderBy(desc(journalEntries.entryDate))
+      .limit(limit);
+  }
+
+  async getJournalEntry(id: string, userId: string): Promise<JournalEntry | undefined> {
+    const [entry] = await db
+      .select()
+      .from(journalEntries)
+      .where(and(eq(journalEntries.id, id), eq(journalEntries.userId, userId)));
+    return entry;
+  }
+
+  async createJournalEntry(entry: InsertJournalEntry): Promise<JournalEntry> {
+    const [created] = await db
+      .insert(journalEntries)
+      .values({
+        ...entry,
+        updatedAt: new Date(),
+      })
+      .returning();
+    return created;
+  }
+
+  async updateJournalEntry(id: string, userId: string, entry: Partial<InsertJournalEntry>): Promise<JournalEntry> {
+    const [updated] = await db
+      .update(journalEntries)
+      .set({
+        ...entry,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(journalEntries.id, id), eq(journalEntries.userId, userId)))
+      .returning();
+    return updated;
+  }
+
+  async deleteJournalEntry(id: string, userId: string): Promise<void> {
+    await db
+      .delete(journalEntries)
+      .where(and(eq(journalEntries.id, id), eq(journalEntries.userId, userId)));
+  }
+
+  async getJournalEntriesByDateRange(userId: string, startDate: Date, endDate: Date): Promise<JournalEntry[]> {
+    return await db
+      .select()
+      .from(journalEntries)
+      .where(
+        and(
+          eq(journalEntries.userId, userId),
+          gte(journalEntries.entryDate, startDate),
+          lte(journalEntries.entryDate, endDate)
+        )
+      )
+      .orderBy(desc(journalEntries.entryDate));
   }
 }
 

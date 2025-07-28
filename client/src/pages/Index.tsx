@@ -4,6 +4,7 @@ import { OnboardingFlow } from "@/components/OnboardingFlow";
 import { Dashboard } from "@/components/Dashboard";
 import { InsightsScreen } from "@/components/InsightsScreen";
 import { GoalsScreen } from "@/components/GoalsScreen";
+import { JournalsScreen } from "@/components/JournalsScreen";
 import { CommunityScreen } from "@/components/CommunityScreen";
 import { ProfileScreen } from "@/components/ProfileScreen";
 import { NavigationBar } from "@/components/NavigationBar";
@@ -53,6 +54,8 @@ const Index = () => {
         return <InsightsScreen />;
       case "goals":
         return <GoalsScreen />;
+      case "journals":
+        return <JournalsScreen />;
       case "community":
         return <CommunityScreen />;
       case "profile":
