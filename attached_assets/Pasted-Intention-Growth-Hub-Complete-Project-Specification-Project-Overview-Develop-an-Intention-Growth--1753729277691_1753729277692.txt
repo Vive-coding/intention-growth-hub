@@ -1,0 +1,253 @@
+Intention Growth Hub - Complete Project Specification
+Project Overview
+Develop an "Intention Growth Hub" web application featuring a sophisticated dashboard with 6 life areas tracking (Mental Health, Physical Health, Social, Productivity, Nutrition, Investments), goals management, AI insights, and community features. The application should match the advanced design created in Lovable with proper styling, charts, and comprehensive user interface components.
+
+Technology Stack
+Frontend: React 18.3.1 with TypeScript
+Build Tool: Vite for fast development and optimized builds
+Styling: Tailwind CSS with shadcn/ui component library
+State Management: React hooks for local state, TanStack React Query for server state
+Routing: Wouter for client-side navigation
+UI Components: Radix UI primitives with custom styling
+Backend: Express.js with TypeScript
+Database: PostgreSQL with UUID-based primary keys
+ORM: Drizzle ORM for database interactions
+AI Integration: OpenAI GPT-4 for insights generation
+Charts: Recharts for data visualization
+Icons: Lucide React
+Database Schema (PostgreSQL with UUIDs)
+Core User Management
+-- Users table
+CREATE TABLE users (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    email VARCHAR(255) UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,
+    gpt_oauth_sub VARCHAR(255), -- For GPT integration
+    api_token TEXT, -- For external API access
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+Life Metrics System
+-- Life metric definitions (customizable per user)
+CREATE TABLE life_metric_definitions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    name VARCHAR(255) NOT NULL, -- Mental Health, Physical Health, etc.
+    description TEXT,
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+Goals & Progress Tracking
+-- Goal definitions (templates)
+CREATE TABLE goal_definitions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    title VARCHAR(255) NOT NULL,
+    description TEXT,
+    category VARCHAR(100), -- Links to life metric areas
+    unit VARCHAR(50), -- minutes, hours, count, etc.
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+-- Goal instances (active goals with targets)
+CREATE TABLE goal_instances (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    goal_definition_id UUID REFERENCES goal_definitions(id) ON DELETE CASCADE,
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    target_value INTEGER NOT NULL,
+    start_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    target_date TIMESTAMP,
+    status VARCHAR(20) DEFAULT 'active', -- active, completed, paused, cancelled
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+-- Progress tracking
+CREATE TABLE goal_progress_records (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    goal_instance_id UUID REFERENCES goal_instances(id) ON DELETE CASCADE,
+    progress_value INTEGER NOT NULL,
+    notes TEXT,
+    recorded_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    journal_entry_id UUID REFERENCES journal_entries(id) -- Optional link to journal
+);
+Habits System
+-- Habit definitions
+CREATE TABLE habit_definitions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+    habit_type VARCHAR(50), -- daily, weekly, monthly
+    frequency_type VARCHAR(20), -- times_per_day, times_per_week, etc.
+    target_frequency INTEGER, -- how many times per period
+    linked_goal_instance_ids JSONB, -- Array of linked goal IDs
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+-- Habit completion tracking
+CREATE TABLE habit_completion_records (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    habit_id UUID REFERENCES habit_definitions(id) ON DELETE CASCADE,
+    completion_datetime TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    completed BOOLEAN DEFAULT true,
+    notes TEXT,
+    journal_entry_id UUID REFERENCES journal_entries(id) -- Optional link to journal
+);
+Journaling System
+-- Journal entries
+CREATE TABLE journal_entries (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    content TEXT NOT NULL,
+    mood_rating INTEGER CHECK (mood_rating >= 1 AND mood_rating <= 10),
+    tags JSONB, -- Array of tags for categorization
+    source VARCHAR(50) DEFAULT 'manual', -- manual, voice, gpt_chat, import
+    gpt_conversation_id VARCHAR(255), -- Link to GPT conversation
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+AI Insights System
+-- AI-generated insights
+CREATE TABLE insights (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    content TEXT NOT NULL,
+    insight_type VARCHAR(50), -- pattern, recommendation, achievement, warning, trend
+    confidence_score INTEGER CHECK (confidence_score >= 0 AND confidence_score <= 100),
+    data_source_ids JSONB, -- References to journal entries, goals, habits that generated this
+    is_active BOOLEAN DEFAULT true,
+    relevance_score INTEGER CHECK (relevance_score >= 0 AND relevance_score <= 100),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+Core Features Required
+1. Authentication System
+User registration and login
+JWT token-based authentication
+Password hashing with bcrypt
+OAuth integration for GPT companion
+2. Dashboard (Main View)
+Exact Lovable Design Requirements:
+
+Personal greeting: "Good afternoon, [Name]"
+Subtitle: "Ready to reflect and grow today?"
+6 circular progress rings in 3x2 grid:
+Mental Health (85%, blue #3b82f6)
+Physical Health (72%, green #10b981)
+Social (68%, purple #8b5cf6)
+Productivity (91%, orange #f59e0b)
+Nutrition (78%, lime #84cc16)
+Investments (65%, red #ef4444)
+Time period selector: "This Month" dropdown
+Green companion section: "Chat with your Companion"
+Bottom navigation: Home, Insights, Goals, Community, Profile
+3. Life Metrics Tracking
+6 core life areas with customizable scoring
+Daily/weekly/monthly progress tracking
+Visual progress indicators (circular charts)
+Trend analysis and pattern recognition
+Historical data visualization
+4. Goals Management
+SMART goal creation and tracking
+Goal categorization by life areas
+Progress milestones and celebrations
+Goal dependency mapping
+Achievement badges and rewards
+5. Habits System
+Daily/weekly habit tracking
+Streak counting and motivation
+Habit stacking and linking to goals
+Reminder and notification system
+Success rate analytics
+6. AI Insights Engine
+Automatic pattern recognition from user data
+Personalized recommendations
+Progress trend analysis
+Achievement celebration
+Warning alerts for declining areas
+Integration with OpenAI GPT-4
+7. Journaling & Reflection
+Daily journal entries with mood tracking
+Voice-to-text capability
+Tag-based organization
+Searchable entry history
+Mood trend visualization
+8. Community Features
+Share wins and achievements
+Support groups by interest/goal type
+Anonymous or named participation
+Peer encouragement system
+Success story sharing
+UI/UX Design Requirements
+Design System
+Color Scheme: Green and blue gradient theme promoting wellness
+Primary Colors: Green (#10b981), Blue (#3b82f6), Purple (#8b5cf6)
+Typography: Clean, readable fonts with proper hierarchy
+Layout: Card-based layouts with glassmorphism effects
+Responsive: Mobile-first approach with desktop enhancements
+Navigation
+Mobile: Bottom navigation bar with 5 main sections
+Desktop: Responsive sidebar with improved navigation experience
+Accessibility: Keyboard navigation and screen reader support
+Charts & Visualizations
+Circular progress rings for life metrics
+Line charts for trend analysis
+Bar charts for weekly/monthly comparisons
+Recharts library for interactive visualizations
+Technical Implementation Guidelines
+Frontend Architecture
+// Core component structure
+src/
+├── components/
+│   ├── Dashboard.tsx (Lovable design with circular progress)
+│   ├── LifeMetrics/
+│   ├── Goals/
+│   ├── Habits/
+│   ├── Insights/
+│   ├── Journal/
+│   ├── Community/
+│   ├── Navigation/
+│   └── ui/ (shadcn components)
+├── hooks/
+├── lib/
+└── pages/
+Backend API Structure
+// API endpoints required
+/api/auth/* - Authentication
+/api/users/* - User management
+/api/life-metrics/* - Life metrics CRUD
+/api/goals/* - Goals management
+/api/habits/* - Habits tracking
+/api/journal/* - Journal entries
+/api/insights/* - AI insights
+/api/community/* - Community features
+Database Integration
+Use Drizzle ORM for type-safe database operations
+Implement proper foreign key relationships
+Create indexes for performance optimization
+Set up database migrations
+AI Integration
+OpenAI GPT-4 for insight generation
+Pattern recognition algorithms
+Automated trend analysis
+Personalized recommendation engine
+Environment Variables Required
+DATABASE_URL=postgresql://...
+OPENAI_API_KEY=sk-...
+JWT_SECRET=...
+ENCRYPTION_KEY=...
+NODE_ENV=production|development
+PORT=5000
+Deployment Requirements
+Production-ready Express server
+Static asset serving
+Health check endpoints
+Database connection pooling
+Error handling and logging
+Cloud Run deployment configuration
+Success Criteria
+Exact Lovable Design Match: Circular progress rings, personal greeting, proper color scheme
+Full Functionality: All 6 life areas tracking with real data
+AI Integration: Working insights generation from user data
+Responsive Design: Mobile and desktop compatibility
+Database Integration: Persistent data storage with PostgreSQL
+Authentication: Secure user registration and login
+Performance: Fast loading times and smooth interactions
+This specification provides the complete foundation for building the Intention Growth Hub exactly as designed in Lovable, with a robust backend, comprehensive database schema, and production-ready deployment configuration.
