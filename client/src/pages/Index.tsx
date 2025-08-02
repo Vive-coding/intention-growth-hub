@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { OnboardingFlow } from "@/components/OnboardingFlow";
 import { Dashboard } from "@/components/Dashboard";
 import { InsightsScreen } from "@/components/InsightsScreen";
@@ -14,15 +14,25 @@ import { useAuth } from "@/hooks/useAuth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useMutation } from "@tanstack/react-query";
 import type { User as UserType } from "@shared/schema";
+import { HabitsScreen } from "@/components/HabitsScreen";
 
 const Index = () => {
   const { user, isLoading } = useAuth();
   const typedUser = user as UserType | undefined;
   const [currentScreen, setCurrentScreen] = useState("home");
   const [showGPTModal, setShowGPTModal] = useState(false);
+  const [isInDetailedView, setIsInDetailedView] = useState(false);
+  const [dashboardKey, setDashboardKey] = useState(0);
   
   // Check if user has completed onboarding from database
   const hasCompletedOnboarding = typedUser?.onboardingCompleted ?? false;
+  
+  // Debug detailed view state changes
+  console.log('Index component state:', {
+    currentScreen,
+    isInDetailedView,
+    hasCompletedOnboarding
+  });
 
   const completeOnboardingMutation = useMutation({
     mutationFn: async () => {
@@ -49,9 +59,19 @@ const Index = () => {
 
     switch (currentScreen) {
       case "home":
-        return <Dashboard onOpenGPT={() => setShowGPTModal(true)} />;
+        return <Dashboard 
+          key={dashboardKey}
+          onOpenGPT={() => setShowGPTModal(true)} 
+          onDetailedViewChange={setIsInDetailedView}
+          onClearDetailedView={() => {
+            console.log('Index: Clearing detailed view from Dashboard');
+            setIsInDetailedView(false);
+          }}
+        />;
       case "insights":
         return <InsightsScreen />;
+      case "habits":
+        return <HabitsScreen />;
       case "goals":
         return <GoalsScreen />;
       case "journals":
@@ -61,7 +81,15 @@ const Index = () => {
       case "profile":
         return <ProfileScreen />;
       default:
-        return <Dashboard onOpenGPT={() => setShowGPTModal(true)} />;
+        return <Dashboard 
+          key={dashboardKey}
+          onOpenGPT={() => setShowGPTModal(true)} 
+          onDetailedViewChange={setIsInDetailedView}
+          onClearDetailedView={() => {
+            console.log('Index: Clearing detailed view from Dashboard');
+            setIsInDetailedView(false);
+          }}
+        />;
     }
   };
 
@@ -70,7 +98,14 @@ const Index = () => {
       {hasCompletedOnboarding && (
         <ResponsiveSidebar 
           currentScreen={currentScreen} 
-          onNavigate={setCurrentScreen} 
+          onNavigate={setCurrentScreen}
+          isInDetailedView={isInDetailedView}
+          onNavigateHome={() => {
+            console.log('Index: Home navigation triggered, clearing detailed view');
+            setCurrentScreen("home");
+            setIsInDetailedView(false);
+            setDashboardKey(prev => prev + 1); // Force Dashboard re-render
+          }}
         />
       )}
       
@@ -81,7 +116,14 @@ const Index = () => {
       {hasCompletedOnboarding && (
         <NavigationBar 
           currentScreen={currentScreen} 
-          onNavigate={setCurrentScreen} 
+          onNavigate={setCurrentScreen}
+          isInDetailedView={isInDetailedView}
+          onNavigateHome={() => {
+            console.log('Index: Mobile Home navigation triggered, clearing detailed view');
+            setCurrentScreen("home");
+            setIsInDetailedView(false);
+            setDashboardKey(prev => prev + 1); // Force Dashboard re-render
+          }}
         />
       )}
       

@@ -69,6 +69,7 @@ export const JournalsScreen = () => {
   // Filter entries based on view mode
   const filteredEntries = viewMode === "month" 
     ? entries.filter(entry => {
+        if (!entry.entryDate) return false;
         const entryDate = parseISO(entry.entryDate.toString());
         const monthStart = startOfMonth(selectedDate);
         const monthEnd = endOfMonth(selectedDate);
@@ -202,9 +203,13 @@ export const JournalsScreen = () => {
                       
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-4 text-sm text-gray-500">
-                          <span>{format(typeof entry.entryDate === 'string' ? parseISO(entry.entryDate) : entry.entryDate, "EEEE, MMMM d, yyyy")}</span>
-                          <span>•</span>
-                          <span>{getTimeAgo(entry.entryDate)}</span>
+                          {entry.entryDate && (
+                            <>
+                              <span>{format(typeof entry.entryDate === 'string' ? parseISO(entry.entryDate) : entry.entryDate, "EEEE, MMMM d, yyyy")}</span>
+                              <span>•</span>
+                              <span>{getTimeAgo(entry.entryDate)}</span>
+                            </>
+                          )}
                         </div>
                         
                         {entry.tags && entry.tags.length > 0 && (

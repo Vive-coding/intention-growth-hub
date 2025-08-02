@@ -13,6 +13,11 @@ interface JournalEntryDetailProps {
 
 export const JournalEntryDetail = ({ entry, onBack, onUpdate }: JournalEntryDetailProps) => {
   const [isEditing, setIsEditing] = useState(false);
+  const [editTitle, setEditTitle] = useState(entry.title);
+  const [editContent, setEditContent] = useState(entry.content);
+  const [editMood, setEditMood] = useState(entry.mood || 'neutral');
+  const [editTags, setEditTags] = useState(entry.tags?.join(', ') || '');
+  const [isSaving, setIsSaving] = useState(false);
 
   const handleDelete = async () => {
     if (!confirm("Are you sure you want to delete this journal entry?")) {
@@ -35,6 +40,59 @@ export const JournalEntryDetail = ({ entry, onBack, onUpdate }: JournalEntryDeta
       console.error("Error deleting journal entry:", error);
       alert("Failed to delete journal entry");
     }
+  };
+
+  const handleSave = async () => {
+    if (!editTitle.trim() || !editContent.trim()) {
+      alert("Title and content are required.");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const response = await fetch(`/api/journals/${entry.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          title: editTitle,
+          content: editContent,
+          mood: editMood,
+          tags: editTags.split(',').map(tag => tag.trim()).filter(tag => tag.length > 0),
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update journal entry');
+      }
+
+      const updatedEntry = await response.json();
+      console.log('Journal entry updated:', updatedEntry);
+      
+      // Exit edit mode
+      setIsEditing(false);
+      
+      // Refresh the parent component
+      onUpdate();
+      
+      alert("Journal entry updated successfully!");
+    } catch (error) {
+      console.error('Error updating journal entry:', error);
+      alert('Failed to update journal entry. Please try again.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleCancel = () => {
+    // Reset form to original values
+    setEditTitle(entry.title);
+    setEditContent(entry.content);
+    setEditMood(entry.mood || 'neutral');
+    setEditTags(entry.tags?.join(', ') || '');
+    setIsEditing(false);
   };
 
   const formatContent = (content: string) => {
@@ -88,65 +146,149 @@ export const JournalEntryDetail = ({ entry, onBack, onUpdate }: JournalEntryDeta
         {/* Journal Entry Content */}
         <Card className="shadow-md border-0 bg-white/80 backdrop-blur-sm">
           <CardContent className="p-8">
-            {/* Title and Metadata */}
-            <div className="mb-8">
-              <h1 className="text-3xl font-bold text-gray-800 mb-4">
-                {entry.title}
-              </h1>
-              
-              <div className="flex items-center gap-6 text-sm text-gray-600 mb-4">
-                <div className="flex items-center gap-2">
-                  <Calendar className="w-4 h-4" />
-                  {format(typeof entry.entryDate === 'string' ? parseISO(entry.entryDate) : entry.entryDate, "EEEE, MMMM d, yyyy")}
+            {isEditing ? (
+              /* Edit Form */
+              <div className="space-y-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Title
+                  </label>
+                  <input
+                    type="text"
+                    value={editTitle}
+                    onChange={(e) => setEditTitle(e.target.value)}
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    placeholder="Journal entry title"
+                  />
                 </div>
-                
-                <div className="flex items-center gap-2">
-                  <Clock className="w-4 h-4" />
-                  {format(typeof entry.createdAt === 'string' ? parseISO(entry.createdAt) : entry.createdAt, "h:mm a")}
-                </div>
-                
-                {entry.mood && (
-                  <div className="flex items-center gap-2">
-                    <span className="w-4 h-4 rounded-full bg-purple-100 flex items-center justify-center">
-                      😊
-                    </span>
-                    <span className="capitalize">{entry.mood}</span>
-                  </div>
-                )}
-              </div>
 
-              {entry.tags && entry.tags.length > 0 && (
-                <div className="flex items-center gap-2 flex-wrap">
-                  <Tag className="w-4 h-4 text-gray-500" />
-                  {entry.tags.map((tag, index) => (
-                    <span
-                      key={index}
-                      className="px-3 py-1 rounded-full text-sm bg-gray-100 text-gray-700"
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Content
+                  </label>
+                  <textarea
+                    value={editContent}
+                    onChange={(e) => setEditContent(e.target.value)}
+                    className="w-full h-64 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none"
+                    placeholder="Write your thoughts..."
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Mood
+                    </label>
+                    <select
+                      value={editMood}
+                      onChange={(e) => setEditMood(e.target.value)}
+                      className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                     >
-                      #{tag}
-                    </span>
-                  ))}
+                      <option value="happy">Happy</option>
+                      <option value="neutral">Neutral</option>
+                      <option value="sad">Sad</option>
+                      <option value="excited">Excited</option>
+                      <option value="anxious">Anxious</option>
+                      <option value="frustrated">Frustrated</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Tags (comma-separated)
+                    </label>
+                    <input
+                      type="text"
+                      value={editTags}
+                      onChange={(e) => setEditTags(e.target.value)}
+                      className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      placeholder="work, productivity, goals"
+                    />
+                  </div>
                 </div>
-              )}
-            </div>
 
-            {/* Content */}
-            <div className="prose prose-gray max-w-none">
-              <div className="text-gray-700 text-lg leading-relaxed">
-                {formatContent(entry.content)}
+                {/* Action Buttons */}
+                <div className="flex items-center gap-3 pt-4">
+                  <Button
+                    onClick={handleSave}
+                    disabled={isSaving}
+                    className="bg-purple-600 text-white hover:bg-purple-700"
+                  >
+                    {isSaving ? "Saving..." : "Save Changes"}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={handleCancel}
+                    disabled={isSaving}
+                  >
+                    Cancel
+                  </Button>
+                </div>
               </div>
-            </div>
+            ) : (
+              /* Read-only View */
+              <>
+                {/* Title and Metadata */}
+                <div className="mb-8">
+                  <h1 className="text-3xl font-bold text-gray-800 mb-4">
+                    {entry.title}
+                  </h1>
+                  
+                  <div className="flex items-center gap-6 text-sm text-gray-600 mb-4">
+                    <div className="flex items-center gap-2">
+                      <Calendar className="w-4 h-4" />
+                      {entry.entryDate && format(typeof entry.entryDate === 'string' ? parseISO(entry.entryDate) : entry.entryDate, "EEEE, MMMM d, yyyy")}
+                    </div>
+                    
+                    <div className="flex items-center gap-2">
+                      <Clock className="w-4 h-4" />
+                      {entry.createdAt && format(typeof entry.createdAt === 'string' ? parseISO(entry.createdAt) : entry.createdAt, "h:mm a")}
+                    </div>
+                    
+                    {entry.mood && (
+                      <div className="flex items-center gap-2">
+                        <span className="w-4 h-4 rounded-full bg-purple-100 flex items-center justify-center">
+                          😊
+                        </span>
+                        <span className="capitalize">{entry.mood}</span>
+                      </div>
+                    )}
+                  </div>
 
-            {/* Footer */}
-            <div className="mt-8 pt-6 border-t border-gray-200">
-              <div className="text-sm text-gray-500">
-                {entry.updatedAt !== entry.createdAt && (
-                  <span>
-                    Last updated: {format(typeof entry.updatedAt === 'string' ? parseISO(entry.updatedAt) : entry.updatedAt, "MMM d, yyyy 'at' h:mm a")}
-                  </span>
-                )}
-              </div>
-            </div>
+                  {entry.tags && entry.tags.length > 0 && (
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Tag className="w-4 h-4 text-gray-500" />
+                      {entry.tags.map((tag, index) => (
+                        <span
+                          key={index}
+                          className="px-3 py-1 rounded-full text-sm bg-gray-100 text-gray-700"
+                        >
+                          #{tag}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Content */}
+                <div className="prose prose-gray max-w-none">
+                  <div className="text-gray-700 text-lg leading-relaxed">
+                    {formatContent(entry.content)}
+                  </div>
+                </div>
+
+                {/* Footer */}
+                <div className="mt-8 pt-6 border-t border-gray-200">
+                  <div className="text-sm text-gray-500">
+                    {entry.updatedAt !== entry.createdAt && entry.updatedAt && (
+                      <span>
+                        Last updated: {format(typeof entry.updatedAt === 'string' ? parseISO(entry.updatedAt) : entry.updatedAt, "MMM d, yyyy 'at' h:mm a")}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
           </CardContent>
         </Card>
       </div>

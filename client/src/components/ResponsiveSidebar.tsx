@@ -1,4 +1,4 @@
-import { Home, TrendingUp, Target, BookOpen, User } from "lucide-react";
+import { Home, TrendingUp, Target, BookOpen, User, Flame } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -6,14 +6,17 @@ interface ResponsiveSidebarProps {
   currentScreen: string;
   onNavigate: (screen: string) => void;
   className?: string;
+  isInDetailedView?: boolean;
+  onNavigateHome?: () => void;
 }
 
-export const ResponsiveSidebar = ({ currentScreen, onNavigate, className }: ResponsiveSidebarProps) => {
+export const ResponsiveSidebar = ({ currentScreen, onNavigate, className, isInDetailedView, onNavigateHome }: ResponsiveSidebarProps) => {
   const navItems = [
     { id: "home", icon: Home, label: "Home" },
+    { id: "journals", icon: BookOpen, label: "Journals" },
     { id: "insights", icon: TrendingUp, label: "Insights" },
     { id: "goals", icon: Target, label: "Goals" },
-    { id: "journals", icon: BookOpen, label: "Journals" },
+    { id: "habits", icon: Flame, label: "Habits" },
     { id: "profile", icon: User, label: "Profile" },
   ];
 
@@ -40,10 +43,23 @@ export const ResponsiveSidebar = ({ currentScreen, onNavigate, className }: Resp
               <Button
                 key={item.id}
                 variant={isActive ? "secondary" : "ghost"}
-                onClick={() => onNavigate(item.id)}
+                onClick={() => {
+                  console.log('Home button clicked:', {
+                    itemId: item.id,
+                    isInDetailedView,
+                    hasOnNavigateHome: !!onNavigateHome
+                  });
+                  if (item.id === "home" && isInDetailedView && onNavigateHome) {
+                    console.log('Calling onNavigateHome');
+                    onNavigateHome();
+                  } else {
+                    console.log('Calling onNavigate with:', item.id);
+                    onNavigate(item.id);
+                  }
+                }}
                 className={cn(
                   "w-full justify-start px-4 py-3 h-auto",
-                  isActive 
+                  (isActive && !isInDetailedView) || (item.id === "home" && isInDetailedView)
                     ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium" 
                     : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                 )}

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 
 export type ViewMode = 'overall' | 'by-metric';
-export type LifeMetricCategory = 'Mental Health' | 'Physical Health' | 'Social' | 'Productivity' | 'Nutrition' | 'Investments' | null;
+export type LifeMetricCategory = 'Mental Health' | 'Physical Health' | 'Social' | 'Finance' | 'Health & Fitness' | 'Career Growth' | 'Personal Development' | 'Relationships' | null;
 
 interface UseLifeMetricViewProps {
   initialViewMode?: ViewMode;

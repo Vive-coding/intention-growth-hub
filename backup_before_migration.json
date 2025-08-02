@@ -1,0 +1,595 @@
+{
+  "goalHabits": [
+    {
+      "id": "7de61df6-d9bd-4326-bd94-646af6260d50",
+      "goal_instance_id": "cab55356-517b-43be-85ec-fee6b4a0c4ea",
+      "habit_id": "99cdcf48-1b6c-43c1-9ec8-9860dfa6c805",
+      "user_id": "dev-user-123",
+      "created_at": "2025-07-30 00:47:51.857174",
+      "completions_needed": 1
+    },
+    {
+      "id": "6121c4ae-9623-4487-9bc6-4a480612f804",
+      "goal_instance_id": "e6e78124-3b59-4ff5-a065-db05723ee02b",
+      "habit_id": "99cdcf48-1b6c-43c1-9ec8-9860dfa6c805",
+      "user_id": "dev-user-123",
+      "created_at": "2025-07-30 00:57:38.783521",
+      "completions_needed": 1
+    },
+    {
+      "id": "83f80b94-9ef8-45da-804c-86ae0c476786",
+      "goal_instance_id": "033c898a-7d6f-423b-91aa-df7935efb4f7",
+      "habit_id": "39fd6f56-5d46-4f48-b322-917a1c5b24c2",
+      "user_id": "dev-user-123",
+      "created_at": "2025-07-30 09:48:51.390818",
+      "completions_needed": 1
+    },
+    {
+      "id": "145c05e5-5121-442d-b855-0e3ced5de2ac",
+      "goal_instance_id": "cab55356-517b-43be-85ec-fee6b4a0c4ea",
+      "habit_id": "748f3813-52ba-4376-84fa-294141ecc88c",
+      "user_id": "dev-user-123",
+      "created_at": "2025-07-30 11:51:34.438128",
+      "completions_needed": 1
+    },
+    {
+      "id": "f78ed34b-ef2e-4c0f-b125-c60ec48019a6",
+      "goal_instance_id": "75b06004-a28d-4e61-822e-f933e407447f",
+      "habit_id": "99cdcf48-1b6c-43c1-9ec8-9860dfa6c805",
+      "user_id": "dev-user-123",
+      "created_at": "2025-07-30 14:38:39.979742",
+      "completions_needed": 1
+    },
+    {
+      "id": "6a61a754-6e7a-4dc3-b8f5-cbea899f9bf0",
+      "goal_instance_id": "66478f1d-1929-41ac-816c-6ba34a018515",
+      "habit_id": "99cdcf48-1b6c-43c1-9ec8-9860dfa6c805",
+      "user_id": "dev-user-123",
+      "created_at": "2025-07-30 16:09:20.975536",
+      "completions_needed": 1
+    },
+    {
+      "id": "14b482b4-92ae-428c-86ea-bb660d73b8b1",
+      "goal_instance_id": "c0953a93-cb96-4d4b-837a-3b8d16d78671",
+      "habit_id": "39fd6f56-5d46-4f48-b322-917a1c5b24c2",
+      "user_id": "dev-user-123",
+      "created_at": "2025-07-31 15:10:23.289766",
+      "completions_needed": 1
+    },
+    {
+      "id": "09c6e8d6-63d9-4d89-892f-661c71fcda43",
+      "goal_instance_id": "75a88b62-03c6-4f9b-b825-2392476e2731",
+      "habit_id": "e6f956e6-7586-4616-94b7-4c7258607839",
+      "user_id": "dev-user-123",
+      "created_at": "2025-07-31 15:38:22.848391",
+      "completions_needed": 1
+    },
+    {
+      "id": "9e4433ca-9f6e-457f-a7d4-266dc4e6fe07",
+      "goal_instance_id": "19cb8db7-89f2-46ed-8a58-2979cc886a26",
+      "habit_id": "99cdcf48-1b6c-43c1-9ec8-9860dfa6c805",
+      "user_id": "dev-user-123",
+      "created_at": "2025-07-31 15:44:56.619448",
+      "completions_needed": 1
+    },
+    {
+      "id": "c765d175-b84e-43b3-9b38-0f18d1628c95",
+      "goal_instance_id": "c680ed03-cfa6-430f-8171-7638739e5838",
+      "habit_id": "99cdcf48-1b6c-43c1-9ec8-9860dfa6c805",
+      "user_id": "dev-user-123",
+      "created_at": "2025-07-31 16:23:35.061815",
+      "completions_needed": 1
+    },
+    {
+      "id": "2098942f-ab6f-468d-ab06-2a2840130919",
+      "goal_instance_id": "ada8f8ce-f860-4709-b828-7b4e9e3af051",
+      "habit_id": "39fd6f56-5d46-4f48-b322-917a1c5b24c2",
+      "user_id": "dev-user-123",
+      "created_at": "2025-07-31 16:23:58.926981",
+      "completions_needed": 1
+    },
+    {
+      "id": "93ef8ff7-9cb4-474c-97d5-d007e4b2138a",
+      "goal_instance_id": "9a85f4a1-bd3e-404f-84bc-c91075d43b9a",
+      "habit_id": "65c33c6e-bd1d-438c-bd71-ee193c4ba4b0",
+      "user_id": "dev-user-123",
+      "created_at": "2025-07-31 16:34:13.620206",
+      "completions_needed": 1
+    },
+    {
+      "id": "f8b5d7cd-a804-4962-ba6e-91bd95fed027",
+      "goal_instance_id": "c680ed03-cfa6-430f-8171-7638739e5838",
+      "habit_id": "748f3813-52ba-4376-84fa-294141ecc88c",
+      "user_id": "dev-user-123",
+      "created_at": "2025-07-31 21:30:53.622587",
+      "completions_needed": 1
+    },
+    {
+      "id": "54a10d1a-b7f8-44f9-945d-ca4defcb70e3",
+      "goal_instance_id": "4f061e6f-f101-4321-8501-8ede35deeb72",
+      "habit_id": "e6f956e6-7586-4616-94b7-4c7258607839",
+      "user_id": "dev-user-123",
+      "created_at": "2025-07-31 21:40:10.255928",
+      "completions_needed": 1
+    },
+    {
+      "id": "1c57c65a-7a66-485f-a25c-cb642be59b52",
+      "goal_instance_id": "19cb8db7-89f2-46ed-8a58-2979cc886a26",
+      "habit_id": "e6f956e6-7586-4616-94b7-4c7258607839",
+      "user_id": "dev-user-123",
+      "created_at": "2025-07-31 21:42:28.603099",
+      "completions_needed": 1
+    },
+    {
+      "id": "a69772c4-431e-4572-b116-fee1eede6b84",
+      "goal_instance_id": "e404a751-9143-409f-b8e7-d8f0d9f7fb03",
+      "habit_id": "65c33c6e-bd1d-438c-bd71-ee193c4ba4b0",
+      "user_id": "dev-user-123",
+      "created_at": "2025-07-31 21:52:19.846324",
+      "completions_needed": 1
+    },
+    {
+      "id": "fa6c2992-64b0-457c-8a6f-cfa490e58f44",
+      "goal_instance_id": "e10e5528-e740-4941-bfff-3e9badf2c8ed",
+      "habit_id": "e6f956e6-7586-4616-94b7-4c7258607839",
+      "user_id": "dev-user-123",
+      "created_at": "2025-08-01 12:23:42.766442",
+      "completions_needed": 1
+    },
+    {
+      "id": "aed24b67-7c81-4226-9e94-e3264c514dcd",
+      "goal_instance_id": "e10e5528-e740-4941-bfff-3e9badf2c8ed",
+      "habit_id": "39fd6f56-5d46-4f48-b322-917a1c5b24c2",
+      "user_id": "dev-user-123",
+      "created_at": "2025-08-01 12:24:00.136358",
+      "completions_needed": 1
+    },
+    {
+      "id": "35a8b3e0-15e9-471a-acf2-48cd6609412a",
+      "goal_instance_id": "e10e5528-e740-4941-bfff-3e9badf2c8ed",
+      "habit_id": "748f3813-52ba-4376-84fa-294141ecc88c",
+      "user_id": "dev-user-123",
+      "created_at": "2025-08-01 12:26:09.862879",
+      "completions_needed": 5
+    },
+    {
+      "id": "92bd2be8-041f-4f3d-ac1f-2d4d157e878e",
+      "goal_instance_id": "e25730bb-cfa5-4f4a-963d-4e1f53ba8e7d",
+      "habit_id": "3d80824f-3110-4359-b0ac-2bce57bc99bb",
+      "user_id": "dev-user-123",
+      "created_at": "2025-08-01 14:06:45.484749",
+      "completions_needed": 1
+    }
+  ],
+  "habitCompletions": [
+    {
+      "id": "555f1662-02ef-449b-a06a-42c06112c245",
+      "habit_id": "e6f956e6-7586-4616-94b7-4c7258607839",
+      "user_id": "dev-user-123",
+      "completed_at": "2025-07-29 23:02:42.978752",
+      "notes": "Completed via goals screen",
+      "created_at": "2025-07-29 23:02:42.978752"
+    },
+    {
+      "id": "f1a1e037-2abd-4ddb-ad31-3512d3b444b7",
+      "habit_id": "e6f956e6-7586-4616-94b7-4c7258607839",
+      "user_id": "dev-user-123",
+      "completed_at": "2025-07-29 23:26:27.962225",
+      "notes": "Completed via goals screen",
+      "created_at": "2025-07-29 23:26:27.962225"
+    },
+    {
+      "id": "25b9b9a9-20f4-4b52-bfef-a2f9053bddbf",
+      "habit_id": "e6f956e6-7586-4616-94b7-4c7258607839",
+      "user_id": "dev-user-123",
+      "completed_at": "2025-07-29 23:26:30.017685",
+      "notes": "Completed via goals screen",
+      "created_at": "2025-07-29 23:26:30.017685"
+    },
+    {
+      "id": "ea57a03e-22fb-4562-b1bb-50d5e858732b",
+      "habit_id": "e6f956e6-7586-4616-94b7-4c7258607839",
+      "user_id": "dev-user-123",
+      "completed_at": "2025-07-29 23:26:30.829852",
+      "notes": "Completed via goals screen",
+      "created_at": "2025-07-29 23:26:30.829852"
+    },
+    {
+      "id": "d64fc2a1-f3a5-4fb3-b616-20dcbcb9d347",
+      "habit_id": "e6f956e6-7586-4616-94b7-4c7258607839",
+      "user_id": "dev-user-123",
+      "completed_at": "2025-07-29 23:48:49.346972",
+      "notes": "Completed via goals screen",
+      "created_at": "2025-07-29 23:48:49.346972"
+    },
+    {
+      "id": "b58acaef-1432-435f-950a-8ca00c9f3dad",
+      "habit_id": "e6f956e6-7586-4616-94b7-4c7258607839",
+      "user_id": "dev-user-123",
+      "completed_at": "2025-07-29 23:48:57.760352",
+      "notes": "Completed via goals screen",
+      "created_at": "2025-07-29 23:48:57.760352"
+    },
+    {
+      "id": "1f254fcf-b4f9-4068-bfb3-2923455b995d",
+      "habit_id": "e6f956e6-7586-4616-94b7-4c7258607839",
+      "user_id": "dev-user-123",
+      "completed_at": "2025-07-29 23:49:38.254424",
+      "notes": "Completed via goals screen",
+      "created_at": "2025-07-29 23:49:38.254424"
+    },
+    {
+      "id": "259f749b-456e-40d9-9d18-63c8705dddec",
+      "habit_id": "99cdcf48-1b6c-43c1-9ec8-9860dfa6c805",
+      "user_id": "dev-user-123",
+      "completed_at": "2025-07-30 00:31:33.334821",
+      "notes": "",
+      "created_at": "2025-07-30 00:31:33.334821"
+    },
+    {
+      "id": "507c411e-516e-4b48-b613-e199f6f273e2",
+      "habit_id": "99cdcf48-1b6c-43c1-9ec8-9860dfa6c805",
+      "user_id": "dev-user-123",
+      "completed_at": "2025-07-30 00:47:55.89907",
+      "notes": "Completed via goals screen",
+      "created_at": "2025-07-30 00:47:55.89907"
+    },
+    {
+      "id": "3b2e55e7-50fd-4d5e-bfb6-2da26f90e64c",
+      "habit_id": "99cdcf48-1b6c-43c1-9ec8-9860dfa6c805",
+      "user_id": "dev-user-123",
+      "completed_at": "2025-07-30 00:47:58.415367",
+      "notes": "Completed via goals screen",
+      "created_at": "2025-07-30 00:47:58.415367"
+    },
+    {
+      "id": "675a6fd7-f30b-41d6-bf2b-fe4a1e6646c0",
+      "habit_id": "e6f956e6-7586-4616-94b7-4c7258607839",
+      "user_id": "dev-user-123",
+      "completed_at": "2025-07-30 09:44:14.85004",
+      "notes": "",
+      "created_at": "2025-07-30 09:44:14.85004"
+    },
+    {
+      "id": "604f6ef1-0d09-4c81-aff4-f6b7d5a34dd6",
+      "habit_id": "99cdcf48-1b6c-43c1-9ec8-9860dfa6c805",
+      "user_id": "dev-user-123",
+      "completed_at": "2025-07-30 09:44:27.63999",
+      "notes": "Completed via goals screen",
+      "created_at": "2025-07-30 09:44:27.63999"
+    },
+    {
+      "id": "e797db31-d4df-495b-8248-897e981df63a",
+      "habit_id": "99cdcf48-1b6c-43c1-9ec8-9860dfa6c805",
+      "user_id": "dev-user-123",
+      "completed_at": "2025-07-30 16:09:22.157802",
+      "notes": "Completed via goals screen",
+      "created_at": "2025-07-30 16:09:22.157802"
+    },
+    {
+      "id": "aab36469-c9e5-4b45-a964-74b8ac169903",
+      "habit_id": "99cdcf48-1b6c-43c1-9ec8-9860dfa6c805",
+      "user_id": "dev-user-123",
+      "completed_at": "2025-07-30 16:09:22.817565",
+      "notes": "Completed via goals screen",
+      "created_at": "2025-07-30 16:09:22.817565"
+    },
+    {
+      "id": "103bbd66-8774-43ea-a21e-fb279e6c326f",
+      "habit_id": "e6f956e6-7586-4616-94b7-4c7258607839",
+      "user_id": "dev-user-123",
+      "completed_at": "2025-07-30 23:55:48.788389",
+      "notes": "",
+      "created_at": "2025-07-30 23:55:48.788389"
+    },
+    {
+      "id": "34b7d73b-910c-4092-99c0-a979c71b1bb5",
+      "habit_id": "e6f956e6-7586-4616-94b7-4c7258607839",
+      "user_id": "dev-user-123",
+      "completed_at": "2025-07-30 23:55:50.330051",
+      "notes": "",
+      "created_at": "2025-07-30 23:55:50.330051"
+    },
+    {
+      "id": "52a900e1-6f03-4ceb-a44f-b5b9ac637604",
+      "habit_id": "e6f956e6-7586-4616-94b7-4c7258607839",
+      "user_id": "dev-user-123",
+      "completed_at": "2025-07-30 23:55:51.299201",
+      "notes": "",
+      "created_at": "2025-07-30 23:55:51.299201"
+    },
+    {
+      "id": "c8536aad-c203-4a90-89eb-541f77d2cdc9",
+      "habit_id": "99cdcf48-1b6c-43c1-9ec8-9860dfa6c805",
+      "user_id": "dev-user-123",
+      "completed_at": "2025-07-31 15:44:47.079611",
+      "notes": "Completed via goal detail modal",
+      "created_at": "2025-07-31 15:44:47.079611"
+    },
+    {
+      "id": "5064a6a6-8132-49c4-a378-f1b19577ae19",
+      "habit_id": "99cdcf48-1b6c-43c1-9ec8-9860dfa6c805",
+      "user_id": "dev-user-123",
+      "completed_at": "2025-07-31 16:23:36.916789",
+      "notes": "Completed via goal detail modal",
+      "created_at": "2025-07-31 16:23:36.916789"
+    },
+    {
+      "id": "ba66f3bb-8b3f-4a4e-9a36-a460ad4eddc6",
+      "habit_id": "99cdcf48-1b6c-43c1-9ec8-9860dfa6c805",
+      "user_id": "dev-user-123",
+      "completed_at": "2025-07-31 16:23:38.135756",
+      "notes": "Completed via goal detail modal",
+      "created_at": "2025-07-31 16:23:38.135756"
+    },
+    {
+      "id": "6a516782-6e7b-48ca-8826-b9d10e9e2d1c",
+      "habit_id": "99cdcf48-1b6c-43c1-9ec8-9860dfa6c805",
+      "user_id": "dev-user-123",
+      "completed_at": "2025-07-31 16:23:38.835062",
+      "notes": "Completed via goal detail modal",
+      "created_at": "2025-07-31 16:23:38.835062"
+    },
+    {
+      "id": "9a4269d0-7a0f-4559-93da-d23fe3088d08",
+      "habit_id": "99cdcf48-1b6c-43c1-9ec8-9860dfa6c805",
+      "user_id": "dev-user-123",
+      "completed_at": "2025-07-31 16:23:39.452816",
+      "notes": "Completed via goal detail modal",
+      "created_at": "2025-07-31 16:23:39.452816"
+    },
+    {
+      "id": "8bef2e55-aeae-4190-8c24-b6e3013c2e9b",
+      "habit_id": "39fd6f56-5d46-4f48-b322-917a1c5b24c2",
+      "user_id": "dev-user-123",
+      "completed_at": "2025-07-31 16:24:00.552267",
+      "notes": "Completed via goal detail modal",
+      "created_at": "2025-07-31 16:24:00.552267"
+    },
+    {
+      "id": "24b3ea67-264b-4485-80c5-f7e6c3b0b5f6",
+      "habit_id": "39fd6f56-5d46-4f48-b322-917a1c5b24c2",
+      "user_id": "dev-user-123",
+      "completed_at": "2025-07-31 16:24:01.385559",
+      "notes": "Completed via goal detail modal",
+      "created_at": "2025-07-31 16:24:01.385559"
+    },
+    {
+      "id": "8521b109-98a1-4c8b-ae07-ec9a9e3a6b01",
+      "habit_id": "39fd6f56-5d46-4f48-b322-917a1c5b24c2",
+      "user_id": "dev-user-123",
+      "completed_at": "2025-07-31 16:24:01.836292",
+      "notes": "Completed via goal detail modal",
+      "created_at": "2025-07-31 16:24:01.836292"
+    },
+    {
+      "id": "7f562e9f-b4c5-416a-9db7-b71858565ea5",
+      "habit_id": "65c33c6e-bd1d-438c-bd71-ee193c4ba4b0",
+      "user_id": "dev-user-123",
+      "completed_at": "2025-07-31 16:34:17.51144",
+      "notes": "Completed via goal detail modal",
+      "created_at": "2025-07-31 16:34:17.51144"
+    },
+    {
+      "id": "e25f85f0-ef4e-4be6-8736-2e15ea85a825",
+      "habit_id": "e6f956e6-7586-4616-94b7-4c7258607839",
+      "user_id": "dev-user-123",
+      "completed_at": "2025-07-31 21:40:14.070644",
+      "notes": "Completed via goal detail modal",
+      "created_at": "2025-07-31 21:40:14.070644"
+    },
+    {
+      "id": "7e1f92b9-85c2-4a5b-be55-200b3819daf7",
+      "habit_id": "99cdcf48-1b6c-43c1-9ec8-9860dfa6c805",
+      "user_id": "dev-user-123",
+      "completed_at": "2025-07-31 21:41:25.276806",
+      "notes": "Completed via goal detail modal",
+      "created_at": "2025-07-31 21:41:25.276806"
+    },
+    {
+      "id": "c772cf05-60af-4c19-8d71-10d655bcec0f",
+      "habit_id": "99cdcf48-1b6c-43c1-9ec8-9860dfa6c805",
+      "user_id": "dev-user-123",
+      "completed_at": "2025-07-31 21:41:25.926094",
+      "notes": "Completed via goal detail modal",
+      "created_at": "2025-07-31 21:41:25.926094"
+    },
+    {
+      "id": "146548a0-4c1d-46e8-ab03-d4bcd0ca2e51",
+      "habit_id": "e6f956e6-7586-4616-94b7-4c7258607839",
+      "user_id": "dev-user-123",
+      "completed_at": "2025-07-31 21:42:30.576545",
+      "notes": "Completed via goal detail modal",
+      "created_at": "2025-07-31 21:42:30.576545"
+    },
+    {
+      "id": "747ed59c-8533-4b2a-b3cf-340957db0e04",
+      "habit_id": "65c33c6e-bd1d-438c-bd71-ee193c4ba4b0",
+      "user_id": "dev-user-123",
+      "completed_at": "2025-07-31 21:52:24.469755",
+      "notes": "Completed via goal detail modal",
+      "created_at": "2025-07-31 21:52:24.469755"
+    },
+    {
+      "id": "feea53b9-2df7-4c95-b56c-4fbbf7b99881",
+      "habit_id": "65c33c6e-bd1d-438c-bd71-ee193c4ba4b0",
+      "user_id": "dev-user-123",
+      "completed_at": "2025-07-31 21:52:25.648343",
+      "notes": "Completed via goal detail modal",
+      "created_at": "2025-07-31 21:52:25.648343"
+    },
+    {
+      "id": "f841c06a-1442-45cb-87c1-e202e7a22596",
+      "habit_id": "3d80824f-3110-4359-b0ac-2bce57bc99bb",
+      "user_id": "dev-user-123",
+      "completed_at": "2025-08-01 14:06:22.173821",
+      "notes": "Completed via goal detail modal",
+      "created_at": "2025-08-01 14:06:22.173821"
+    },
+    {
+      "id": "25ed2342-1322-4312-8047-748bcc3f5be1",
+      "habit_id": "3d80824f-3110-4359-b0ac-2bce57bc99bb",
+      "user_id": "dev-user-123",
+      "completed_at": "2025-08-01 14:06:34.606518",
+      "notes": "Completed via goal detail modal",
+      "created_at": "2025-08-01 14:06:34.606518"
+    }
+  ],
+  "suggestedHabits": [
+    {
+      "id": "e6f956e6-7586-4616-94b7-4c7258607839",
+      "insight_id": "8b2fbd87-d0ce-407e-b655-656410d6570a",
+      "life_metric_id": "856e4fa5-cff8-44d7-9536-ecf58ac4f0ce",
+      "title": "7am workout routine",
+      "description": null,
+      "archived": false,
+      "created_at": "2025-07-29 09:52:51.494622",
+      "target_frequency": "daily",
+      "target_count": 1
+    },
+    {
+      "id": "39fd6f56-5d46-4f48-b322-917a1c5b24c2",
+      "insight_id": "64ce6da9-c1e9-408d-b9f0-3f85fba077e7",
+      "life_metric_id": "cbae9b81-9841-4e33-8ca5-3abf41e75104",
+      "title": "15min rubber duck journaling for bugs",
+      "description": null,
+      "archived": false,
+      "created_at": "2025-07-29 09:52:51.498279",
+      "target_frequency": "daily",
+      "target_count": 1
+    },
+    {
+      "id": "99cdcf48-1b6c-43c1-9ec8-9860dfa6c805",
+      "insight_id": "24610471-3a43-4c25-a24c-798fdbd60d3d",
+      "life_metric_id": "cbae9b81-9841-4e33-8ca5-3abf41e75104",
+      "title": "Midday Energy Assessment",
+      "description": "Pause briefly each day after lunch to assess energy levels and adjust the afternoon's tasks to align with current energy.",
+      "archived": false,
+      "created_at": "2025-07-29 17:02:04.293265",
+      "target_frequency": "daily",
+      "target_count": 1
+    },
+    {
+      "id": "748f3813-52ba-4376-84fa-294141ecc88c",
+      "insight_id": "2ef0591c-596b-4c09-9a49-587da2f83178",
+      "life_metric_id": "cbae9b81-9841-4e33-8ca5-3abf41e75104",
+      "title": "Morning Classical Music Coding Habit",
+      "description": "Begin each coding session in the morning by playing Mozart or Bach to enhance focus and efficiency.",
+      "archived": false,
+      "created_at": "2025-07-29 21:27:32.429117",
+      "target_frequency": "daily",
+      "target_count": 1
+    },
+    {
+      "id": "478d700a-5ea4-496b-a0a3-b88a51802f86",
+      "insight_id": "0fb49ffe-2e6a-4ac4-968d-39ca0401288b",
+      "life_metric_id": "856e4fa5-cff8-44d7-9536-ecf58ac4f0ce",
+      "title": "7am workout routine",
+      "description": null,
+      "archived": false,
+      "created_at": "2025-07-30 13:24:48.109455",
+      "target_frequency": "daily",
+      "target_count": 1
+    },
+    {
+      "id": "b5b5f607-6631-4d0b-8e7f-15b85456b6ab",
+      "insight_id": "f8f3b033-b707-4a41-a09a-b37cc212ca75",
+      "life_metric_id": "cbae9b81-9841-4e33-8ca5-3abf41e75104",
+      "title": "15min rubber duck journaling for bugs",
+      "description": null,
+      "archived": false,
+      "created_at": "2025-07-30 13:24:48.112964",
+      "target_frequency": "daily",
+      "target_count": 1
+    },
+    {
+      "id": "0d8f4ab9-476b-4f0a-bf18-3c0d1e26f753",
+      "insight_id": "f2a26613-3473-48bf-8ef5-9ef20c0ae614",
+      "life_metric_id": "856e4fa5-cff8-44d7-9536-ecf58ac4f0ce",
+      "title": "7am workout routine",
+      "description": null,
+      "archived": false,
+      "created_at": "2025-07-30 14:33:31.971963",
+      "target_frequency": "daily",
+      "target_count": 1
+    },
+    {
+      "id": "aad9995f-a3f7-4020-85b6-48f862214eb3",
+      "insight_id": "c069dfcb-3b41-4f5b-8d37-c21c887f5a8d",
+      "life_metric_id": "cbae9b81-9841-4e33-8ca5-3abf41e75104",
+      "title": "15min rubber duck journaling for bugs",
+      "description": null,
+      "archived": false,
+      "created_at": "2025-07-30 14:33:31.975335",
+      "target_frequency": "daily",
+      "target_count": 1
+    },
+    {
+      "id": "e50102c1-22ba-407f-96e6-ad5c0394bb6c",
+      "insight_id": "204da9c4-c637-4cca-8b58-b157bcdf0813",
+      "life_metric_id": "856e4fa5-cff8-44d7-9536-ecf58ac4f0ce",
+      "title": "7am workout routine",
+      "description": null,
+      "archived": false,
+      "created_at": "2025-07-31 01:20:23.542606",
+      "target_frequency": "daily",
+      "target_count": 1
+    },
+    {
+      "id": "8e999f58-d309-42a3-bf20-831e80e72da3",
+      "insight_id": "f3d4d59f-a09b-4827-ba4e-3ac5aa81d227",
+      "life_metric_id": "cbae9b81-9841-4e33-8ca5-3abf41e75104",
+      "title": "15min rubber duck journaling for bugs",
+      "description": null,
+      "archived": false,
+      "created_at": "2025-07-31 01:20:23.546689",
+      "target_frequency": "daily",
+      "target_count": 1
+    },
+    {
+      "id": "65c33c6e-bd1d-438c-bd71-ee193c4ba4b0",
+      "insight_id": "3c013fc8-7bd5-459c-856d-eedb9af993fc",
+      "life_metric_id": "224a7f29-456a-425d-8cc7-ec99826bb0b2",
+      "title": "Asset research",
+      "description": "Look up new etfs and assets to invest in",
+      "archived": false,
+      "created_at": "2025-07-31 16:34:13.594515",
+      "target_frequency": "weekly",
+      "target_count": 1
+    },
+    {
+      "id": "f50da703-8edf-40f1-adf3-e4993646c4b3",
+      "insight_id": "69ffe8c8-c74d-438f-94d8-e455a510aaa4",
+      "life_metric_id": "856e4fa5-cff8-44d7-9536-ecf58ac4f0ce",
+      "title": "7am workout routine",
+      "description": null,
+      "archived": false,
+      "created_at": "2025-08-01 11:30:53.659277",
+      "target_frequency": "daily",
+      "target_count": 1
+    },
+    {
+      "id": "cd1948c1-3d32-4309-b867-408c56ccf752",
+      "insight_id": "d8f40fcd-738a-4cc3-90ad-40a2d8a835b5",
+      "life_metric_id": "cbae9b81-9841-4e33-8ca5-3abf41e75104",
+      "title": "15min rubber duck journaling for bugs",
+      "description": null,
+      "archived": false,
+      "created_at": "2025-08-01 11:30:53.664997",
+      "target_frequency": "daily",
+      "target_count": 1
+    },
+    {
+      "id": "3d80824f-3110-4359-b0ac-2bce57bc99bb",
+      "insight_id": "abad174d-ca75-4498-a7c5-f131aebf2634",
+      "life_metric_id": "224a7f29-456a-425d-8cc7-ec99826bb0b2",
+      "title": "Read financial research regularly",
+      "description": "",
+      "archived": false,
+      "created_at": "2025-08-01 14:06:12.913123",
+      "target_frequency": "weekly",
+      "target_count": 3
+    }
+  ],
+  "timestamp": "2025-08-01T20:55:16.521Z"
+}

@@ -8,6 +8,8 @@ import { queryClient } from "@/lib/queryClient";
 import Index from "./pages/Index";
 import Landing from "./pages/Landing";
 import NotFound from "./pages/NotFound";
+import InsightsPage from "./pages/insights";
+import { HabitsScreen } from "./components/HabitsScreen";
 
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -19,6 +21,8 @@ function Router() {
       ) : (
         <>
           <Route path="/" component={Index} />
+          <Route path="/insights" component={InsightsPage} />
+          <Route path="/habits" component={HabitsScreen} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
         </>
       )}

@@ -1,16 +1,10 @@
-import * as client from "openid-client";
-import { Strategy, type VerifyFunction } from "openid-client/passport";
-
-import passport from "passport";
+import type { Express, Request, Response, NextFunction } from "express";
 import session from "express-session";
-import type { Express, RequestHandler } from "express";
+import { storage } from "./storage";
+import passport from "passport";
 import memoize from "memoizee";
 import connectPg from "connect-pg-simple";
-import { storage } from "./storage";
-
-if (!process.env.REPLIT_DOMAINS) {
-  throw new Error("Environment variable REPLIT_DOMAINS not provided");
-}
+import { client } from "./replit-client";
 
 const getOidcConfig = memoize(
   async () => {
@@ -22,60 +16,42 @@ const getOidcConfig = memoize(
   { maxAge: 3600 * 1000 }
 );
 
-export function getSession() {
+export async function setupAuth(app: Express) {
+  if (process.env.NODE_ENV === "development") {
+    return;
+  }
+
+  if (!process.env.REPLIT_DOMAINS) {
+    throw new Error("Environment variable REPLIT_DOMAINS not provided");
+  }
+
   const sessionTtl = 7 * 24 * 60 * 60 * 1000; // 1 week
   const pgStore = connectPg(session);
   const sessionStore = new pgStore({
-    conString: process.env.DATABASE_URL,
-    createTableIfMissing: false,
-    ttl: sessionTtl,
+    conObject: {
+      connectionString: process.env.DATABASE_URL,
+    },
     tableName: "sessions",
   });
-  return session({
+
+  app.use(session({
     secret: process.env.SESSION_SECRET!,
     store: sessionStore,
     resave: false,
     saveUninitialized: false,
     cookie: {
-      httpOnly: true,
-      secure: false, // Set to true in production with HTTPS
+      secure: process.env.NODE_ENV === "production",
       maxAge: sessionTtl,
       sameSite: 'lax', // Allow cookies to be sent with same-site requests
     },
-  });
-}
+  }));
 
-function updateUserSession(
-  user: any,
-  tokens: client.TokenEndpointResponse & client.TokenEndpointResponseHelpers
-) {
-  user.claims = tokens.claims();
-  user.access_token = tokens.access_token;
-  user.refresh_token = tokens.refresh_token;
-  user.expires_at = user.claims?.exp;
-}
-
-async function upsertUser(
-  claims: any,
-) {
-  await storage.upsertUser({
-    id: claims["sub"],
-    email: claims["email"],
-    firstName: claims["first_name"],
-    lastName: claims["last_name"],
-    profileImageUrl: claims["profile_image_url"],
-  });
-}
-
-export async function setupAuth(app: Express) {
-  app.set("trust proxy", 1);
-  app.use(getSession());
   app.use(passport.initialize());
   app.use(passport.session());
 
   const config = await getOidcConfig();
 
-  const verify: VerifyFunction = async (
+  const verify = async (
     tokens: client.TokenEndpointResponse & client.TokenEndpointResponseHelpers,
     verified: passport.AuthenticateCallback
   ) => {
@@ -87,7 +63,7 @@ export async function setupAuth(app: Express) {
 
   for (const domain of process.env
     .REPLIT_DOMAINS!.split(",")) {
-    const strategy = new Strategy(
+    const strategy = new passport.Strategy(
       {
         name: `replitauth:${domain}`,
         config,
@@ -138,31 +114,51 @@ export async function setupAuth(app: Express) {
   });
 }
 
-export const isAuthenticated: RequestHandler = async (req, res, next) => {
+function updateUserSession(
+  user: any,
+  tokens: client.TokenEndpointResponse & client.TokenEndpointResponseHelpers
+) {
+  user.claims = tokens.claims();
+  user.access_token = tokens.access_token;
+  user.refresh_token = tokens.refresh_token;
+  user.expires_at = user.claims?.exp;
+}
+
+async function upsertUser(claims: any) {
+  await storage.upsertUser({
+    id: claims["sub"],
+    email: claims["email"],
+    firstName: claims["first_name"],
+    lastName: claims["last_name"],
+    profileImageUrl: claims["profile_image_url"],
+  });
+}
+
+export const isAuthenticated = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  if (process.env.NODE_ENV === "development") {
+    return next();
+  }
+
+  if (!req.isAuthenticated()) {
+    return res.status(401).json({ message: "Not authenticated" });
+  }
+
   const user = req.user as any;
-
-  if (!req.isAuthenticated() || !user.expires_at) {
-    return res.status(401).json({ message: "Unauthorized" });
+  if (!user?.expires_at || user.expires_at * 1000 < Date.now()) {
+    try {
+      const config = await getOidcConfig();
+      const tokens = await client.refresh(config, user.refresh_token);
+      updateUserSession(user, tokens);
+      await upsertUser(user.claims);
+    } catch (error) {
+      console.error("Error refreshing token:", error);
+      return res.status(401).json({ message: "Session expired" });
+    }
   }
 
-  const now = Math.floor(Date.now() / 1000);
-  if (now <= user.expires_at) {
-    return next();
-  }
-
-  const refreshToken = user.refresh_token;
-  if (!refreshToken) {
-    res.status(401).json({ message: "Unauthorized" });
-    return;
-  }
-
-  try {
-    const config = await getOidcConfig();
-    const tokenResponse = await client.refreshTokenGrant(config, refreshToken);
-    updateUserSession(user, tokenResponse);
-    return next();
-  } catch (error) {
-    res.status(401).json({ message: "Unauthorized" });
-    return;
-  }
+  next();
 };

@@ -1,9 +1,17 @@
 import {
   users,
+  sessions,
   lifeMetricDefinitions,
   goalDefinitions,
   goalInstances,
   journalEntries,
+  insights,
+  insightLifeMetrics,
+  insightVotes,
+  suggestedGoals,
+  suggestedHabits,
+  habitCompletions,
+  progressSnapshots,
   type User,
   type UpsertUser,
   type LifeMetricDefinition,
@@ -15,9 +23,17 @@ import {
   type InsertGoalInstance,
   type JournalEntry,
   type InsertJournalEntry,
+  type InsertInsight,
+  type Insight,
+  type SuggestedGoal,
+  type SuggestedHabit,
+  type HabitCompletion,
+  type InsertHabitCompletion,
+  type ProgressSnapshot,
+  type InsertProgressSnapshot,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, sql, desc, asc, gte, lte } from "drizzle-orm";
+import { eq, and, sql, desc, asc, gte, lte, isNotNull } from "drizzle-orm";
 
 // Interface for storage operations
 export interface IStorage {
@@ -29,6 +45,7 @@ export interface IStorage {
   // Life metrics operations
   getUserLifeMetrics(userId: string): Promise<LifeMetricDefinition[]>;
   getUserLifeMetricsWithProgress(userId: string): Promise<LifeMetricWithProgress[]>;
+  getMonthlyGoalCompletions(userId: string, lifeMetricName: string): Promise<{ month: string; completed: number }[]>;
   createLifeMetric(metric: InsertLifeMetricDefinition): Promise<LifeMetricDefinition>;
   
   // Goal operations
@@ -41,15 +58,262 @@ export interface IStorage {
   // Journal operations
   getUserJournalEntries(userId: string, limit?: number): Promise<JournalEntry[]>;
   getJournalEntry(id: string, userId: string): Promise<JournalEntry | undefined>;
+  getLatestJournalEntry(userId: string): Promise<JournalEntry | undefined>;
   createJournalEntry(entry: InsertJournalEntry): Promise<JournalEntry>;
   updateJournalEntry(id: string, userId: string, entry: Partial<InsertJournalEntry>): Promise<JournalEntry>;
   deleteJournalEntry(id: string, userId: string): Promise<void>;
   getJournalEntriesByDateRange(userId: string, startDate: Date, endDate: Date): Promise<JournalEntry[]>;
+
+  // Insight operations
+  getUserInsights(userId: string): Promise<Insight[]>;
+  createInsight(data: InsertInsight & { lifeMetricIds: string[] }): Promise<Insight>;
+  createSuggestedGoal(data: { insightId: string; lifeMetricId: string; title: string; description?: string }): Promise<SuggestedGoal>;
+  createSuggestedHabit(data: { insightId: string; lifeMetricId: string; title: string; description?: string }): Promise<SuggestedHabit>;
+  updateInsightConfidence(insightId: string, newConfidence: number): Promise<Insight>;
+  
+  // Habit completion operations
+  getHabitCompletions(habitId: string, userId: string): Promise<HabitCompletion[]>;
+  createHabitCompletion(data: InsertHabitCompletion): Promise<HabitCompletion>;
+  getHabitStreak(habitId: string, userId: string): Promise<{ currentStreak: number; longestStreak: number }>;
+  
+  // Progress snapshot operations
+  createProgressSnapshot(data: InsertProgressSnapshot): Promise<ProgressSnapshot>;
+  getProgressSnapshots(userId: string, lifeMetricName: string, startDate: Date, endDate: Date): Promise<ProgressSnapshot[]>;
+  getCurrentMonthProgress(userId: string, lifeMetricName: string): Promise<{ progress: number; goalsCompleted: number; totalGoals: number }>;
+  getWeeklyProgress(userId: string, lifeMetricName: string): Promise<{ week: string; progress: number }[]>;
+  getProgressForPeriod(userId: string, lifeMetricName: string, period: string): Promise<{ progress: number; goalsCompleted: number; totalGoals: number }>;
 }
+
+const mockData = {
+  lifeMetrics: [
+    {
+      id: "550e8400-e29b-41d4-a716-446655440001",
+      userId: "dev-user-123",
+      name: "Health & Fitness",
+      description: "Physical and mental wellbeing",
+      color: "#10b981",
+      isActive: true,
+      createdAt: new Date(),
+    },
+    {
+      id: "550e8400-e29b-41d4-a716-446655440002",
+      userId: "dev-user-123",
+      name: "Career Growth",
+      description: "Professional development and skills",
+      color: "#3b82f6",
+      isActive: true,
+      createdAt: new Date(),
+    },
+    {
+      id: "550e8400-e29b-41d4-a716-446655440003",
+      userId: "dev-user-123",
+      name: "Personal Development",
+      description: "Learning and self-improvement",
+      color: "#8b5cf6",
+      isActive: true,
+      createdAt: new Date(),
+    },
+    {
+      id: "550e8400-e29b-41d4-a716-446655440004",
+      userId: "dev-user-123",
+      name: "Relationships",
+      description: "Social connections and relationships",
+      color: "#f59e0b",
+      isActive: true,
+      createdAt: new Date(),
+    },
+    {
+      id: "550e8400-e29b-41d4-a716-446655440005",
+      userId: "dev-user-123",
+      name: "Finance",
+      description: "Financial planning and investments",
+      color: "#ef4444",
+      isActive: true,
+      createdAt: new Date(),
+    },
+          {
+        id: "550e8400-e29b-41d4-a716-446655440006",
+        userId: "dev-user-123",
+        name: "Mental Health",
+        description: "Emotional wellbeing and mental clarity",
+        color: "#8b5cf6",
+        isActive: true,
+        createdAt: new Date(),
+      },
+  ],
+  goals: [
+    {
+      id: "550e8400-e29b-41d4-a716-446655440003",
+      userId: "dev-user-123",
+      title: "Daily Exercise",
+      description: "30 minutes of exercise daily",
+      category: "Health & Fitness",
+      unit: "minutes",
+      isActive: true,
+      createdAt: new Date(),
+    },
+    {
+      id: "550e8400-e29b-41d4-a716-446655440007",
+      userId: "dev-user-123",
+      title: "Meditation Practice",
+      description: "10 minutes of meditation daily",
+      category: "Health & Fitness",
+      unit: "minutes",
+      isActive: true,
+      createdAt: new Date(),
+    },
+    {
+      id: "550e8400-e29b-41d4-a716-446655440008",
+      userId: "dev-user-123",
+      title: "Social Connections",
+      description: "Connect with 3 friends weekly",
+      category: "Relationships",
+      unit: "connections",
+      isActive: true,
+      createdAt: new Date(),
+    },
+    {
+      id: "550e8400-e29b-41d4-a716-446655440009",
+      userId: "dev-user-123",
+      title: "Work Efficiency",
+      description: "Complete 5 tasks daily",
+              category: "Mental Health",
+      unit: "tasks",
+      isActive: true,
+      createdAt: new Date(),
+    },
+    {
+      id: "550e8400-e29b-41d4-a716-446655440010",
+      userId: "dev-user-123",
+      title: "Learning Goals",
+      description: "Read 2 books this quarter",
+      category: "Personal Development",
+      unit: "books",
+      isActive: true,
+      createdAt: new Date(),
+    },
+    {
+      id: "550e8400-e29b-41d4-a716-446655440011",
+      userId: "dev-user-123",
+      title: "Investment Review",
+      description: "Review portfolio monthly",
+      category: "Finance",
+      unit: "reviews",
+      isActive: true,
+      createdAt: new Date(),
+    },
+  ],
+  goalInstances: [
+    {
+      id: "550e8400-e29b-41d4-a716-446655440004",
+      goalDefinitionId: "550e8400-e29b-41d4-a716-446655440003",
+      userId: "dev-user-123",
+      targetValue: 30,
+      currentValue: 25,
+      startDate: new Date(),
+      targetDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      status: "active",
+      createdAt: new Date(),
+      monthYear: "2025-07",
+      completedAt: null,
+    },
+    {
+      id: "550e8400-e29b-41d4-a716-446655440012",
+      goalDefinitionId: "550e8400-e29b-41d4-a716-446655440007",
+      userId: "dev-user-123",
+      targetValue: 10,
+      currentValue: 8,
+      startDate: new Date(),
+      targetDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      status: "active",
+      createdAt: new Date(),
+      monthYear: "2025-07",
+      completedAt: null,
+    },
+    {
+      id: "550e8400-e29b-41d4-a716-446655440013",
+      goalDefinitionId: "550e8400-e29b-41d4-a716-446655440008",
+      userId: "dev-user-123",
+      targetValue: 3,
+      currentValue: 2,
+      startDate: new Date(),
+      targetDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      status: "active",
+      createdAt: new Date(),
+      monthYear: "2025-07",
+      completedAt: null,
+    },
+    {
+      id: "550e8400-e29b-41d4-a716-446655440014",
+      goalDefinitionId: "550e8400-e29b-41d4-a716-446655440009",
+      userId: "dev-user-123",
+      targetValue: 5,
+      currentValue: 4,
+      startDate: new Date(),
+      targetDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      status: "active",
+      createdAt: new Date(),
+      monthYear: "2025-07",
+      completedAt: null,
+    },
+    {
+      id: "550e8400-e29b-41d4-a716-446655440015",
+      goalDefinitionId: "550e8400-e29b-41d4-a716-446655440010",
+      userId: "dev-user-123",
+      targetValue: 3,
+      currentValue: 2,
+      startDate: new Date(),
+      targetDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      status: "active",
+      createdAt: new Date(),
+      monthYear: "2025-07",
+      completedAt: null,
+    },
+    {
+      id: "550e8400-e29b-41d4-a716-446655440016",
+      goalDefinitionId: "550e8400-e29b-41d4-a716-446655440011",
+      userId: "dev-user-123",
+      targetValue: 1,
+      currentValue: 0,
+      startDate: new Date(),
+      targetDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+      status: "active",
+      createdAt: new Date(),
+      monthYear: "2025-07",
+      completedAt: null,
+    },
+  ],
+  journals: [
+    {
+      id: "550e8400-e29b-41d4-a716-446655440005",
+      userId: "dev-user-123",
+      title: "First Development Entry",
+      content: "This is a sample journal entry for development.",
+      entryDate: new Date(),
+      mood: "Happy",
+      tags: ["development", "testing"],
+      isPrivate: true,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    },
+  ],
+};
 
 export class DatabaseStorage implements IStorage {
   // User operations (required for Replit Auth)
   async getUser(id: string): Promise<User | undefined> {
+    if (process.env.NODE_ENV === "development") {
+      return {
+        id: "dev-user-123",
+        email: "dev@example.com",
+        firstName: "Development",
+        lastName: "User",
+        profileImageUrl: "https://via.placeholder.com/150",
+        onboardingCompleted: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+    }
     const [user] = await db.select().from(users).where(eq(users.id, id));
     return user;
   }
@@ -88,7 +352,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getUserLifeMetricsWithProgress(userId: string): Promise<LifeMetricWithProgress[]> {
-    // Get life metrics with goal progress calculations
+    // Get life metrics with goal progress calculations (only active goals)
     const metrics = await db
       .select({
         id: lifeMetricDefinitions.id,
@@ -100,7 +364,7 @@ export class DatabaseStorage implements IStorage {
         createdAt: lifeMetricDefinitions.createdAt,
         totalGoals: sql<number>`COUNT(DISTINCT ${goalDefinitions.id})`.as('totalGoals'),
         completedGoals: sql<number>`COUNT(DISTINCT CASE WHEN ${goalInstances.status} = 'completed' THEN ${goalInstances.id} END)`.as('completedGoals'),
-        averageProgress: sql<number>`COALESCE(AVG(CAST(${goalInstances.currentValue} AS FLOAT) / NULLIF(${goalInstances.targetValue}, 0) * 100), 0)`.as('averageProgress'),
+        averageProgress: sql<number>`COALESCE(AVG(CASE WHEN ${goalInstances.status} = 'active' THEN CAST(${goalInstances.currentValue} AS FLOAT) / NULLIF(${goalInstances.targetValue}, 0) * 100 ELSE NULL END), 0)`.as('averageProgress'),
       })
       .from(lifeMetricDefinitions)
       .leftJoin(goalDefinitions, and(
@@ -109,8 +373,7 @@ export class DatabaseStorage implements IStorage {
         eq(goalDefinitions.isActive, true)
       ))
       .leftJoin(goalInstances, and(
-        eq(goalInstances.goalDefinitionId, goalDefinitions.id),
-        eq(goalInstances.status, 'active')
+        eq(goalInstances.goalDefinitionId, goalDefinitions.id)
       ))
       .where(and(
         eq(lifeMetricDefinitions.userId, userId),
@@ -125,6 +388,77 @@ export class DatabaseStorage implements IStorage {
       totalGoals: Number(metric.totalGoals),
       completedGoals: Number(metric.completedGoals),
       averageProgress: Number(metric.averageProgress),
+    }));
+  }
+
+  async getMonthlyGoalCompletions(userId: string, lifeMetricName: string, period: string = "Last 6 Months"): Promise<{ month: string; completed: number }[]> {
+    // Get monthly completion data from database
+    const completions = await db
+      .select({
+        month: goalInstances.monthYear,
+        completed: sql<number>`COUNT(*)`.as('completed')
+      })
+      .from(goalInstances)
+      .innerJoin(goalDefinitions, eq(goalInstances.goalDefinitionId, goalDefinitions.id))
+      .where(and(
+        eq(goalInstances.userId, userId),
+        eq(goalDefinitions.category, lifeMetricName),
+        eq(goalInstances.status, 'completed'),
+        isNotNull(goalInstances.monthYear)
+      ))
+      .groupBy(goalInstances.monthYear)
+      .orderBy(goalInstances.monthYear);
+
+    // Determine months based on selected period
+    const allMonths = [];
+    const currentDate = new Date();
+    let monthsToShow = 6; // Default to 6 months
+
+    switch (period) {
+      case "This Month":
+        monthsToShow = 1;
+        break;
+      case "Last 3 Months":
+        monthsToShow = 3;
+        break;
+      case "Last 6 Months":
+        monthsToShow = 6;
+        break;
+      case "This Year":
+        // Show all months from January to current month
+        const startMonth = 0; // January
+        const endMonth = currentDate.getMonth();
+        for (let month = startMonth; month <= endMonth; month++) {
+          const monthYear = `${currentDate.getFullYear()}-${String(month + 1).padStart(2, '0')}`;
+          allMonths.push(monthYear);
+        }
+        break;
+      case "All Time":
+        // Show last 12 months
+        monthsToShow = 12;
+        break;
+    }
+
+    // Generate months for non-year periods
+    if (period !== "This Year") {
+      for (let i = monthsToShow - 1; i >= 0; i--) {
+        const date = new Date(currentDate.getFullYear(), currentDate.getMonth() - i, 1);
+        const monthYear = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+        allMonths.push(monthYear);
+      }
+    }
+
+    // Create a map of existing completions
+    const completionMap = new Map(
+      completions
+        .filter(c => c.month !== null)
+        .map(c => [c.month!, Number(c.completed)])
+    );
+
+    // Return all months with completions (including zeros)
+    return allMonths.map(month => ({
+      month,
+      completed: completionMap.get(month) || 0
     }));
   }
 
@@ -146,8 +480,27 @@ export class DatabaseStorage implements IStorage {
 
   async getUserGoalInstances(userId: string): Promise<GoalInstance[]> {
     return await db
-      .select()
+      .select({
+        id: goalInstances.id,
+        goalDefinitionId: goalInstances.goalDefinitionId,
+        userId: goalInstances.userId,
+        targetValue: goalInstances.targetValue,
+        currentValue: goalInstances.currentValue,
+        startDate: goalInstances.startDate,
+        targetDate: goalInstances.targetDate,
+        status: goalInstances.status,
+        monthYear: goalInstances.monthYear,
+        completedAt: goalInstances.completedAt,
+        createdAt: goalInstances.createdAt,
+        // Include goal definition data
+        goalTitle: goalDefinitions.title,
+        goalCategory: goalDefinitions.category,
+        goalDescription: goalDefinitions.description,
+        goalUnit: goalDefinitions.unit,
+        goalIsActive: goalDefinitions.isActive
+      })
       .from(goalInstances)
+      .innerJoin(goalDefinitions, eq(goalInstances.goalDefinitionId, goalDefinitions.id))
       .where(eq(goalInstances.userId, userId));
   }
 
@@ -200,6 +553,16 @@ export class DatabaseStorage implements IStorage {
     return entry;
   }
 
+  async getLatestJournalEntry(userId: string): Promise<JournalEntry | undefined> {
+    const [entry] = await db
+      .select()
+      .from(journalEntries)
+      .where(eq(journalEntries.userId, userId))
+      .orderBy(desc(journalEntries.createdAt))
+      .limit(1);
+    return entry;
+  }
+
   async createJournalEntry(entry: InsertJournalEntry): Promise<JournalEntry> {
     const [created] = await db
       .insert(journalEntries)
@@ -242,6 +605,345 @@ export class DatabaseStorage implements IStorage {
       )
       .orderBy(desc(journalEntries.entryDate));
   }
+
+  // Insight operations
+  async getUserInsights(userId: string): Promise<Insight[]> {
+    return await db
+      .select()
+      .from(insights)
+      .where(eq(insights.userId, userId))
+      .orderBy(desc(insights.createdAt));
+  }
+
+  async createInsight(data: InsertInsight & { lifeMetricIds: string[] }): Promise<Insight> {
+    const { lifeMetricIds, ...insightData } = data;
+    
+    // Create insight
+    const [insight] = await db.insert(insights).values(insightData).returning();
+
+    // Create life metric associations
+    if (lifeMetricIds.length > 0) {
+      await db.insert(insightLifeMetrics).values(
+        lifeMetricIds.map(lifeMetricId => ({
+          insightId: insight.id,
+          lifeMetricId,
+        }))
+      );
+    }
+
+    return insight;
+  }
+
+  async createSuggestedGoal(data: {
+    insightId: string;
+    lifeMetricId: string;
+    title: string;
+    description?: string;
+  }): Promise<SuggestedGoal> {
+    const [goal] = await db.insert(suggestedGoals).values(data).returning();
+    return goal;
+  }
+
+  async createSuggestedHabit(data: {
+    insightId: string;
+    lifeMetricId: string;
+    title: string;
+    description?: string;
+  }): Promise<SuggestedHabit> {
+    const [habit] = await db.insert(suggestedHabits).values(data).returning();
+    return habit;
+  }
+
+  async updateInsightConfidence(insightId: string, newConfidence: number): Promise<Insight> {
+    const [insight] = await db
+      .update(insights)
+      .set({ 
+        confidence: newConfidence,
+        updatedAt: new Date(),
+      })
+      .where(eq(insights.id, insightId))
+      .returning();
+    return insight;
+  }
+
+  // Habit completion operations
+  async getHabitCompletions(habitId: string, userId: string): Promise<HabitCompletion[]> {
+    return await db
+      .select()
+      .from(habitCompletions)
+      .where(and(eq(habitCompletions.habitId, habitId), eq(habitCompletions.userId, userId)));
+  }
+
+  async createHabitCompletion(data: InsertHabitCompletion): Promise<HabitCompletion> {
+    const [completion] = await db
+      .insert(habitCompletions)
+      .values(data)
+      .returning();
+    return completion;
+  }
+
+  async getHabitStreak(habitId: string, userId: string): Promise<{ currentStreak: number; longestStreak: number }> {
+    const completions = await db
+      .select()
+      .from(habitCompletions)
+      .where(and(eq(habitCompletions.habitId, habitId), eq(habitCompletions.userId, userId)))
+      .orderBy(desc(habitCompletions.completedAt));
+
+    let currentStreak = 0;
+    let longestStreak = 0;
+    let lastCompletionDate: Date | null = null;
+
+    for (const completion of completions) {
+      if (lastCompletionDate === null) {
+        currentStreak = 1;
+      } else if (completion.completedAt.getTime() === lastCompletionDate.getTime()) {
+        currentStreak++;
+      } else {
+        currentStreak = 1;
+      }
+      longestStreak = Math.max(longestStreak, currentStreak);
+      lastCompletionDate = completion.completedAt;
+    }
+
+    return { currentStreak, longestStreak };
+  }
+
+  // Progress snapshot operations
+  async createProgressSnapshot(data: InsertProgressSnapshot): Promise<ProgressSnapshot> {
+    const [snapshot] = await db
+      .insert(progressSnapshots)
+      .values(data)
+      .returning();
+    return snapshot;
+  }
+
+  async getProgressSnapshots(userId: string, lifeMetricName: string, startDate: Date, endDate: Date): Promise<ProgressSnapshot[]> {
+    return await db
+      .select()
+      .from(progressSnapshots)
+      .where(and(
+        eq(progressSnapshots.userId, userId),
+        eq(progressSnapshots.lifeMetricName, lifeMetricName),
+        gte(progressSnapshots.snapshotDate, startDate),
+        lte(progressSnapshots.snapshotDate, endDate)
+      ))
+      .orderBy(asc(progressSnapshots.snapshotDate));
+  }
+
+  async getCurrentMonthProgress(userId: string, lifeMetricName: string): Promise<{ progress: number; goalsCompleted: number; totalGoals: number }> {
+    // Get the life metric by name to get its UUID
+    const lifeMetric = await db
+      .select()
+      .from(lifeMetricDefinitions)
+      .where(and(
+        eq(lifeMetricDefinitions.userId, userId),
+        eq(lifeMetricDefinitions.name, lifeMetricName)
+      ))
+      .limit(1);
+
+    if (lifeMetric.length === 0) {
+      return { progress: 0, goalsCompleted: 0, totalGoals: 0 };
+    }
+
+    const lifeMetricId = lifeMetric[0].id;
+
+    // Get current month's goals for this metric using lifeMetricId
+    const currentMonth = new Date();
+    const monthYear = `${currentMonth.getFullYear()}-${String(currentMonth.getMonth() + 1).padStart(2, '0')}`;
+    
+    const goals = await db
+      .select()
+      .from(goalInstances)
+      .innerJoin(goalDefinitions, eq(goalInstances.goalDefinitionId, goalDefinitions.id))
+      .where(and(
+        eq(goalInstances.userId, userId),
+        eq(goalDefinitions.lifeMetricId, lifeMetricId),
+        eq(goalInstances.monthYear, monthYear)
+      ));
+
+    if (goals.length === 0) {
+      return { progress: 0, goalsCompleted: 0, totalGoals: 0 };
+    }
+
+    const totalGoals = goals.length;
+    const goalsCompleted = goals.filter(g => g.goal_instances.status === 'completed').length;
+    
+    // Calculate average progress using the same logic as detailed view
+    const totalProgress = goals.reduce((sum, goal) => {
+      const currentValue = goal.goal_instances.currentValue ?? 0;
+      const targetValue = goal.goal_instances.targetValue ?? 1;
+      const goalProgress = targetValue > 0 ? (currentValue / targetValue) * 100 : 0;
+      return sum + Math.min(goalProgress, 100);
+    }, 0);
+    
+    const averageProgress = totalProgress / totalGoals;
+
+    return {
+      progress: Math.round(averageProgress),
+      goalsCompleted,
+      totalGoals
+    };
+  }
+
+    async getWeeklyProgress(userId: string, lifeMetricName: string): Promise<{ week: string; progress: number }[]> {
+    // Get current month's active goals for this metric
+    const currentDate = new Date();
+    const currentMonthYear = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
+    
+    const currentGoals = await db
+      .select({
+        id: goalInstances.id,
+        currentValue: goalInstances.currentValue,
+        targetValue: goalInstances.targetValue,
+        status: goalInstances.status
+      })
+      .from(goalInstances)
+      .innerJoin(goalDefinitions, eq(goalInstances.goalDefinitionId, goalDefinitions.id))
+      .where(and(
+        eq(goalInstances.userId, userId),
+        eq(goalDefinitions.category, lifeMetricName),
+        eq(goalInstances.status, 'active'),
+        eq(goalInstances.monthYear, currentMonthYear)
+      ));
+
+    if (currentGoals.length === 0) {
+      return [{ week: "Week 1", progress: 0 }];
+    }
+
+    // Calculate current overall progress
+    const totalProgress = currentGoals.reduce((sum: number, goal: any) => {
+      const currentValue = goal.currentValue ?? 0;
+      const progress = (currentValue / goal.targetValue) * 100;
+      return sum + Math.min(progress, 100);
+    }, 0);
+    const averageProgress = Math.round(totalProgress / currentGoals.length);
+
+    // Generate weekly progression leading to current progress
+    const weeksInMonth = Math.ceil(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate() / 7);
+    const weeklyData = [];
+    
+    for (let week = 1; week <= weeksInMonth; week++) {
+      // Progressive increase leading to current average progress
+      const weekProgress = Math.round((averageProgress * week) / weeksInMonth);
+      weeklyData.push({
+        week: `Week ${week}`,
+        progress: Math.min(weekProgress, averageProgress)
+      });
+    }
+
+    return weeklyData;
+  }
+
+  async getProgressForPeriod(userId: string, lifeMetricName: string, period: string): Promise<{ progress: number; goalsCompleted: number; totalGoals: number }> {
+    if (period === "This Month") {
+      return this.getCurrentMonthProgress(userId, lifeMetricName);
+    } else {
+      // For historical periods, calculate average progress of goals in that period
+      const endDate = new Date();
+      let startDate = new Date();
+      
+      switch (period) {
+        case "Last 3 Months":
+          startDate.setMonth(endDate.getMonth() - 3);
+          break;
+        case "Last 6 Months":
+          startDate.setMonth(endDate.getMonth() - 6);
+          break;
+        case "This Year":
+          startDate = new Date(endDate.getFullYear(), 0, 1);
+          break;
+        case "All Time":
+          startDate = new Date(2020, 0, 1); // Arbitrary start date
+          break;
+        default:
+          return this.getCurrentMonthProgress(userId, lifeMetricName);
+      }
+      
+      // Get all goal instances for this metric in the period
+      const periodInstances = await db
+        .select({
+          id: goalInstances.id,
+          currentValue: goalInstances.currentValue,
+          targetValue: goalInstances.targetValue,
+          status: goalInstances.status,
+          monthYear: goalInstances.monthYear
+        })
+        .from(goalInstances)
+        .innerJoin(goalDefinitions, eq(goalInstances.goalDefinitionId, goalDefinitions.id))
+        .where(and(
+          eq(goalInstances.userId, userId),
+          eq(goalDefinitions.category, lifeMetricName),
+          gte(goalInstances.monthYear, startDate.toISOString().slice(0, 7)),
+          lte(goalInstances.monthYear, endDate.toISOString().slice(0, 7))
+        ));
+
+      if (periodInstances.length === 0) {
+        return { progress: 0, goalsCompleted: 0, totalGoals: 0 };
+      }
+
+      // Calculate average progress of all goals in the period
+      const totalProgress = periodInstances.reduce((sum: number, instance: any) => {
+        const currentValue = instance.currentValue ?? 0;
+        const progress = (currentValue / instance.targetValue) * 100;
+        return sum + Math.min(progress, 100);
+      }, 0);
+
+      const averageProgress = totalProgress / periodInstances.length;
+      const completedGoals = periodInstances.filter((gi: any) => gi.status === 'completed').length;
+      
+      return {
+        progress: Math.round(averageProgress),
+        goalsCompleted: completedGoals,
+        totalGoals: periodInstances.length
+      };
+    }
+  }
 }
 
+// Export storage instance
 export const storage = new DatabaseStorage();
+
+// Export additional functions
+export async function getUserLifeMetricsWithProgress(userId: string): Promise<LifeMetricWithProgress[]> {
+  // Get all life metrics for the user
+  const metrics = await db.query.lifeMetricDefinitions.findMany({
+    where: eq(lifeMetricDefinitions.userId, userId),
+  });
+
+  // Get all goal instances for the user with their definitions
+  const userGoalInstances: Array<GoalInstance & { definition: GoalDefinition }> = await db.query.goalInstances.findMany({
+    where: eq(goalInstances.userId, userId),
+    with: {
+      definition: true,
+    },
+  });
+
+  // Calculate progress for each metric using lifeMetricId
+  return metrics.map((metric: LifeMetricDefinition) => {
+    const metricGoals = userGoalInstances.filter(
+      instance => instance.definition.lifeMetricId === metric.id
+    );
+
+    const totalGoals = metricGoals.length;
+    const completedGoals = metricGoals.filter(
+      instance => instance.status === "completed"
+    ).length;
+
+    const totalProgress = metricGoals.reduce((sum, instance) => {
+      const currentValue = instance.currentValue ?? 0;
+      const targetValue = instance.targetValue ?? 1;
+      const goalProgress = targetValue > 0 ? (currentValue / targetValue) * 100 : 0;
+      return sum + Math.min(goalProgress, 100);
+    }, 0);
+
+    const averageProgress = totalGoals > 0 ? totalProgress / totalGoals : 0;
+
+    return {
+      ...metric,
+      progress: Math.min(100, Math.round(averageProgress)),
+      completedGoals,
+      totalGoals,
+      averageProgress: Math.round(averageProgress),
+    };
+  });
+}

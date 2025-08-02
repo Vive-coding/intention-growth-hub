@@ -1,17 +1,20 @@
 
-import { Home, TrendingUp, Target, BookOpen, User } from "lucide-react";
+import { Home, TrendingUp, Target, BookOpen, User, Flame } from "lucide-react";
 
 interface NavigationBarProps {
   currentScreen: string;
   onNavigate: (screen: string) => void;
+  isInDetailedView?: boolean;
+  onNavigateHome?: () => void;
 }
 
-export const NavigationBar = ({ currentScreen, onNavigate }: NavigationBarProps) => {
+export const NavigationBar = ({ currentScreen, onNavigate, isInDetailedView, onNavigateHome }: NavigationBarProps) => {
   const navItems = [
     { id: "home", icon: Home, label: "Home" },
+    { id: "journals", icon: BookOpen, label: "Journals" },
     { id: "insights", icon: TrendingUp, label: "Insights" },
     { id: "goals", icon: Target, label: "Goals" },
-    { id: "journals", icon: BookOpen, label: "Journals" },
+    { id: "habits", icon: Flame, label: "Habits" },
     { id: "profile", icon: User, label: "Profile" },
   ];
 
@@ -25,9 +28,15 @@ export const NavigationBar = ({ currentScreen, onNavigate }: NavigationBarProps)
           return (
             <button
               key={item.id}
-              onClick={() => onNavigate(item.id)}
+              onClick={() => {
+                if (item.id === "home" && isInDetailedView && onNavigateHome) {
+                  onNavigateHome();
+                } else {
+                  onNavigate(item.id);
+                }
+              }}
               className={`flex flex-col items-center py-2 px-3 rounded-lg transition-colors ${
-                isActive 
+                (isActive && !isInDetailedView) || (item.id === "home" && isInDetailedView)
                   ? "text-green-600 bg-green-50" 
                   : "text-gray-500 hover:text-gray-700"
               }`}

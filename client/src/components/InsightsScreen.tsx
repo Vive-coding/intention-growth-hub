@@ -1,381 +1,275 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { TrendingUp, Brain, Calendar, Tag, ChevronLeft, ChevronRight, ArrowLeft } from "lucide-react";
-import { LineChart, Line, XAxis, YAxis, ResponsiveContainer } from "recharts";
-import { InsightSnapshot } from "./InsightSnapshot";
-import { LifeMetricsDashboard } from "./LifeMetricsDashboard";
+import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { ThumbsUp, ThumbsDown, Filter } from "lucide-react";
 import { useLifeMetricView } from "@/hooks/useLifeMetricView";
+import { insightsService } from "@/services/insightsService";
+import type { Insight } from "@/services/insightsService";
+import { useLocation } from "wouter";
+
+const lifeMetrics = [
+  "All",
+  "Health & Fitness",
+  "Career Growth",
+  "Personal Development",
+  "Relationships",
+  "Finance"
+];
 
 export const InsightsScreen = () => {
-  const [currentPeriod, setCurrentPeriod] = useState("This Week");
-  const [viewMode, setViewMode] = useState<"current" | "historical">("current");
-  const {
-    viewMode: metricViewMode,
-    selectedMetric,
-    timePeriod,
-    handleViewModeChange,
-    handleMetricClick,
-    clearMetricFilter,
-    setTimePeriod,
-    getBreadcrumbs
-  } = useLifeMetricView();
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [selectedFilter, setSelectedFilter] = useState("All");
+  const [insights, setInsights] = useState<Insight[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const { clearMetricFilter } = useLifeMetricView();
 
-  const periods = [
-    "This Week",
-    "Last Week", 
-    "2 Weeks Ago",
-    "3 Weeks Ago",
-    "This Month",
-    "Last Month",
-    "2 Months Ago"
-  ];
+  // Get metric filter from URL
+  const [location] = useLocation();
+  const urlParams = new URLSearchParams(location.split('?')[1]);
+  const metricFilter = urlParams.get('metric');
 
-  const currentPeriodIndex = periods.indexOf(currentPeriod);
+  useEffect(() => {
+    loadInsights();
+  }, []);
 
-  const navigatePeriod = (direction: "prev" | "next") => {
-    const currentIndex = periods.indexOf(currentPeriod);
-    if (direction === "prev" && currentIndex < periods.length - 1) {
-      setCurrentPeriod(periods[currentIndex + 1]);
-    } else if (direction === "next" && currentIndex > 0) {
-      setCurrentPeriod(periods[currentIndex - 1]);
+  const loadInsights = async () => {
+    setIsLoading(true);
+    const data = await insightsService.getInsights();
+    setInsights(data);
+    setIsLoading(false);
+  };
+
+  const handleVote = async (insightId: string, isUpvote: boolean) => {
+    const result = await insightsService.voteOnInsight(insightId, isUpvote);
+    if (result) {
+      setInsights(insights.map(insight => {
+        if (insight.id === insightId) {
+          return {
+            ...insight,
+            upvotes: result.upvotes,
+            downvotes: result.downvotes,
+            userVote: result.userVote,
+          };
+        }
+        return insight;
+      }));
     }
   };
 
-  const getInsightsByMetric = (metric: string) => {
-    // Filter insights based on selected metric
-    const metricInsights = {
-      "Mental Health": {
-        moodData: [
-          { day: "Mon", mood: 8 },
-          { day: "Tue", mood: 7 },
-          { day: "Wed", mood: 9 },
-          { day: "Thu", mood: 8 },
-          { day: "Fri", mood: 9 },
-          { day: "Sat", mood: 8 },
-          { day: "Sun", mood: 8 },
-        ],
-        themes: [
-          { name: "Stress Management", count: 8, color: "bg-red-100 text-red-700" },
-          { name: "Mindfulness", count: 12, color: "bg-blue-100 text-blue-700" },
-          { name: "Mood Tracking", count: 6, color: "bg-purple-100 text-purple-700" },
-        ],
-        aiInsight: "Your mental health insights show strong progress in mindfulness practices. The consistency in your meditation routine has positively impacted your stress levels."
-      },
-      "Physical Health": {
-        moodData: [
-          { day: "Mon", mood: 7 },
-          { day: "Tue", mood: 8 },
-          { day: "Wed", mood: 6 },
-          { day: "Thu", mood: 8 },
-          { day: "Fri", mood: 9 },
-          { day: "Sat", mood: 7 },
-          { day: "Sun", mood: 8 },
-        ],
-        themes: [
-          { name: "Exercise", count: 15, color: "bg-green-100 text-green-700" },
-          { name: "Sleep", count: 10, color: "bg-purple-100 text-purple-700" },
-          { name: "Energy Levels", count: 8, color: "bg-yellow-100 text-yellow-700" },
-        ],
-        aiInsight: "Your physical health tracking shows excellent commitment to exercise routines. Sleep quality improvements are correlating with better energy levels throughout the day."
-      }
-    };
-
-    return metricInsights[metric as keyof typeof metricInsights] || {
-      moodData,
-      themes,
-      aiInsight: "Continue tracking your progress in this area for personalized insights."
-    };
+  const handleArchiveGoal = async (goalId: string, insightId: string) => {
+    const success = await insightsService.archiveGoal(goalId);
+    if (success) {
+      setInsights(insights.map(insight => {
+        if (insight.id === insightId) {
+          return {
+            ...insight,
+            suggestedGoals: insight.suggestedGoals.map(goal => {
+              if (goal.id === goalId) {
+                return { ...goal, archived: true };
+              }
+              return goal;
+            }),
+          };
+        }
+        return insight;
+      }));
+    }
   };
 
-  const moodData = [
-    { day: "Mon", mood: 7 },
-    { day: "Tue", mood: 6 },
-    { day: "Wed", mood: 8 },
-    { day: "Thu", mood: 7 },
-    { day: "Fri", mood: 9 },
-    { day: "Sat", mood: 8 },
-    { day: "Sun", mood: 7 },
-  ];
-
-  const themes = [
-    { name: "Work Stress", count: 12, color: "bg-red-100 text-red-700" },
-    { name: "Family", count: 8, color: "bg-blue-100 text-blue-700" },
-    { name: "Exercise", count: 15, color: "bg-green-100 text-green-700" },
-    { name: "Sleep", count: 6, color: "bg-purple-100 text-purple-700" },
-  ];
-
-  const getHistoricalInsight = (period: string) => {
-    const insights = {
-      "Last Week": {
-        date: "Dec 16-22, 2024",
-        keyThemes: ["Morning Routine", "Work Balance", "Exercise"],
-        aiSummary: "You showed remarkable consistency in your morning routine last week, which correlated with higher energy levels throughout the day. Your reflections revealed a growing awareness of work-life boundaries.",
-        moodTrend: "Steady improvement with a peak mid-week",
-        highlights: [
-          "Completed morning meditation 6/7 days",
-          "Identified key work stress triggers",
-          "Established evening wind-down routine"
-        ]
-      },
-      "2 Weeks Ago": {
-        date: "Dec 9-15, 2024",
-        keyThemes: ["Relationships", "Self-Care", "Productivity"],
-        aiSummary: "This period showed a focus on nurturing relationships and finding balance. You made significant progress in recognizing your self-care needs and setting healthy boundaries.",
-        moodTrend: "Variable with upward trajectory",
-        highlights: [
-          "Had meaningful conversation with family",
-          "Started weekly friend check-ins",
-          "Implemented digital detox evenings"
-        ]
-      },
-      "Last Month": {
-        date: "November 2024",
-        keyThemes: ["Goal Setting", "Mindfulness", "Health"],
-        aiSummary: "November was a transformative month where you laid the foundation for sustainable habits. Your journal entries showed increased self-awareness and commitment to personal growth.",
-        moodTrend: "Consistent positive growth",
-        highlights: [
-          "Set clear health and wellness goals",
-          "Established daily mindfulness practice",
-          "Improved sleep quality significantly"
-        ]
-      }
-    };
-
-    return insights[period as keyof typeof insights] || {
-      date: period,
-      keyThemes: ["Reflection", "Growth"],
-      aiSummary: "This period showed continued progress in your personal development journey.",
-      moodTrend: "Positive overall trend",
-      highlights: ["Maintained consistent journaling", "Focused on self-improvement"]
-    };
+  const handleArchiveHabit = async (habitId: string, insightId: string) => {
+    const success = await insightsService.archiveHabit(habitId);
+    if (success) {
+      setInsights(insights.map(insight => {
+        if (insight.id === insightId) {
+          return {
+            ...insight,
+            suggestedHabits: insight.suggestedHabits.map(habit => {
+              if (habit.id === habitId) {
+                return { ...habit, archived: true };
+              }
+              return habit;
+            }),
+          };
+        }
+        return insight;
+      }));
+    }
   };
 
-  if (viewMode === "historical") {
-    const insight = getHistoricalInsight(currentPeriod);
-    
-    return (
-      <div className="p-6 pb-24 max-w-md mx-auto">
-        <div className="mb-6">
-          <Button 
-            variant="ghost" 
-            onClick={() => setViewMode("current")}
-            className="mb-4 text-green-600"
-          >
-            ← Back to Current Insights
-          </Button>
-          <div className="flex items-center justify-between mb-4">
-            <h1 className="text-2xl font-bold text-gray-800">Insight History</h1>
+  // Set initial filter from URL parameter
+  useEffect(() => {
+    if (metricFilter && selectedFilter === "All") {
+      setSelectedFilter(metricFilter);
+    }
+  }, [metricFilter, selectedFilter]);
+
+  const filteredInsights = selectedFilter === "All" 
+    ? insights 
+    : insights.filter(insight => 
+        insight.lifeMetrics.some(metric => metric.name === selectedFilter)
+      );
+
+  const renderInsightCard = (insight: Insight) => (
+    <Card key={insight.id} className="h-full flex flex-col">
+      <CardHeader className="space-y-2 pb-3">
+        <div className="flex items-start justify-between">
+          <div className="flex flex-wrap gap-1">
+            {insight.lifeMetrics.map(metric => (
+              <Badge key={metric.id} variant="outline" style={{ borderColor: metric.color, color: metric.color }}>
+                {metric.name}
+              </Badge>
+            ))}
           </div>
-          
-          {/* Period Navigation */}
-          <div className="flex items-center justify-between mb-4">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => navigatePeriod("prev")}
-              disabled={currentPeriodIndex >= periods.length - 1}
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </Button>
-            <h2 className="text-lg font-semibold text-gray-700">{currentPeriod}</h2>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => navigatePeriod("next")}
-              disabled={currentPeriodIndex <= 0}
-            >
-              <ChevronRight className="w-4 h-4" />
-            </Button>
+          <Badge variant="secondary" className="shrink-0">
+            {insight.confidence}% confident
+          </Badge>
+        </div>
+        <CardTitle className="text-xl leading-tight">{insight.title}</CardTitle>
+      </CardHeader>
+      <CardContent className="flex-1 space-y-4">
+        <p className="text-base text-muted-foreground leading-relaxed">
+          {insight.explanation}
+        </p>
+        {(insight.suggestedGoals.length > 0 || insight.suggestedHabits.length > 0) && (
+          <div className="space-y-2">
+            {insight.suggestedGoals
+              .filter(goal => !goal.archived)
+              .map(goal => (
+                <div key={goal.id} className="flex items-center justify-between">
+                  <div className="flex items-center">
+                    <Badge variant="outline" className="mr-2 bg-blue-50 text-blue-700">
+                      Suggested Goal
+                    </Badge>
+                    <span className="text-sm">{goal.title}</span>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleArchiveGoal(goal.id, insight.id)}
+                    className="text-gray-500 hover:text-gray-700"
+                  >
+                    Archive
+                  </Button>
+                </div>
+              ))}
+            {insight.suggestedHabits
+              .filter(habit => !habit.archived)
+              .map(habit => (
+                <div key={habit.id} className="flex items-center justify-between">
+                  <div className="flex items-center">
+                    <Badge variant="outline" className="mr-2 bg-green-50 text-green-700">
+                      Suggested Habit
+                    </Badge>
+                    <span className="text-sm">{habit.title}</span>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleArchiveHabit(habit.id, insight.id)}
+                    className="text-gray-500 hover:text-gray-700"
+                  >
+                    Archive
+                  </Button>
+                </div>
+              ))}
+          </div>
+        )}
+        <div className="flex justify-end space-x-2 pt-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => handleVote(insight.id, true)}
+            className={`hover:bg-green-50 ${
+              insight.userVote === true ? 'text-green-600' : 'text-gray-500'
+            }`}
+          >
+            <ThumbsUp className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => handleVote(insight.id, false)}
+            className={`hover:bg-red-50 ${
+              insight.userVote === false ? 'text-red-600' : 'text-gray-500'
+            }`}
+          >
+            <ThumbsDown className="h-4 w-4" />
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+
+  if (isLoading) {
+    return (
+      <div className="p-4 lg:p-8 pb-24 lg:pb-8">
+        <div className="max-w-7xl mx-auto">
+          <div className="animate-pulse space-y-4">
+            <div className="h-8 bg-gray-200 rounded w-1/4"></div>
+            <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {[1, 2, 3].map(i => (
+                <div key={i} className="h-64 bg-gray-200 rounded"></div>
+              ))}
+            </div>
           </div>
         </div>
-
-        <InsightSnapshot
-          date={insight.date}
-          period={currentPeriod}
-          keyThemes={insight.keyThemes}
-          aiSummary={insight.aiSummary}
-          moodTrend={insight.moodTrend}
-          highlights={insight.highlights}
-        />
       </div>
     );
   }
-
-  const currentData = selectedMetric ? getInsightsByMetric(selectedMetric) : { moodData, themes, aiInsight: "I've noticed you feel most energized and creative when you complete your morning routine. Consider protecting this time as it seems to set a positive tone for your entire day." };
 
   return (
     <div className="p-4 lg:p-8 pb-24 lg:pb-8">
       <div className="max-w-7xl mx-auto">
         <div className="mb-6">
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center space-x-2">
-              <h1 className="text-2xl lg:text-3xl font-bold text-gray-800">Your Insights</h1>
-              {selectedMetric && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={clearMetricFilter}
-                  className="text-gray-600"
-                >
-                  <ArrowLeft className="w-4 h-4 mr-1" />
-                  Back
-                </Button>
-              )}
+          <div className="flex items-center justify-between mb-4">
+            <h1 className="text-2xl lg:text-3xl font-bold text-gray-800">
+              {metricFilter ? `${metricFilter} Insights` : "Your Insights"}
+            </h1>
+            <div className="flex items-center gap-2">
+              <Filter className="h-4 w-4 text-gray-500" />
+              <span className="text-sm text-gray-500">Filter by Life Metric:</span>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setViewMode("historical")}
-              className="text-blue-600"
-            >
-              <Calendar className="w-4 h-4 mr-1" />
-              History
-            </Button>
           </div>
-          
-          {/* Breadcrumbs */}
-          {(selectedMetric || getBreadcrumbs().length > 0) && (
-            <div className="flex items-center space-x-2 mb-2">
-              <span className="text-sm text-gray-500">Insights</span>
-              {getBreadcrumbs().map((crumb, index) => (
-                <span key={index} className="text-sm text-gray-500">
-                  › {crumb}
-                </span>
-              ))}
-            </div>
+
+          <div className="flex flex-wrap gap-2 mb-6">
+            {lifeMetrics.map((metric) => (
+              <Button
+                key={metric}
+                variant={selectedFilter === metric ? "default" : "outline"}
+                size="sm"
+                onClick={() => setSelectedFilter(metric)}
+                className={selectedFilter === metric ? "" : "text-gray-600"}
+              >
+                {metric}
+              </Button>
+            ))}
+          </div>
+
+          {isProcessing && (
+            <Alert className="mb-6">
+              <AlertDescription>
+                Processing new insights from your latest journal entry...
+              </AlertDescription>
+            </Alert>
           )}
-          
-          <p className="text-gray-600">
-            Insights are updated after each GPT session
-          </p>
         </div>
 
-        <Tabs value={metricViewMode} onValueChange={handleViewModeChange} className="mb-6">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="overall">Overall View</TabsTrigger>
-            <TabsTrigger value="by-metric">By Life Metric</TabsTrigger>
-          </TabsList>
-          
-          <TabsContent value="overall" className="space-y-4">
-            {/* Overall insights content */}
-            {renderInsightsContent()}
-          </TabsContent>
-          
-          <TabsContent value="by-metric" className="space-y-4">
-            <LifeMetricsDashboard 
-              onMetricClick={handleMetricClick} 
-              selectedPeriod={timePeriod}
-              onPeriodChange={setTimePeriod}
-            />
-            {selectedMetric && (
-              <div className="space-y-4">
-                <div className="text-center">
-                  <h2 className="text-lg font-semibold text-gray-800 mb-2">
-                    {selectedMetric} Insights
-                  </h2>
-                  <p className="text-sm text-gray-600">
-                    Focused insights for your {selectedMetric.toLowerCase()} journey
-                  </p>
-                </div>
-                {renderInsightsContent()}
-              </div>
-            )}
-            {!selectedMetric && (
-              <div className="text-center py-8">
-                <p className="text-gray-600">
-                  Click on a life metric above to see focused insights
-                </p>
-              </div>
-            )}
-          </TabsContent>
-        </Tabs>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredInsights.map(insight => renderInsightCard(insight))}
+        </div>
+
+        {filteredInsights.length === 0 && !isLoading && (
+          <div className="text-center py-8">
+            <p className="text-gray-600">
+              No insights found for the selected life metric.
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );
-
-  function renderInsightsContent() {
-    return (
-      <>
-        {/* Mood Trends */}
-        <Card className="mb-4 shadow-md border-0 bg-white/80 backdrop-blur-sm">
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <TrendingUp className="w-5 h-5 text-green-600" />
-              <span>
-                {selectedMetric ? `${selectedMetric} Trends This Week` : "Mood Trends This Week"}
-              </span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={150}>
-              <LineChart data={currentData.moodData}>
-                <XAxis dataKey="day" axisLine={false} tickLine={false} />
-                <YAxis hide />
-                <Line 
-                  type="monotone" 
-                  dataKey="mood" 
-                  stroke="#10b981" 
-                  strokeWidth={3}
-                  dot={{ fill: "#10b981", strokeWidth: 2, r: 4 }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-            <p className="text-sm text-gray-600 mt-2">
-              {selectedMetric ? `Your ${selectedMetric.toLowerCase()} progress shows positive trends this week!` : "Your mood has been consistently positive this week!"}
-            </p>
-          </CardContent>
-        </Card>
-
-        {/* Common Themes */}
-        <Card className="mb-4 shadow-md border-0 bg-white/80 backdrop-blur-sm">
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <Tag className="w-5 h-5 text-blue-600" />
-              <span>
-                {selectedMetric ? `${selectedMetric} Themes in Your Journal` : "Common Themes in Your Journal"}
-              </span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {currentData.themes.map((theme) => (
-                <div key={theme.name} className="flex items-center justify-between">
-                  <span className={`px-3 py-1 rounded-full text-sm font-medium ${theme.color}`}>
-                    {theme.name}
-                  </span>
-                  <span className="text-sm text-gray-500">
-                    {theme.count} mentions
-                  </span>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* AI Insight */}
-        <Card className="shadow-md border-0 bg-gradient-to-r from-purple-50 to-pink-50">
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <Brain className="w-5 h-5 text-purple-600" />
-              <span>AI Insight</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-gray-700 leading-relaxed">
-              {currentData.aiInsight}
-            </p>
-            <div className="mt-3 p-3 bg-yellow-50 rounded-lg border-l-4 border-yellow-400">
-              <p className="text-sm text-yellow-800">
-                <strong>Early Detection:</strong> Your stress levels have been slightly elevated this week. 
-                Would you like some resources to help manage stress?
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      </>
-    );
-  }
 };
