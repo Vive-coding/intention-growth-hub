@@ -9,6 +9,7 @@ import {
   text,
   boolean,
   integer,
+  numeric,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -29,10 +30,12 @@ export const sessions = pgTable(
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   email: varchar("email").unique(),
+  password: varchar("password"), // For local authentication
   firstName: varchar("first_name"),
   lastName: varchar("last_name"),
   profileImageUrl: varchar("profile_image_url"),
   onboardingCompleted: boolean("onboarding_completed").default(false),
+  timezone: varchar("timezone"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -44,6 +47,8 @@ export const lifeMetricDefinitions = pgTable("life_metric_definitions", {
   name: varchar("name", { length: 255 }).notNull(),
   description: text("description"),
   color: varchar("color", { length: 50 }).notNull(), // hex color for UI
+  // Simple time availability signal for agent budgeting: none | very_little | some | plenty
+  timeAvailability: varchar("time_availability", { length: 20 }).default("some"),
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -58,6 +63,7 @@ export const goalDefinitions = pgTable("goal_definitions", {
   lifeMetricId: uuid("life_metric_id").references(() => lifeMetricDefinitions.id), // Direct reference to life metric
   unit: varchar("unit", { length: 50 }), // minutes, hours, count, etc.
   isActive: boolean("is_active").default(true),
+  archived: boolean("archived").default(false).notNull(),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -67,12 +73,13 @@ export const goalInstances = pgTable("goal_instances", {
   goalDefinitionId: uuid("goal_definition_id").notNull().references(() => goalDefinitions.id, { onDelete: "cascade" }),
   userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   targetValue: integer("target_value").notNull(),
-  currentValue: integer("current_value").default(0),
+  currentValue: integer("current_value").default(0), // Manual adjustment offset (can be negative)
   startDate: timestamp("start_date").defaultNow(),
   targetDate: timestamp("target_date"),
-  status: varchar("status", { length: 20 }).default("active"), // active, completed, paused, cancelled
+  status: varchar("status", { length: 20 }).default("active"), // active, completed, paused, cancelled, archived
   monthYear: varchar("month_year", { length: 7 }), // "2025-07" format for monthly tracking
   completedAt: timestamp("completed_at"), // when the goal was completed
+  archived: boolean("archived").default(false).notNull(),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -140,6 +147,46 @@ export const suggestedHabits = pgTable("suggested_habits", {
   targetFrequency: varchar("target_frequency", { length: 20 }).default("daily"), // daily, weekly, monthly
   targetCount: integer("target_count").default(1), // how many times per frequency period
   archived: boolean("archived").default(false).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Feedback events (append-only)
+export const feedbackEvents = pgTable("feedback_events", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  type: varchar("type", { length: 40 }).notNull(), // insight | smart_suggestion | suggested_goal | suggested_habit
+  itemId: varchar("item_id", { length: 255 }).notNull(),
+  action: varchar("action", { length: 40 }).notNull(), // upvote | downvote | accept | dismiss | ignore
+  context: jsonb("context"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Aggregated acceptance metrics
+export const acceptanceMetrics = pgTable("agent_acceptance_metrics", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  type: varchar("type", { length: 40 }).notNull(),
+  metricName: varchar("metric_name", { length: 100 }).notNull(),
+  windowMonth: varchar("window_month", { length: 7 }).notNull(), // YYYY-MM
+  impressions: integer("impressions").default(0).notNull(),
+  accepts: integer("accepts").default(0).notNull(),
+  dismisses: integer("dismisses").default(0).notNull(),
+  upvotes: integer("upvotes").default(0).notNull(),
+  downvotes: integer("downvotes").default(0).notNull(),
+  ignores: integer("ignores").default(0).notNull(),
+  acceptanceRate: integer("acceptance_rate").default(0).notNull(), // 0-100
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Suggestion memory for cooldowns
+export const suggestionMemory = pgTable("suggestion_memory", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  conceptHash: varchar("concept_hash", { length: 64 }).notNull(),
+  type: varchar("type", { length: 40 }).notNull(), // insight | suggested_goal | suggested_habit
+  itemId: varchar("item_id", { length: 255 }),
+  lastShownAt: timestamp("last_shown_at").defaultNow().notNull(),
+  lastAppliedAt: timestamp("last_applied_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

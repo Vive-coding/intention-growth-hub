@@ -43,7 +43,9 @@ export async function securityMiddleware(req: Request, res: Response, next: Next
       if (!contentResult.isAppropriate) {
         return res.status(400).json({
           message: 'Inappropriate content detected',
-          reason: contentResult.reason
+          reason: contentResult.reason,
+          reasonCode: contentResult.reasonCode || 'other',
+          offendingTerms: contentResult.offendingTerms || []
         });
       }
 

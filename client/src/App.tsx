@@ -6,7 +6,7 @@ import { Route, Switch } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
 import { queryClient } from "@/lib/queryClient";
 import Index from "./pages/Index";
-import Landing from "./pages/Landing";
+import { Landing } from "./pages/Landing";
 import NotFound from "./pages/NotFound";
 import InsightsPage from "./pages/insights";
 import { HabitsScreen } from "./components/HabitsScreen";
@@ -16,29 +16,27 @@ function Router() {
 
   return (
     <Switch>
-      {isLoading || !isAuthenticated ? (
-        <Route path="/" component={Landing} />
-      ) : (
-        <>
-          <Route path="/" component={Index} />
-          <Route path="/insights" component={InsightsPage} />
-          <Route path="/habits" component={HabitsScreen} />
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-        </>
-      )}
+      <Route path="/" component={Index} />
+      <Route path="/landing" component={Landing} />
+      <Route path="/insights" component={InsightsPage} />
+      <Route path="/habits" component={HabitsScreen} />
+      {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
       <Route component={NotFound} />
     </Switch>
   );
 }
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <Router />
-    </TooltipProvider>
-  </QueryClientProvider>
-);
+const App = () => {
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+  return (
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner position={isMobile ? "top-center" : "bottom-right"} />
+        <Router />
+      </TooltipProvider>
+    </QueryClientProvider>
+  );
+};
 
 export default App;

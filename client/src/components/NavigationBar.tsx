@@ -15,7 +15,6 @@ export const NavigationBar = ({ currentScreen, onNavigate, isInDetailedView, onN
     { id: "insights", icon: TrendingUp, label: "Insights" },
     { id: "goals", icon: Target, label: "Goals" },
     { id: "habits", icon: Flame, label: "Habits" },
-    { id: "profile", icon: User, label: "Profile" },
   ];
 
   return (

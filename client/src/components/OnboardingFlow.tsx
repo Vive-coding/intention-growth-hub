@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Heart, Shield, MessageCircle, ChevronRight } from "lucide-react";
+import { Logo } from "@/components/ui/Logo";
 
 interface OnboardingFlowProps {
   onComplete: () => void;
@@ -13,8 +14,11 @@ export const OnboardingFlow = ({ onComplete }: OnboardingFlowProps) => {
 
   const steps = [
     {
-      icon: <Heart className="w-16 h-16 text-green-500 mx-auto mb-6" />,
-      title: "Welcome to Intention",
+      icon: <div className="flex flex-col items-center space-y-4 mb-6">
+        <Logo size="lg" className="text-purple-600" />
+        <Heart className="w-12 h-12 text-green-500" />
+      </div>,
+      title: "Welcome",
       subtitle: "Your personal companion for reflection and growth",
       description: "This app is the home for all the insights you discover with your AI companion. Together, we'll help you understand patterns, achieve goals, and celebrate your journey.",
     },
@@ -71,18 +75,32 @@ export const OnboardingFlow = ({ onComplete }: OnboardingFlowProps) => {
             ))}
           </div>
 
-          <Button 
-            onClick={handleNext}
-            className="w-full bg-green-500 hover:bg-green-600 text-white py-3 rounded-full text-lg font-medium"
-          >
-            {currentStep === steps.length - 1 ? (
-              "Open and Link my GPT"
-            ) : (
-              <>
-                Continue <ChevronRight className="w-5 h-5 ml-2" />
-              </>
-            )}
-          </Button>
+          <div className="space-y-3">
+            <Button 
+              onClick={handleNext}
+              className="w-full bg-green-500 hover:bg-green-600 text-white py-3 rounded-full text-lg font-medium"
+            >
+              {currentStep === steps.length - 1 ? (
+                "Open and Link my GPT"
+              ) : (
+                <>
+                  Continue <ChevronRight className="w-5 h-5 ml-2" />
+                </>
+              )}
+            </Button>
+            
+            <Button 
+              onClick={() => {
+                console.log('Skip button clicked');
+                alert('Skip button clicked!');
+                onComplete();
+              }}
+              variant="outline"
+              className="w-full border-gray-300 text-gray-600 hover:bg-gray-50 py-3 rounded-full text-lg font-medium"
+            >
+              Skip for Now
+            </Button>
+          </div>
         </CardContent>
       </Card>
     </div>

@@ -1,30 +1,34 @@
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { InsightCard } from "@/components/insights/InsightCard";
 import { useQuery } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
+import { useAuth } from "@/hooks/useAuth";
 
 export default function InsightsPage() {
+  const { isAuthenticated } = useAuth();
   const isProcessing = false; // Will be controlled by API later
+
+  console.log('InsightsPage - isAuthenticated:', isAuthenticated);
 
   // Fetch insights from database
   const { data: insights = [], isLoading, error } = useQuery({
-    queryKey: ['/api/insights'],
+    queryKey: ['insights-page', '/api/insights'],
     queryFn: async () => {
-      const response = await fetch('/api/insights', { credentials: 'include' });
-      if (!response.ok) throw new Error('Failed to fetch insights');
-      return response.json();
+      console.log('InsightsPage - Making API call to /api/insights');
+      return apiRequest('/api/insights');
     },
     retry: 1,
+    enabled: isAuthenticated, // Only fetch when authenticated
   });
 
   // Fetch life metrics for filtering
   const { data: lifeMetrics = [] } = useQuery({
-    queryKey: ['/api/life-metrics'],
+    queryKey: ['insights-page', '/api/life-metrics'],
     queryFn: async () => {
-      const response = await fetch('/api/life-metrics', { credentials: 'include' });
-      if (!response.ok) throw new Error('Failed to fetch life metrics');
-      return response.json();
+      return apiRequest('/api/life-metrics');
     },
     retry: 1,
+    enabled: isAuthenticated, // Only fetch when authenticated
   });
 
   const handleVote = (insightId: string, isUpvote: boolean) => {
@@ -52,10 +56,12 @@ export default function InsightsPage() {
   }
 
   if (error) {
+    console.error('InsightsPage - Error:', error);
     return (
       <div className="container mx-auto py-6">
         <div className="text-center py-8">
           <div className="text-red-600">Failed to load insights. Please try again.</div>
+          <div className="text-sm text-gray-500 mt-2">Error: {error.message}</div>
         </div>
       </div>
     );
@@ -78,12 +84,17 @@ export default function InsightsPage() {
             {(metricInsights as any[]).map((insight) => (
               <InsightCard
                 key={insight.id}
+                id={insight.id}
                 title={insight.title}
                 explanation={insight.explanation}
                 confidence={insight.confidence}
+                lifeMetrics={insight.lifeMetrics}
                 suggestedGoals={insight.suggestedGoals || []}
                 suggestedHabits={insight.suggestedHabits || []}
                 onVote={(isUpvote) => handleVote(insight.id, isUpvote)}
+                mode="full"
+                kind={insight.kind}
+                relatedTitle={insight.relatedTitle}
               />
             ))}
           </div>

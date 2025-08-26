@@ -1,16 +1,44 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { ArrowLeft, Plus, Target, TrendingUp, Brain, Calendar, ChevronRight, CheckCircle } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Slider } from "@/components/ui/slider";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { 
+  ArrowLeft, 
+  Plus, 
+  Target, 
+  Calendar, 
+  TrendingUp, 
+  CheckCircle, 
+  X, 
+  Edit, 
+  Trash2,
+  Flame,
+  Clock,
+  Star,
+  Filter,
+  Search,
+  ChevronLeft,
+  ChevronRight,
+  Brain
+} from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts";
+import { getLifeMetricColors } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { useMetricProgress } from "@/hooks/useMetricProgress";
-import { Badge } from "@/components/ui/badge";
 import { GoalDetailModal } from "./GoalDetailModal";
+import { CreateGoalModal } from "./CreateGoalModal";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
+import { InsightCard } from "./insights/InsightCard";
 
 interface DetailedLifeOverviewProps {
   metric: string;
@@ -19,6 +47,12 @@ interface DetailedLifeOverviewProps {
   onPeriodChange?: (period: string) => void;
   onNavigateHome?: () => void;
   onClearDetailedView?: () => void;
+  onNavigateToMetric?: (metric: string) => void;
+  prefillGoal?: {
+    title: string;
+    description?: string;
+    lifeMetricId?: string;
+  };
 }
 
 interface Goal {
@@ -58,17 +92,48 @@ interface Goal {
   };
 }
 
+interface Habit {
+  id: string;
+  title: string;
+  description?: string;
+  frequency: string;
+  targetCompletions: number;
+  currentCompletions: number;
+  status: 'active' | 'completed' | 'overdue';
+  lastCompleted?: string;
+  streak: number;
+}
+
+interface LifeMetric {
+  id: string;
+  name: string;
+  color: string;
+}
+
 export const DetailedLifeOverview = ({ 
   metric, 
   onBack, 
   selectedPeriod: externalPeriod, 
   onPeriodChange, 
   onNavigateHome, 
-  onClearDetailedView 
+  onClearDetailedView,
+  onNavigateToMetric,
+  prefillGoal
 }: DetailedLifeOverviewProps) => {
   const [selectedPeriod, setSelectedPeriod] = useState(externalPeriod || "This Month");
   const [showGoalDetailModal, setShowGoalDetailModal] = useState(false);
+  const [showCreateGoalModal, setShowCreateGoalModal] = useState(false);
   const [selectedGoalDetails, setSelectedGoalDetails] = useState<Goal | null>(null);
+  const [showCompleted, setShowCompleted] = useState(false);
+  
+  // Auto-open goal creation modal if prefillGoal is provided
+  useEffect(() => {
+    console.log('🎯 DetailedLifeOverview prefillGoal changed:', prefillGoal);
+    if (prefillGoal) {
+      console.log('📂 Opening CreateGoalModal with prefillGoal:', prefillGoal);
+      setShowCreateGoalModal(true);
+    }
+  }, [prefillGoal]);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   
@@ -77,15 +142,45 @@ export const DetailedLifeOverview = ({
   // Use shared hook for consistent progress calculations
   const { data: progressData, isLoading: progressLoading } = useMetricProgress(metric, selectedPeriod);
   
+  // Fetch available life metrics for navigation
+  const { data: availableMetrics = [] } = useQuery({
+    queryKey: ['/api/life-metrics'],
+    queryFn: async () => {
+      const response = await apiRequest('/api/life-metrics');
+      return response;
+    },
+    retry: 1,
+  });
+
+  // Navigation logic
+  const currentMetricIndex = availableMetrics.findIndex((m: any) => m.name === metric);
+  const canNavigateLeft = currentMetricIndex > 0;
+  const canNavigateRight = currentMetricIndex < availableMetrics.length - 1;
+  
+  const navigateToPrevious = () => {
+    if (canNavigateLeft && onNavigateToMetric) {
+      const previousMetric = availableMetrics[currentMetricIndex - 1];
+      onNavigateToMetric(previousMetric.name);
+    }
+  };
+  
+  const navigateToNext = () => {
+    if (canNavigateRight && onNavigateToMetric) {
+      const nextMetric = availableMetrics[currentMetricIndex + 1];
+      onNavigateToMetric(nextMetric.name);
+    }
+  };
+
   // Fetch goals for this specific metric
   const { data: goals = [], isLoading: goalsLoading, error: goalsError } = useQuery({
-    queryKey: ['/api/goals', metric],
+    queryKey: ['/api/goals', metric, showCompleted],
     queryFn: async () => {
-      const response = await fetch(`/api/goals?metric=${encodeURIComponent(metric)}`, { 
-        credentials: 'include' 
-      });
-      if (!response.ok) throw new Error('Failed to fetch goals');
-      return response.json();
+      const params = new URLSearchParams();
+      params.append('metric', metric);
+      if (showCompleted) params.append('status', 'completed');
+      
+      const response = await apiRequest(`/api/goals?${params.toString()}`);
+      return response;
     },
     retry: 1,
   });
@@ -93,14 +188,9 @@ export const DetailedLifeOverview = ({
   // Handlers for goal interactions
   const handleGoalClick = async (goal: Goal) => {
     try {
-      const response = await fetch(`/api/goals/${goal.id}`, {
-        credentials: 'include',
-      });
-      if (response.ok) {
-        const goalDetails = await response.json();
-        setSelectedGoalDetails(goalDetails);
-        setShowGoalDetailModal(true);
-      }
+      const response = await apiRequest(`/api/goals/${goal.id}`);
+      setSelectedGoalDetails(response);
+      setShowGoalDetailModal(true);
     } catch (error) {
       console.error('Error fetching goal details:', error);
       toast({
@@ -111,14 +201,30 @@ export const DetailedLifeOverview = ({
     }
   };
 
-  const handleCompleteHabit = async (habitId: string) => {
+  const handleCompleteHabit = async (habitId: string, goalId?: string) => {
     try {
-      const response = await fetch(`/api/goals/habits/${habitId}/complete`, {
+      const requestBody: any = {
+        completedAt: new Date().toISOString(),
+      };
+      
+      // Include goalId if provided for progress tracking
+      if (goalId) {
+        requestBody.goalId = goalId;
+      }
+      
+      const response = await apiRequest(`/api/goals/habits/${habitId}/complete`, {
         method: 'POST',
-        credentials: 'include',
+        body: JSON.stringify(requestBody),
       });
-      if (response.ok) {
+      
+      if (response) {
+        // Invalidate all goal-related queries to refresh data
         queryClient.invalidateQueries({ queryKey: ['/api/goals'] });
+        queryClient.invalidateQueries({ queryKey: ['/api/goal-instances'] });
+        queryClient.invalidateQueries({ queryKey: ['/api/life-metrics/progress'] });
+        try { await queryClient.invalidateQueries({ queryKey: ['/api/smart-suggestions'] }); } catch {}
+        queryClient.invalidateQueries({ queryKey: ['habits'] });
+        
         toast({
           title: 'Habit completed!',
           description: 'Great job staying consistent.',
@@ -126,23 +232,32 @@ export const DetailedLifeOverview = ({
       }
     } catch (error) {
       console.error('Error completing habit:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to complete habit.',
-        variant: 'destructive',
-      });
+      
+      // Check if it's a duplicate completion error
+      if (error instanceof Error && error.message && error.message.includes('already completed today')) {
+        toast({
+          title: 'Already completed!',
+          description: 'You have already completed this habit today.',
+          variant: 'default',
+        });
+      } else {
+        toast({
+          title: 'Error',
+          description: 'Failed to complete habit.',
+          variant: 'destructive',
+        });
+      }
     }
   };
 
   const handleAddHabit = async (goalId: string, habit: any) => {
     try {
-      const response = await fetch(`/api/goals/${goalId}/habits`, {
+      const response = await apiRequest(`/api/goals/${goalId}/habits`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify(habit),
       });
-      if (response.ok) {
+      if (response) {
         queryClient.invalidateQueries({ queryKey: ['/api/goals'] });
         toast({
           title: 'Habit added!',
@@ -161,11 +276,10 @@ export const DetailedLifeOverview = ({
 
   const handleRemoveHabit = async (goalId: string, habitId: string) => {
     try {
-      const response = await fetch(`/api/goals/${goalId}/habits/${habitId}`, {
+      const response = await apiRequest(`/api/goals/${goalId}/habits/${habitId}`, {
         method: 'DELETE',
-        credentials: 'include',
       });
-      if (response.ok) {
+      if (response) {
         queryClient.invalidateQueries({ queryKey: ['/api/goals'] });
         toast({
           title: 'Habit removed',
@@ -184,14 +298,16 @@ export const DetailedLifeOverview = ({
 
   const handleUpdateProgress = async (goalId: string, progress: number) => {
     try {
-      const response = await fetch(`/api/goals/${goalId}/progress`, {
+      const response = await apiRequest(`/api/goals/${goalId}/progress`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ progress }),
+        body: JSON.stringify({ currentValue: progress }),
       });
-      if (response.ok) {
+      if (response) {
+        // Invalidate all goal-related queries to refresh data
         queryClient.invalidateQueries({ queryKey: ['/api/goals'] });
+        queryClient.invalidateQueries({ queryKey: ['/api/goal-instances'] });
+        queryClient.invalidateQueries({ queryKey: ['/api/life-metrics/progress'] });
+        
         toast({
           title: 'Progress updated',
           description: 'Goal progress has been updated.',
@@ -213,16 +329,12 @@ export const DetailedLifeOverview = ({
     queryFn: async () => {
       try {
         // Fetch goals for this metric
-        const goalsResponse = await fetch(`/api/goals?metric=${encodeURIComponent(metric)}`, { 
-          credentials: 'include' 
-        });
-        const goals = goalsResponse.ok ? await goalsResponse.json() : [];
+        const goalsResponse = await apiRequest(`/api/goals?metric=${encodeURIComponent(metric)}`);
+        const goals = goalsResponse;
 
-        // Fetch insights
-        const insightsResponse = await fetch(`/api/insights?metric=${encodeURIComponent(metric)}`, { 
-          credentials: 'include' 
-        });
-        const insights = insightsResponse.ok ? await insightsResponse.json() : [];
+        // Fetch insights filtered by this life metric
+        const insightsResponse = await apiRequest(`/api/insights?metric=${encodeURIComponent(metric)}`);
+        const insights = insightsResponse;
 
         return { goals, insights };
       } catch (error) {
@@ -239,6 +351,38 @@ export const DetailedLifeOverview = ({
     goals: additionalData?.goals || [],
     insights: additionalData?.insights || []
   };
+
+  // Ensure insights are filtered by the current life metric name
+  const filteredInsights = Array.isArray(metricData.insights)
+    ? metricData.insights.filter((insight: any) =>
+        Array.isArray(insight?.lifeMetrics) && insight.lifeMetrics.some((m: any) => m?.name === metric)
+      )
+    : [];
+
+  // Sort insights by confidence desc and fetch feedback status for them
+  const sortedInsightsByConfidence = [...filteredInsights].sort(
+    (a: any, b: any) => (b?.confidence || 0) - (a?.confidence || 0)
+  );
+
+  const { data: feedbackStatus = { voted: {}, lastAction: {} } } = useQuery({
+    queryKey: ['/api/feedback/status', sortedInsightsByConfidence],
+    queryFn: async () => {
+      if (!sortedInsightsByConfidence || sortedInsightsByConfidence.length === 0) {
+        return { voted: {}, lastAction: {} };
+      }
+      const ids = sortedInsightsByConfidence.map((i: any) => i.id).join(',');
+      const response = await apiRequest(`/api/feedback/status?type=insight&ids=${ids}`);
+      return response;
+    },
+    enabled: sortedInsightsByConfidence.length > 0,
+  });
+
+  // Only show unvoted or upvoted insights
+  const displayInsights = sortedInsightsByConfidence.filter((i: any) => {
+    const voted = feedbackStatus?.voted?.[i.id];
+    const last = feedbackStatus?.lastAction?.[i.id];
+    return !voted || last === 'upvote';
+  });
 
   // Helper function to deduplicate snapshots by monthYear, keeping the latest one
   const deduplicateSnapshots = (snapshots: any[]) => {
@@ -276,6 +420,12 @@ export const DetailedLifeOverview = ({
     return `${monthName} '${shortYear}`;
   };
 
+  // Helper function to normalize names by stripping emojis for consistent grouping
+  const normalizeName = (name: string) => {
+    // Simple emoji removal - remove common emoji characters
+    return name.replace(/[🚀🏃‍♀️🧠❤️💰🧘‍♂️]/g, '').trim();
+  };
+
   // Generate chart data based on selected period - using exact same logic as dashboard
   const getGraphData = () => {
     if (!metricData || typeof metricData !== 'object') return [];
@@ -283,69 +433,128 @@ export const DetailedLifeOverview = ({
     // Use progress snapshots for all periods - no mock data
     const snapshots = metricData.progressSnapshots || [];
     
+    // Normalize snapshot names for consistent grouping
+    const normalizedSnapshots = snapshots.map((s: any) => ({
+      ...s,
+      normalizedName: normalizeName(s.lifeMetricName || s.name || ''),
+      originalName: s.lifeMetricName || s.name || ''
+    }));
+    
     if (selectedPeriod === "This Month") {
-      // Generate weekly data points for current month
-      const now = new Date();
-      const currentMonth = now.getMonth();
-      const currentYear = now.getFullYear();
-      
-      // Get the last week of the previous month
-      const lastWeekOfPrevMonth = new Date(currentYear, currentMonth, 0);
-      const lastWeekStart = new Date(lastWeekOfPrevMonth);
-      lastWeekStart.setDate(lastWeekOfPrevMonth.getDate() - 6); // 7 days back
-      
-      // Get current goal progress for calculations
-      const currentGoalProgress = goals && goals.length > 0 
+      // Build daily series from the start of the current week → today, filling gaps with 0s
+      const dailyAll = (normalizedSnapshots || []).map((s: any) => ({
+        date: new Date(s.snapshotDate || s.createdAt || Date.now()),
+        progress: s.progressPercentage,
+        completions: s.goalsCompleted,
+      })).sort((a,b) => a.date.getTime() - b.date.getTime());
+
+      const today = new Date();
+      today.setHours(0,0,0,0);
+      const weekdayMon0 = (today.getDay() + 6) % 7; // Mon=0..Sun=6
+      const weekStart = new Date(today);
+      weekStart.setDate(today.getDate() - weekdayMon0);
+
+      const isSameDay = (a: Date, b: Date) => {
+        return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+      };
+
+      const latestRingLike = goals && goals.length > 0
         ? Math.round(goals.reduce((sum: number, goal: Goal) => sum + (goal.progress || 0), 0) / goals.length)
-        : 0;
-      
-      // Generate weekly data points
-      const weeklyData = [];
-      
-      // Last week of previous month (baseline)
-      weeklyData.push({
-        period: `Week ${Math.ceil(lastWeekStart.getDate() / 7)}`,
-        progressValue: Math.max(0, currentGoalProgress - 5), // Slightly lower baseline
-        completionValue: 0,
-        isCurrent: false,
-        isFuture: false,
-        isHistorical: true
+        : (metricData?.periodProgress?.progress || 0);
+
+      const filledDaily: Array<{period:string;progressValue:number;completionValue:number;isCurrent:boolean;isFuture:boolean;isHistorical:boolean;}> = [];
+      // Use today's ring only for today when there is no snapshot; do not backfill prior days
+      const todayLocal = new Date();
+      todayLocal.setHours(0,0,0,0);
+      const dayCursor = new Date(weekStart);
+      while (dayCursor.getTime() <= todayLocal.getTime()) {
+        const found = dailyAll.find(d => isSameDay(d.date, dayCursor));
+        const isToday = isSameDay(dayCursor, todayLocal);
+        // For historical days: only show snapshot value; for today: show snapshot or ring
+        let progressVal = 0;
+        if (found) progressVal = found.progress;
+        else if (isToday) progressVal = latestRingLike;
+        const completionVal = found ? (found.completions || 0) : 0;
+        filledDaily.push({
+          period: dayCursor.toLocaleDateString('en-US', { weekday: 'short' }),
+          progressValue: progressVal,
+          completionValue: completionVal,
+          isCurrent: isToday,
+          isFuture: false,
+          isHistorical: !isToday,
+        });
+        dayCursor.setDate(dayCursor.getDate() + 1);
+      }
+
+      // Build weekly aggregation for prior weeks (keep current week as daily)
+      const weekKey = (d: Date) => {
+        const tmp = new Date(d);
+        const day = (tmp.getDay() + 6) % 7; // Mon=0..Sun=6
+        tmp.setDate(tmp.getDate() - day);
+        return `${tmp.getFullYear()}-${tmp.getMonth()+1}-${tmp.getDate()}`;
+      };
+      const byWeek = new Map<string, {sum:number,count:number,maxDate:Date,completions:number}>();
+      dailyAll.forEach(d => {
+        const key = weekKey(d.date);
+        const cur = byWeek.get(key) || {sum:0,count:0,maxDate:d.date,completions:0};
+        cur.sum += d.progress; cur.count += 1;
+        if (d.date > cur.maxDate) cur.maxDate = d.date;
+        cur.completions = Math.max(cur.completions, d.completions || 0);
+        byWeek.set(key, cur);
       });
-      
-      // Current week
-      const currentWeek = Math.ceil(now.getDate() / 7);
-      weeklyData.push({
-        period: `Week ${currentWeek}`,
-        progressValue: currentGoalProgress,
-        completionValue: goals ? goals.filter((goal: Goal) => goal.status === 'completed').length : 0,
+      const sortedWeeks = Array.from(byWeek.entries()).sort((a,b)=> new Date(a[0]).getTime() - new Date(b[0]).getTime());
+      const weeklyExceptCurrent = sortedWeeks.slice(0, Math.max(0, sortedWeeks.length - 1)).map(([key, v]) => ({
+        period: `W${new Date(key).getDate() <=7 ? 1 : new Date(key).getDate()<=14 ? 2 : new Date(key).getDate()<=21 ? 3 : 4}`,
+        progressValue: Math.round(v.sum / v.count),
+        completionValue: v.completions,
+        isCurrent: false,
+        isFuture:false,
+        isHistorical: true,
+      }));
+
+      // If there are no prior weeks or no snapshots at all, just show the current week daily series
+      if (weeklyExceptCurrent.length === 0) {
+        return filledDaily;
+      }
+
+      // There are prior weeks: show weekly for history and a projected point for the current week
+      const lastWeekKey = sortedWeeks[sortedWeeks.length - 1][0];
+      const isSameWeek = (d: Date) => weekKey(d) === lastWeekKey;
+      const currentWeekDays = dailyAll.filter(d => isSameWeek(d.date));
+      const maxCompletionsWeek = currentWeekDays.reduce((acc, d) => Math.max(acc, d.completions || 0), 0);
+      // Current week should reflect the live value (ring), not an average
+      const projectedCurrentWeek = latestRingLike;
+      const currentWeekPoint = {
+        period: 'This Week',
+        progressValue: projectedCurrentWeek,
+        completionValue: maxCompletionsWeek,
         isCurrent: true,
         isFuture: false,
-        isHistorical: false
-      });
-      
-      return weeklyData;
+        isHistorical: false,
+      };
+      return [...weeklyExceptCurrent, currentWeekPoint];
     } else {
       // For historical periods, use progress snapshots - same logic as dashboard
       let relevantSnapshots;
       switch (selectedPeriod) {
         case "Last 3 Months":
-          relevantSnapshots = snapshots.slice(-3);
+          relevantSnapshots = normalizedSnapshots.slice(-3);
           break;
         case "Last 6 Months":
-          relevantSnapshots = snapshots.slice(-6);
+          relevantSnapshots = normalizedSnapshots.slice(-6);
           break;
         case "This Year":
           const currentYear = new Date().getFullYear();
-          relevantSnapshots = snapshots.filter((snapshot: any) => {
+          relevantSnapshots = normalizedSnapshots.filter((snapshot: any) => {
             const snapshotYear = parseInt(snapshot.monthYear.split('-')[0]);
             return snapshotYear === currentYear;
           });
           break;
         case "All Time":
-          relevantSnapshots = snapshots;
+          relevantSnapshots = normalizedSnapshots;
           break;
         default:
-          relevantSnapshots = snapshots.slice(-6);
+          relevantSnapshots = normalizedSnapshots.slice(-6);
       }
       
       // Deduplicate snapshots to fix X-axis
@@ -382,26 +591,33 @@ export const DetailedLifeOverview = ({
       
       if (snapshots.length === 0) return 0;
       
+      // Normalize snapshot names for consistent processing
+      const normalizedSnapshots = snapshots.map((s: any) => ({
+        ...s,
+        normalizedName: normalizeName(s.lifeMetricName || s.name || ''),
+        originalName: s.lifeMetricName || s.name || ''
+      }));
+      
       let relevantSnapshots;
       switch (selectedPeriod) {
         case "Last 3 Months":
-          relevantSnapshots = snapshots.slice(-3);
+          relevantSnapshots = normalizedSnapshots.slice(-3);
           break;
         case "Last 6 Months":
-          relevantSnapshots = snapshots.slice(-6);
+          relevantSnapshots = normalizedSnapshots.slice(-6);
           break;
         case "This Year":
           const currentYear = new Date().getFullYear();
-          relevantSnapshots = snapshots.filter((snapshot: any) => {
+          relevantSnapshots = normalizedSnapshots.filter((snapshot: any) => {
             const snapshotYear = parseInt(snapshot.monthYear.split('-')[0]);
             return snapshotYear === currentYear;
           });
           break;
         case "All Time":
-          relevantSnapshots = snapshots;
+          relevantSnapshots = normalizedSnapshots;
           break;
         default:
-          relevantSnapshots = snapshots.slice(-6);
+          relevantSnapshots = normalizedSnapshots.slice(-6);
       }
       
       if (relevantSnapshots.length === 0) return 0;
@@ -419,9 +635,13 @@ export const DetailedLifeOverview = ({
   const circularProgressValue = getCircularProgressValue();
 
   // Debug logging
-  console.log('metricData:', metricData);
-  console.log('graphData:', graphData);
-  console.log('circularProgressValue:', circularProgressValue);
+  console.log('DetailedLifeOverview graph debug', {
+    metric,
+    selectedPeriod,
+    snapshots: metricData?.progressSnapshots?.map((s:any)=>({date:s.snapshotDate||s.createdAt, progress:s.progressPercentage}))?.slice(-10),
+    graphData,
+    ring: circularProgressValue,
+  });
 
   // Validate graphData to ensure no objects are being rendered
   const validatedGraphData = graphData.map((item: any, index: number) => {
@@ -449,19 +669,48 @@ export const DetailedLifeOverview = ({
   });
 
   // Get metric colors
-  const getMetricColors = (name: string) => {
-    const colorMap: Record<string, { text: string; bg: string }> = {
-      "Health & Fitness": { text: "text-green-600", bg: "bg-green-100" },
-      "Career Growth": { text: "text-blue-600", bg: "bg-blue-100" },
-      "Personal Development": { text: "text-purple-600", bg: "bg-purple-100" },
-      "Relationships": { text: "text-orange-600", bg: "bg-orange-100" },
-      "Finance": { text: "text-red-600", bg: "bg-red-100" },
-    "Mental Health": { text: "text-purple-600", bg: "bg-purple-100" },
-    };
-    return colorMap[name] || { text: "text-gray-600", bg: "bg-gray-100" };
-  };
+  const getMetricColors = (name: string) => getLifeMetricColors(name);
 
   const colors = getMetricColors(metric);
+
+  // Time availability local state
+  const [timeAvailability, setTimeAvailability] = useState<'none' | 'very_little' | 'some' | 'plenty'>('some');
+  const availabilityLabel = {
+    none: 'No time',
+    very_little: 'Very little',
+    some: 'Some',
+    plenty: 'Plenty',
+  } as const;
+  const sliderMarks: Array<{value:number; key: 'none'|'very_little'|'some'|'plenty'}> = [
+    { value: 0, key: 'none' },
+    { value: 1, key: 'very_little' },
+    { value: 2, key: 'some' },
+    { value: 3, key: 'plenty' },
+  ];
+
+  // Initialize from cached life metrics; update whenever list or metric changes
+  useEffect(() => {
+    const m = (availableMetrics || []).find((x: any) => x.name === metric);
+    setTimeAvailability((m && (m.timeAvailability as any)) ?? 'some');
+  }, [metric, availableMetrics]);
+
+  const updateTimeAvailability = async (value: 'none' | 'very_little' | 'some' | 'plenty') => {
+    try {
+      const m = (availableMetrics || []).find((x: any) => x.name === metric);
+      if (!m) return;
+      await apiRequest(`/api/life-metrics/${m.id}/time-availability`, {
+        method: 'PATCH',
+        body: JSON.stringify({ timeAvailability: value }),
+      });
+      // Update cache so other views stay in sync
+      queryClient.setQueryData(['/api/life-metrics'], (prev: any) => {
+        if (!Array.isArray(prev)) return prev;
+        return prev.map((x: any) => x.id === m.id ? { ...x, timeAvailability: value } : x);
+      });
+    } catch (e) {
+      console.error('Failed to update time availability', e);
+    }
+  };
 
   const CircularProgress = ({ progress, color, bgColor, hasGoals }: { progress: number; color: string; bgColor: string; hasGoals: boolean }) => {
     const radius = 30;
@@ -504,7 +753,26 @@ export const DetailedLifeOverview = ({
   };
 
   const suggestGoals = () => {
-    console.log(`Suggesting new goals for ${metric}`);
+    console.log(`Opening create goal modal for ${metric}`);
+    console.log('Current showCreateGoalModal state:', showCreateGoalModal);
+    setShowCreateGoalModal(true);
+    console.log('After setting showCreateGoalModal to true');
+  };
+
+  const handleGoalCreated = () => {
+    console.log('Goal created successfully, refreshing data...');
+    // Refresh the goals data and suggested goals
+    queryClient.invalidateQueries({ queryKey: ['metric-details', metric] });
+    queryClient.invalidateQueries({ queryKey: ['/api/goals'] });
+    queryClient.invalidateQueries({ queryKey: ['/api/goals/suggested'] });
+    setShowCreateGoalModal(false);
+    
+    // Clear prefill data after successful creation
+    // This will be passed up to the parent (Dashboard) to clear the prefillGoal state
+    if (onClearDetailedView) {
+      onClearDetailedView();
+    }
+    console.log('Modal closed after goal creation');
   };
 
   if (isLoading) {
@@ -530,6 +798,8 @@ export const DetailedLifeOverview = ({
     );
   }
 
+  console.log('DetailedLifeOverview - Rendering with showCreateGoalModal:', showCreateGoalModal, 'metric:', metric);
+  
   return (
     <div className="p-6 pb-24 max-w-4xl mx-auto">
       {/* Header with Ring Progress */}
@@ -543,12 +813,39 @@ export const DetailedLifeOverview = ({
           Back to Overview
         </Button>
         <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-800 mb-2">{metric}</h1>
-            <p className="text-gray-600">
-              Detailed view and progress tracking
-            </p>
+          <div className="flex items-center space-x-4">
+            {/* Navigation buttons */}
+            <div className="flex items-center space-x-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={navigateToPrevious}
+                disabled={!canNavigateLeft}
+                className="p-2 h-8 w-8"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={navigateToNext}
+                disabled={!canNavigateRight}
+                className="p-2 h-8 w-8"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </Button>
+            </div>
+            
+            {/* Metric title and description */}
+            <div>
+              <h1 className="text-2xl font-bold text-gray-800 mb-2">{metric}</h1>
+              <p className="text-gray-600">
+                Detailed view and progress tracking
+              </p>
+            </div>
           </div>
+          
+          {/* Progress ring */}
           <CircularProgress progress={circularProgressValue} color={colors.text} bgColor={colors.bg} hasGoals={true} />
         </div>
       </div>
@@ -572,6 +869,43 @@ export const DetailedLifeOverview = ({
           ))}
         </div>
       </div>
+
+      {/* Time Availability (compact) */}
+      <Card className="mb-4 shadow-sm border bg-white/70">
+        <CardContent className="py-3 px-4">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2 text-sm text-gray-700">
+              <Clock className="w-4 h-4" />
+              <span>Time availability</span>
+              <span className="font-medium text-gray-900">{availabilityLabel[timeAvailability]}</span>
+            </div>
+            <div className="w-full max-w-xs">
+              <div className="flex justify-between text-[10px] text-gray-500 mb-1">
+                {sliderMarks.map(m => (
+                  <span key={m.key}>{availabilityLabel[m.key]}</span>
+                ))}
+              </div>
+              <Slider
+                className="h-4"
+                value={[sliderMarks.findIndex(m => m.key === timeAvailability)]}
+                max={3}
+                step={1}
+                onValueChange={(v) => {
+                  const idx = Math.min(3, Math.max(0, v[0] ?? 0));
+                  const selected = sliderMarks[idx].key;
+                  // Optimistic update for responsiveness
+                  setTimeAvailability(selected);
+                }}
+                onValueCommit={(v) => {
+                  const idx = Math.min(3, Math.max(0, v[0] ?? 0));
+                  const selected = sliderMarks[idx].key;
+                  void updateTimeAvailability(selected);
+                }}
+              />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Goal Progress and Completions Chart */}
       <Card className="mb-6 shadow-md border-0 bg-white/80 backdrop-blur-sm">
@@ -634,10 +968,20 @@ export const DetailedLifeOverview = ({
           {/* Your Goals */}
           <Card className="shadow-md border-0 bg-white/80 backdrop-blur-sm">
             <CardHeader className="pb-3">
-              <CardTitle className="text-lg flex items-center space-x-2">
-                <Target className="w-5 h-5 text-blue-600" />
-                <span>Your Goals</span>
-              </CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-lg flex items-center space-x-2">
+                  <Target className="w-5 h-5 text-blue-600" />
+                  <span>Your Goals</span>
+                </CardTitle>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowCompleted(!showCompleted)}
+                  className={showCompleted ? "bg-green-100 text-green-700" : ""}
+                >
+                  {showCompleted ? "Hide Completed" : "Show Completed"}
+                </Button>
+              </div>
             </CardHeader>
             <CardContent>
               {goalsLoading ? (
@@ -661,7 +1005,7 @@ export const DetailedLifeOverview = ({
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {goals.map((goal: Goal) => {
+                  {[...goals].sort((a: Goal, b: Goal) => (b.progress || 0) - (a.progress || 0)).map((goal: Goal) => {
                     const isCompleted = goal.status === 'completed';
                     
                     return (
@@ -749,23 +1093,32 @@ export const DetailedLifeOverview = ({
                 </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-            {Array.isArray(metricData?.insights) ? metricData.insights.filter((insight: any) => insight && (typeof insight === 'string' || typeof insight === 'object')).map((insight: any, index: number) => {
-              // Ensure we're not rendering any objects directly
-              let insightText = 'No insight available';
-              if (typeof insight === 'string') {
-                insightText = insight;
-              } else if (typeof insight === 'object' && insight !== null) {
-                insightText = typeof insight.title === 'string' ? insight.title :
-                             typeof insight.description === 'string' ? insight.description :
-                             'No insight available';
-              }
-                  
-                  return (
-                    <div key={index} className="p-3 bg-white/60 rounded-lg border-l-4 border-purple-400">
-                  <p className="text-sm text-gray-700">{insightText}</p>
-                </div>
-              );
-            }) : null}
+              {displayInsights.length > 0 ? (
+                displayInsights.map((insight: any) => (
+                  <InsightCard
+                    key={insight.id}
+                    id={insight.id}
+                    title={insight.title}
+                    explanation={insight.explanation || insight.description || ''}
+                    confidence={insight.confidence || 0}
+                    lifeMetrics={insight.lifeMetrics || []}
+                    suggestedGoals={insight.suggestedGoals || []}
+                    suggestedHabits={insight.suggestedHabits || []}
+                    onVote={() => {}}
+                    onFeedbackRecorded={() => {
+                      try { queryClient.invalidateQueries({ queryKey: ['/api/feedback/status'] }); } catch {}
+                    }}
+                    feedbackContext={{ surface: 'metric_detail' }}
+                    mode="compact"
+                    initialVoted={feedbackStatus?.voted?.[insight.id] || false}
+                    lastAction={feedbackStatus?.lastAction?.[insight.id] || null}
+                    kind={insight.kind}
+                    relatedTitle={insight.relatedTitle}
+                  />
+                ))
+              ) : (
+                <div className="text-sm text-gray-600">No insights for this metric.</div>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -785,6 +1138,15 @@ export const DetailedLifeOverview = ({
         onRemoveHabit={handleRemoveHabit}
       />
     )}
+
+    {/* Create Goal Modal */}
+    <CreateGoalModal
+      isOpen={showCreateGoalModal}
+      onClose={() => setShowCreateGoalModal(false)}
+      onGoalCreated={handleGoalCreated}
+      defaultLifeMetric={metric}
+      prefillData={prefillGoal}
+    />
   </div>
   );
 };

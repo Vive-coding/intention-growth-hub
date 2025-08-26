@@ -31,6 +31,17 @@ export class InsightService {
         lifeMetrics.map(metric => [metric.name, metric.id])
       );
 
+      // Build simple per-metric caps for new habits based on time availability
+      const availabilityToMaxHabits: Record<string, number> = {
+        none: 0,
+        very_little: 1,
+        some: 2,
+        plenty: 2,
+      };
+      const maxNewHabitsPerMetric = new Map<string, number>(
+        lifeMetrics.map(m => [m.id, availabilityToMaxHabits[(m as any).timeAvailability || 'some']])
+      );
+
       // Format context for the AI agent
       const context = {
         journalEntry: journalEntry.content,
@@ -39,11 +50,15 @@ export class InsightService {
         recentHabits: '', // TODO: Implement habits
         lifeMetrics: this.formatLifeMetrics(lifeMetrics),
         lifeMetricMapping: JSON.stringify(Object.fromEntries(lifeMetricMapping)),
+        timeBudgetMinutesPerWeek: 0, // legacy placeholder
       };
 
       console.log('Calling AI agent with formatted context...');
       // Process with AI agent
+      // Expose userId to retrieval tools during this call
+      (global as any).__CURRENT_USER_ID__ = userId;
       const result = await insightAgent.processJournalEntry(context);
+      delete (global as any).__CURRENT_USER_ID__;
       console.log('AI agent returned result:', result);
 
       // Save the insight
@@ -83,8 +98,8 @@ export class InsightService {
           /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(goal.lifeMetricId)
         ) || [];
         
-        // Validate and create suggested habits - only accept actual UUIDs
-        const validHabits = result.suggestedHabits?.filter((habit: { lifeMetricId: string; title: string; description: string }) => 
+        // Validate suggested habits - only accept actual UUIDs
+        let validHabits = result.suggestedHabits?.filter((habit: { lifeMetricId: string; title: string; description: string }) => 
           habit.lifeMetricId && 
           habit.title && 
           habit.description &&
@@ -92,6 +107,18 @@ export class InsightService {
           habit.lifeMetricId !== 'metric-2' &&
           /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(habit.lifeMetricId)
         ) || [];
+        // Enforce per-metric cap on new habits (time availability)
+        const byMetric = new Map<string, { count: number; items: any[] }>();
+        for (const h of validHabits) {
+          const cap = maxNewHabitsPerMetric.get(h.lifeMetricId) ?? 2;
+          const bucket = byMetric.get(h.lifeMetricId) || { count: 0, items: [] };
+          if (bucket.count < cap) {
+            bucket.count += 1;
+            bucket.items.push(h);
+            byMetric.set(h.lifeMetricId, bucket);
+          }
+        }
+        validHabits = Array.from(byMetric.values()).flatMap(b => b.items);
         
         console.log('Valid goals:', validGoals.length);
         console.log('Valid habits:', validHabits.length);
@@ -130,7 +157,24 @@ export class InsightService {
         );
 
         console.log('Creating new suggested goals and habits...');
-        // Create new suggested goals and habits
+        // Create new suggested goals and habits (respecting caps)
+        // Enforce habit caps again on update path
+        let filteredUpdateHabits = result.suggestedHabits;
+        if (Array.isArray(filteredUpdateHabits)) {
+          const byMetric2 = new Map<string, { count: number; items: any[] }>();
+          const tmp: any[] = [];
+          for (const h of filteredUpdateHabits) {
+            const cap = maxNewHabitsPerMetric.get(h.lifeMetricId) ?? 2;
+            const bucket = byMetric2.get(h.lifeMetricId) || { count: 0, items: [] };
+            if (bucket.count < cap) {
+              bucket.count += 1;
+              bucket.items.push(h);
+              byMetric2.set(h.lifeMetricId, bucket);
+              tmp.push(h);
+            }
+          }
+          filteredUpdateHabits = tmp;
+        }
         await Promise.all([
           ...result.suggestedGoals.map((goal: { lifeMetricId: string; title: string; description: string }) =>
             storage.createSuggestedGoal({
@@ -140,7 +184,7 @@ export class InsightService {
               description: goal.description,
             })
           ),
-          ...result.suggestedHabits.map((habit: { lifeMetricId: string; title: string; description: string }) =>
+          ...(filteredUpdateHabits as any[]).map((habit: { lifeMetricId: string; title: string; description: string }) =>
             storage.createSuggestedHabit({
               insightId: result.insightId!,
               lifeMetricId: habit.lifeMetricId,
@@ -195,6 +239,7 @@ Status: ${goal.status}
         metric => `
 Metric: ${metric.name}
 Description: ${metric.description || 'No description'}
+TimeAvailability: ${(metric as any).timeAvailability || 'some'}
 ---`
       )
       .join('\n');

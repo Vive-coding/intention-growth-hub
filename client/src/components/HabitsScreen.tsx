@@ -4,8 +4,10 @@ import { habitsService, type Habit } from "@/services/habitsService";
 import { HabitCompletionCard } from "./HabitCompletionCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Flame, Calendar, CheckCircle } from "lucide-react";
 import { useLocation } from "wouter";
+import { Logo } from "@/components/ui/Logo";
 
 export function HabitsScreen() {
   // Get metric filter from URL
@@ -13,15 +15,36 @@ export function HabitsScreen() {
   const urlParams = new URLSearchParams(location.split('?')[1]);
   const metricFilter = urlParams.get('metric');
 
+  // Hooks must stay at top-level and never be conditional
+  const [statusFilter, setStatusFilter] = React.useState<'active' | 'archived' | 'all'>('active');
+  const [lifeMetricFilter, setLifeMetricFilter] = React.useState<string>('All');
+
   const { data: habits, isLoading, error } = useQuery({
-    queryKey: ["habits"],
-    queryFn: habitsService.getHabits,
+    queryKey: ["habits", statusFilter],
+    queryFn: () => habitsService.getHabits(statusFilter),
   });
+  const lifeMetricOptions = React.useMemo(() => {
+    const set = new Set<string>();
+    (habits || []).forEach((h: any) => (h.lifeMetrics || []).forEach((m: any) => set.add(m.name)));
+    return ['All', ...Array.from(set).sort()];
+  }, [habits]);
+  const filteredHabits = React.useMemo(() => {
+    const list = (habits || []).filter((h: any) => {
+      const statusOk = statusFilter === 'all' ? true : (h.status || 'active') === statusFilter;
+      const metricOk = lifeMetricFilter === 'All' ? true : (h.lifeMetrics || []).some((m: any) => m.name === lifeMetricFilter);
+      return statusOk && metricOk;
+    });
+    // Sort by total completions desc
+    return list.sort((a: any, b: any) => (b.totalCompletions || 0) - (a.totalCompletions || 0));
+  }, [habits, statusFilter, lifeMetricFilter]);
 
   if (isLoading) {
     return (
       <div className="container mx-auto p-6">
-        <h1 className="text-2xl font-bold mb-6">Habits</h1>
+        <div className="flex items-center space-x-3 mb-6">
+          <Logo size="md" className="text-gray-800" />
+          <h1 className="text-2xl font-bold text-gray-800">Habits</h1>
+        </div>
         <div className="grid gap-4">
           {[...Array(3)].map((_, i) => (
             <Card key={i} className="animate-pulse">
@@ -42,7 +65,10 @@ export function HabitsScreen() {
   if (error) {
     return (
       <div className="container mx-auto p-6">
-        <h1 className="text-2xl font-bold mb-6">Habits</h1>
+        <div className="flex items-center space-x-3 mb-6">
+          <Logo size="md" className="text-gray-800" />
+          <h1 className="text-2xl font-bold text-gray-800">Habits</h1>
+        </div>
         <Card>
           <CardContent className="p-6">
             <p className="text-red-600">Error loading habits: {error.message}</p>
@@ -55,9 +81,12 @@ export function HabitsScreen() {
   if (!habits || habits.length === 0) {
     return (
       <div className="container mx-auto p-6">
-        <h1 className="text-2xl font-bold mb-6">
-          {metricFilter ? `${metricFilter} Habits` : "Habits"}
-        </h1>
+        <div className="flex items-center space-x-3 mb-6">
+          <Logo size="md" className="text-gray-800" />
+          <h1 className="text-2xl font-bold text-gray-800">
+            {metricFilter ? `${metricFilter} Habits` : "Habits"}
+          </h1>
+        </div>
         <Card>
           <CardContent className="p-6 text-center">
             <CheckCircle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
@@ -76,27 +105,16 @@ export function HabitsScreen() {
     );
   }
 
-  // Filter habits based on metric filter
-  const filteredHabits = habits.filter(habit => {
-    if (!metricFilter) return true;
-    return habit.category === metricFilter;
-  });
-
-  // Group habits by category
-  const habitsByCategory = filteredHabits.reduce((acc, habit) => {
-    const categoryName = habit.category || "General";
-    if (!acc[categoryName]) {
-      acc[categoryName] = [];
-    }
-    acc[categoryName].push(habit);
-    return acc;
-  }, {} as Record<string, Habit[]>);
+  // End hooks
 
   return (
     <div className="container mx-auto p-6">
-      <h1 className="text-2xl font-bold mb-6">
-        {metricFilter ? `${metricFilter} Habits` : "Habits"}
-      </h1>
+      <div className="flex items-center space-x-3 mb-6">
+        <Logo size="md" className="text-gray-800" />
+        <h1 className="text-2xl font-bold text-gray-800">
+          {metricFilter ? `${metricFilter} Habits` : "Habits"}
+        </h1>
+      </div>
       
       {/* Summary Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
@@ -135,25 +153,43 @@ export function HabitsScreen() {
         </Card>
       </div>
 
-      {/* Habits by Category */}
-      {Object.entries(habitsByCategory).map(([categoryName, categoryHabits]) => (
-        <div key={categoryName} className="mb-8">
-          <div className="flex items-center space-x-2 mb-4">
-            <Badge variant="outline">
-              {categoryName}
-            </Badge>
-            <span className="text-sm text-muted-foreground">
-              {categoryHabits.length} habit{categoryHabits.length !== 1 ? 's' : ''}
-            </span>
-          </div>
-          
-          <div className="grid gap-4">
-            {categoryHabits.map((habit) => (
-              <HabitCompletionCard key={habit.id} habit={habit} />
-            ))}
-          </div>
+      {/* Filters */}
+      <div className="flex flex-wrap items-center gap-3 mb-4">
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-muted-foreground">Status</span>
+          <Select value={statusFilter} onValueChange={(v: any)=> setStatusFilter(v)}>
+            <SelectTrigger className="w-40">
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="active">Active</SelectItem>
+              <SelectItem value="archived">Archived</SelectItem>
+              <SelectItem value="all">All</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
-      ))}
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-muted-foreground">Life Metric</span>
+          <Select value={lifeMetricFilter} onValueChange={(v: any)=> setLifeMetricFilter(v)}>
+            <SelectTrigger className="w-56">
+              <SelectValue placeholder="Life Metric" />
+            </SelectTrigger>
+            <SelectContent>
+              {lifeMetricOptions.map((opt)=> (
+                <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <span className="text-sm text-muted-foreground">{filteredHabits.length} habit{filteredHabits.length!==1?'s':''}</span>
+      </div>
+
+      {/* Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {filteredHabits.map((habit: any) => (
+          <HabitCompletionCard key={habit.id} habit={habit} />
+        ))}
+      </div>
     </div>
   );
 } 

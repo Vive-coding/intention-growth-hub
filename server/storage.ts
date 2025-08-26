@@ -10,6 +10,8 @@ import {
   insightVotes,
   suggestedGoals,
   suggestedHabits,
+  habitDefinitions,
+  habitInstances,
   habitCompletions,
   progressSnapshots,
   type User,
@@ -33,12 +35,14 @@ import {
   type InsertProgressSnapshot,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, sql, desc, asc, gte, lte, isNotNull } from "drizzle-orm";
+import { eq, and, sql, desc, asc, gte, lte, lt, isNotNull } from "drizzle-orm";
 
 // Interface for storage operations
 export interface IStorage {
   // User operations (required for Replit Auth)
   getUser(id: string): Promise<User | undefined>;
+  getUserByEmail(email: string): Promise<User | undefined>;
+  createUser(userData: { email: string; password: string; firstName: string; lastName: string; profileImageUrl?: string; onboardingCompleted?: boolean }): Promise<User>;
   upsertUser(user: UpsertUser): Promise<User>;
   completeOnboarding(userId: string): Promise<void>;
   
@@ -302,18 +306,6 @@ const mockData = {
 export class DatabaseStorage implements IStorage {
   // User operations (required for Replit Auth)
   async getUser(id: string): Promise<User | undefined> {
-    if (process.env.NODE_ENV === "development") {
-      return {
-        id: "dev-user-123",
-        email: "dev@example.com",
-        firstName: "Development",
-        lastName: "User",
-        profileImageUrl: "https://via.placeholder.com/150",
-        onboardingCompleted: true,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
-    }
     const [user] = await db.select().from(users).where(eq(users.id, id));
     return user;
   }
@@ -328,6 +320,33 @@ export class DatabaseStorage implements IStorage {
           ...userData,
           updatedAt: new Date(),
         },
+      })
+      .returning();
+    return user;
+  }
+
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(eq(users.email, email))
+      .limit(1);
+    return user;
+  }
+
+  async createUser(userData: { email: string; password: string; firstName: string; lastName: string; profileImageUrl?: string; onboardingCompleted?: boolean }): Promise<User> {
+    const [user] = await db
+      .insert(users)
+      .values({
+        id: crypto.randomUUID(),
+        email: userData.email,
+        password: userData.password,
+        firstName: userData.firstName,
+        lastName: userData.lastName,
+        profileImageUrl: userData.profileImageUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(userData.firstName + ' ' + userData.lastName)}&background=random`,
+        onboardingCompleted: userData.onboardingCompleted || false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
       })
       .returning();
     return user;
@@ -513,25 +532,81 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createGoalInstance(instance: InsertGoalInstance): Promise<GoalInstance> {
+    const enriched: InsertGoalInstance = {
+      ...instance,
+      monthYear: instance.monthYear || `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`,
+    };
     const [created] = await db
       .insert(goalInstances)
-      .values(instance)
+      .values(enriched)
       .returning();
     return created;
   }
 
-  async updateGoalProgress(goalInstanceId: string, currentValue: number): Promise<GoalInstance> {
+  async updateGoalProgress(goalInstanceId: string, desiredTotalProgress: number): Promise<GoalInstance> {
+    // First, get current goal with habits to calculate habit-based progress
+    const goal = await db
+      .select()
+      .from(goalInstances)
+      .innerJoin(goalDefinitions, eq(goalInstances.goalDefinitionId, goalDefinitions.id))
+      .where(eq(goalInstances.id, goalInstanceId))
+      .limit(1);
+
+    if (!goal[0]) {
+      throw new Error('Goal not found');
+    }
+
+    // Get associated habits for this goal
+    const associatedHabits = await db
+      .select({
+        habitDefinition: habitDefinitions,
+        habitInstance: habitInstances,
+      })
+      .from(habitInstances)
+      .innerJoin(habitDefinitions, eq(habitInstances.habitDefinitionId, habitDefinitions.id))
+      .where(eq(habitInstances.goalInstanceId, goalInstanceId));
+
+    // Calculate current habit-based progress (same logic as in routes)
+    let habitBasedProgress = 0;
+    if (associatedHabits.length > 0) {
+      let totalProgress = 0;
+      
+      for (const hi of associatedHabits) {
+        const habitProgress = hi.habitInstance.targetValue > 0 ? 
+          Math.min(((hi.habitInstance.currentValue || 0) / hi.habitInstance.targetValue) * 100, 100) : 0;
+        totalProgress += habitProgress;
+      }
+      
+      const averageProgress = totalProgress / associatedHabits.length;
+      habitBasedProgress = Math.min(averageProgress, 90);
+    }
+
+    // Clamp desired total progress to UI contract: 1%..99% (100% only via manual complete)
+    const clampedDesired = Math.max(1, Math.min(99, Math.round(desiredTotalProgress)));
+
+    // Calculate the manual offset needed to achieve desired total progress
+    // manualOffset = desiredTotal - habitBased
+    const manualOffset = clampedDesired - habitBasedProgress;
+    
+    console.log('Manual progress update calculation:', {
+      goalId: goalInstanceId,
+      desiredTotalProgress: clampedDesired,
+      habitBasedProgress,
+      calculatedManualOffset: manualOffset
+    });
+
+    // Update the goal instance with the new manual offset
     const [updatedInstance] = await db
       .update(goalInstances)
       .set({ 
-        currentValue: currentValue,
-        status: sql`CASE 
-          WHEN ${currentValue} >= target_value THEN 'completed'
-          ELSE 'active'
-        END`,
+        currentValue: Math.round(manualOffset), // Store the manual offset
+        // Do not auto-complete here; completion happens via dedicated endpoint
+        status: 'active',
+        completedAt: null,
       })
       .where(eq(goalInstances.id, goalInstanceId))
       .returning();
+    
     return updatedInstance;
   }
 
@@ -686,20 +761,27 @@ export class DatabaseStorage implements IStorage {
     const completions = await db
       .select()
       .from(habitCompletions)
-      .where(and(eq(habitCompletions.habitId, habitId), eq(habitCompletions.userId, userId)))
+      .where(and(eq(habitCompletions.habitDefinitionId, habitId), eq(habitCompletions.userId, userId)))
       .orderBy(desc(habitCompletions.completedAt));
 
     let currentStreak = 0;
     let longestStreak = 0;
     let lastCompletionDate: Date | null = null;
 
+    const normalize = (d: Date) => { const x = new Date(d); x.setHours(0,0,0,0); return x; };
+
     for (const completion of completions) {
       if (lastCompletionDate === null) {
         currentStreak = 1;
-      } else if (completion.completedAt.getTime() === lastCompletionDate.getTime()) {
-        currentStreak++;
       } else {
-        currentStreak = 1;
+        const daysDiff = Math.round((normalize(lastCompletionDate).getTime() - normalize(completion.completedAt).getTime()) / (1000*60*60*24));
+        if (daysDiff === 1) {
+          currentStreak++;
+        } else if (daysDiff === 0) {
+          // same calendar day, ignore
+        } else {
+          currentStreak = 1;
+        }
       }
       longestStreak = Math.max(longestStreak, currentStreak);
       lastCompletionDate = completion.completedAt;
@@ -715,6 +797,123 @@ export class DatabaseStorage implements IStorage {
       .values(data)
       .returning();
     return snapshot;
+  }
+
+  async upsertTodayProgressSnapshot(userId: string, lifeMetricName: string): Promise<void> {
+    console.log('[snapshot] upsertTodayProgressSnapshot called', { userId, lifeMetricName });
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(startOfDay);
+    endOfDay.setDate(endOfDay.getDate() + 1);
+
+    // Compute current progress numbers using existing helper
+    const current = await this.getCurrentMonthProgress(userId, lifeMetricName);
+    console.log('[snapshot] currentMonthProgress', current);
+    const monthYear = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
+
+    // Check if a snapshot exists for today
+    const existing = await db
+      .select()
+      .from(progressSnapshots)
+      .where(and(
+        eq(progressSnapshots.userId, userId),
+        eq(progressSnapshots.lifeMetricName, lifeMetricName),
+        gte(progressSnapshots.snapshotDate, startOfDay),
+        lt(progressSnapshots.snapshotDate, endOfDay)
+      ))
+      .limit(1);
+
+    console.log('[snapshot] upsert summary', {
+      userId,
+      lifeMetricName,
+      monthYear,
+      progress: current.progress,
+      goalsCompleted: current.goalsCompleted,
+      totalGoals: current.totalGoals,
+    });
+
+    if (existing.length > 0) {
+      console.log('[snapshot] updating existing snapshot', existing[0].id);
+      await db
+        .update(progressSnapshots)
+        .set({
+          progressPercentage: current.progress,
+          goalsCompleted: current.goalsCompleted,
+          totalGoals: current.totalGoals,
+          monthYear,
+          snapshotDate: new Date(),
+        })
+        .where(eq(progressSnapshots.id, existing[0].id));
+    } else {
+      console.log('[snapshot] creating new snapshot for today');
+      await this.createProgressSnapshot({
+        userId,
+        lifeMetricName,
+        monthYear,
+        progressPercentage: current.progress,
+        goalsCompleted: current.goalsCompleted,
+        totalGoals: current.totalGoals,
+        snapshotDate: new Date(),
+      });
+    }
+
+    // Prune older snapshots to keep storage lean
+    try {
+      await this.pruneProgressSnapshots(userId, lifeMetricName, 10);
+    } catch (e) {
+      console.warn('[snapshot] prune skipped', e);
+    }
+  }
+
+  /**
+   * Keep at most `dailyCap` snapshots for the current month (most recent first),
+   * and for prior months keep only the latest snapshot per month.
+   */
+  async pruneProgressSnapshots(userId: string, lifeMetricName: string, dailyCap: number = 10): Promise<void> {
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    const rows = await db
+      .select({ id: progressSnapshots.id, snapshotDate: progressSnapshots.snapshotDate, monthYear: progressSnapshots.monthYear })
+      .from(progressSnapshots)
+      .where(and(
+        eq(progressSnapshots.userId, userId),
+        eq(progressSnapshots.lifeMetricName, lifeMetricName)
+      ))
+      .orderBy(desc(progressSnapshots.snapshotDate));
+
+    const toDelete: string[] = [];
+
+    // Current month: keep most recent `dailyCap`
+    let keptThisMonth = 0;
+    for (const row of rows) {
+      const d = new Date(row.snapshotDate as any);
+      if (d >= startOfMonth) {
+        keptThisMonth += 1;
+        if (keptThisMonth > dailyCap && row.id) {
+          toDelete.push(row.id as unknown as string);
+        }
+      }
+    }
+
+    // Prior months: keep only last snapshot per month
+    const seenMonth: Record<string, boolean> = {};
+    for (const row of rows) {
+      const d = new Date(row.snapshotDate as any);
+      if (d < startOfMonth) {
+        const key = String(row.monthYear);
+        if (seenMonth[key]) {
+          if (row.id) toDelete.push(row.id as unknown as string);
+        } else {
+          seenMonth[key] = true; // first (most recent due to ordering) is kept
+        }
+      }
+    }
+
+    if (toDelete.length > 0) {
+      await db.delete(progressSnapshots).where(inArray(progressSnapshots.id, toDelete as any));
+      console.log('[snapshot] prune deleted', toDelete.length, 'rows for', { userId, lifeMetricName });
+    }
   }
 
   async getProgressSnapshots(userId: string, lifeMetricName: string, startDate: Date, endDate: Date): Promise<ProgressSnapshot[]> {
@@ -750,9 +949,12 @@ export class DatabaseStorage implements IStorage {
     // Get current month's goals for this metric using lifeMetricId
     const currentMonth = new Date();
     const monthYear = `${currentMonth.getFullYear()}-${String(currentMonth.getMonth() + 1).padStart(2, '0')}`;
-    
+
     const goals = await db
-      .select()
+      .select({
+        gi: goalInstances,
+        gd: goalDefinitions,
+      })
       .from(goalInstances)
       .innerJoin(goalDefinitions, eq(goalInstances.goalDefinitionId, goalDefinitions.id))
       .where(and(
@@ -766,22 +968,43 @@ export class DatabaseStorage implements IStorage {
     }
 
     const totalGoals = goals.length;
-    const goalsCompleted = goals.filter(g => g.goal_instances.status === 'completed').length;
-    
-    // Calculate average progress using the same logic as detailed view
-    const totalProgress = goals.reduce((sum, goal) => {
-      const currentValue = goal.goal_instances.currentValue ?? 0;
-      const targetValue = goal.goal_instances.targetValue ?? 1;
-      const goalProgress = targetValue > 0 ? (currentValue / targetValue) * 100 : 0;
-      return sum + Math.min(goalProgress, 100);
-    }, 0);
-    
-    const averageProgress = totalProgress / totalGoals;
+    const goalsCompleted = goals.filter(g => g.gi.status === 'completed').length;
+
+    // Compute per-goal progress consistent with ring: habit avg (<=90) + manual offset
+    let summedProgress = 0;
+    for (const g of goals) {
+      const goalInstanceId = g.gi.id;
+      const manualOffset = g.gi.currentValue ?? 0; // stores manual adjustment
+      // Load associated habit instances for this goal
+      const associatedHabits = await db
+        .select({ hi: habitInstances })
+        .from(habitInstances)
+        .where(eq(habitInstances.goalInstanceId, goalInstanceId));
+
+      let habitBased = 0;
+      if (associatedHabits.length > 0) {
+        let totalPct = 0;
+        for (const row of associatedHabits) {
+          const target = row.hi.targetValue ?? 0;
+          const cur = row.hi.currentValue ?? 0;
+          const pct = target > 0 ? Math.min((cur / target) * 100, 100) : 0;
+          totalPct += pct;
+        }
+        habitBased = Math.min(90, totalPct / associatedHabits.length);
+      }
+
+      const combined = g.gi.status === 'completed'
+        ? 100
+        : Math.max(0, Math.min(100, habitBased + manualOffset));
+      summedProgress += combined;
+    }
+
+    const averageProgress = summedProgress / totalGoals;
 
     return {
       progress: Math.round(averageProgress),
       goalsCompleted,
-      totalGoals
+      totalGoals,
     };
   }
 

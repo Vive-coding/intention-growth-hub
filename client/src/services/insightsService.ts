@@ -1,4 +1,5 @@
 import { toast } from "sonner";
+import { apiRequest } from "@/lib/queryClient";
 
 export interface Insight {
   id: string;
@@ -27,16 +28,14 @@ export interface Insight {
   userVote?: boolean;
   createdAt: string;
   updatedAt: string;
+  kind?: 'new' | 'reinforce';
+  relatedTitle?: string;
 }
 
 class InsightsService {
   async getInsights(): Promise<Insight[]> {
     try {
-      const response = await fetch('/api/insights');
-      if (!response.ok) {
-        throw new Error('Failed to fetch insights');
-      }
-      return response.json();
+      return await apiRequest('/api/insights');
     } catch (error) {
       console.error('Error fetching insights:', error);
       toast.error('Failed to load insights');
@@ -46,11 +45,7 @@ class InsightsService {
 
   async getInsight(id: string): Promise<Insight | null> {
     try {
-      const response = await fetch(`/api/insights/${id}`);
-      if (!response.ok) {
-        throw new Error('Failed to fetch insight');
-      }
-      return response.json();
+      return await apiRequest(`/api/insights/${id}`);
     } catch (error) {
       console.error('Error fetching insight:', error);
       toast.error('Failed to load insight');
@@ -60,19 +55,10 @@ class InsightsService {
 
   async voteOnInsight(id: string, isUpvote: boolean): Promise<{ upvotes: number; downvotes: number; userVote: boolean } | null> {
     try {
-      const response = await fetch(`/api/insights/${id}/vote`, {
+      const result = await apiRequest(`/api/insights/${id}/vote`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
         body: JSON.stringify({ isUpvote }),
       });
-
-      if (!response.ok) {
-        throw new Error('Failed to vote on insight');
-      }
-
-      const result = await response.json();
       toast.success('Vote recorded');
       return result;
     } catch (error) {
@@ -84,14 +70,9 @@ class InsightsService {
 
   async archiveGoal(id: string): Promise<boolean> {
     try {
-      const response = await fetch(`/api/insights/goals/${id}/archive`, {
+      await apiRequest(`/api/insights/goals/${id}/archive`, {
         method: 'POST',
       });
-
-      if (!response.ok) {
-        throw new Error('Failed to archive goal');
-      }
-
       toast.success('Goal archived');
       return true;
     } catch (error) {
@@ -103,19 +84,26 @@ class InsightsService {
 
   async archiveHabit(id: string): Promise<boolean> {
     try {
-      const response = await fetch(`/api/insights/habits/${id}/archive`, {
+      await apiRequest(`/api/insights/habits/${id}/archive`, {
         method: 'POST',
       });
-
-      if (!response.ok) {
-        throw new Error('Failed to archive habit');
-      }
-
       toast.success('Habit archived');
       return true;
     } catch (error) {
       console.error('Error archiving habit:', error);
       toast.error('Failed to archive habit');
+      return false;
+    }
+  }
+
+  async deleteInsight(id: string): Promise<boolean> {
+    try {
+      await apiRequest(`/api/insights/${id}`, { method: 'DELETE' });
+      toast.success('Insight deleted');
+      return true;
+    } catch (error) {
+      console.error('Error deleting insight:', error);
+      toast.error('Failed to delete insight');
       return false;
     }
   }

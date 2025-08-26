@@ -1,15 +1,47 @@
-
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useLocation } from "wouter";
-import { MessageCircle, Smile, TrendingUp, Star, Trophy, Target, Plus, CheckCircle, ThumbsUp, ThumbsDown, BookOpen, Flame, X, MoreVertical, ExternalLink, Lightbulb } from "lucide-react";
+import { MessageCircle, Smile, TrendingUp, Star, Trophy, Target, Plus, CheckCircle, ThumbsUp, ThumbsDown, BookOpen, Flame, X, MoreVertical, ExternalLink, Lightbulb, Bot, ChevronDown } from "lucide-react";
+import { Logo } from "@/components/ui/Logo";
+import { ChatGPTLogo } from "@/components/ui/chatgpt-icon";
 import { LifeMetricsDashboard } from "./LifeMetricsDashboard";
+import { InsightCard } from "./insights/InsightCard";
 import { DetailedLifeOverview } from "./DetailedLifeOverview";
+import { AuthModal } from "./AuthModal";
+import { AddHabitModal } from "./AddHabitModal";
+import { UnifiedHabitManager } from "./UnifiedHabitManager";
+import { ReinforcementBadge } from "@/components/ui/ReinforcementBadge";
 import { useAuth } from "@/hooks/useAuth";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { User as UserType } from "@shared/schema";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { apiRequest } from "@/lib/queryClient";
+import { Checkbox } from "@/components/ui/checkbox";
+import { insightsService } from "@/services/insightsService";
+import { toast } from "@/components/ui/sonner";
+
+// Custom pill color mapping for unique, meaningful colors
+const getPillBackgroundColor = (metricName: string) => {
+  if (metricName.includes('Health & Fitness')) return '#dcfce7'; // Light green
+  if (metricName.includes('Career Growth')) return '#dbeafe'; // Light blue
+  if (metricName.includes('Personal Development')) return '#f3e8ff'; // Light purple
+  if (metricName.includes('Relationships')) return '#fed7aa'; // Light orange
+  if (metricName.includes('Finance')) return '#fecaca'; // Light red
+  if (metricName.includes('Mental Health')) return '#ccfbf1'; // Light teal
+  return '#f3f4f6'; // Default light gray
+};
+
+const getPillTextColor = (metricName: string) => {
+  if (metricName.includes('Health & Fitness')) return '#166534'; // Dark green
+  if (metricName.includes('Career Growth')) return '#1e40af'; // Dark blue
+  if (metricName.includes('Personal Development')) return '#7c3aed'; // Dark purple
+  if (metricName.includes('Relationships')) return '#ea580c'; // Dark orange
+  if (metricName.includes('Finance')) return '#dc2626'; // Dark red
+  if (metricName.includes('Mental Health')) return '#0f766e'; // Dark teal
+  return '#6b7280'; // Default dark gray
+};
 
 interface DashboardProps {
   onOpenGPT: () => void;
@@ -18,15 +50,28 @@ interface DashboardProps {
 }
 
 export const Dashboard = ({ onOpenGPT, onDetailedViewChange, onClearDetailedView }: DashboardProps) => {
-  const [selectedMetric, setSelectedMetric] = useState<string | null>(null);
+    const [selectedMetric, setSelectedMetric] = useState<string | null>(null);
   const [selectedPeriod, setSelectedPeriod] = useState("This Month");
   const [showHabitModal, setShowHabitModal] = useState(false);
+ 
   const [showMobileActions, setShowMobileActions] = useState(false);
   const [journalContent, setJournalContent] = useState("");
   const [isSavingJournal, setIsSavingJournal] = useState(false);
-  const { user } = useAuth();
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [prefillGoal, setPrefillGoal] = useState<any>(null);
+  const [showAddHabitModal, setShowAddHabitModal] = useState(false);
+  const [prefillHabit, setPrefillHabit] = useState<any>(null);
+  const [selectedHabitIds, setSelectedHabitIds] = useState<string[]>([]);
+  const [isCompletingSelected, setIsCompletingSelected] = useState(false);
+  const { 
+    user, 
+    isLoading, 
+    isAuthenticated, 
+    shouldShowAuthButton
+  } = useAuth();
   const [, setLocation] = useLocation();
   const typedUser = user as UserType | undefined;
+  const queryClient = useQueryClient();
   
   const currentTime = new Date().getHours();
   const greeting = currentTime < 12 ? "Good morning" : currentTime < 18 ? "Good afternoon" : "Good evening";
@@ -36,48 +81,101 @@ export const Dashboard = ({ onOpenGPT, onDetailedViewChange, onClearDetailedView
   // Save journal entry
   const handleSaveJournal = async () => {
     if (!journalContent.trim()) {
-      alert("Please write something in your journal before saving.");
+      alert('Please enter some content before saving.');
       return;
     }
 
     setIsSavingJournal(true);
     try {
-      const response = await fetch('/api/journals', {
+      const response = await apiRequest('/api/journals', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        credentials: 'include',
         body: JSON.stringify({
           title: `Journal Entry - ${new Date().toLocaleDateString()}`,
           content: journalContent,
-          entryDate: new Date().toISOString(),
-          mood: 'neutral',
+          // Let the server detect mood automatically
           tags: [],
-          isPrivate: true,
         }),
       });
 
-      if (!response.ok) {
-        throw new Error('Failed to save journal entry');
+      if (response) {
+        setJournalContent('');
+        toast.success('Journal saved');
+        const t = toast.loading('Analyzing your entry to generate insights...');
+        // Clear saving state immediately to avoid UI being stuck
+        setIsSavingJournal(false);
+        // Fire-and-forget: trigger agent and invalidate caches without blocking UI
+        (async () => {
+          try {
+            await apiRequest('/api/insights/trigger-latest', { method: 'POST' });
+          } catch (error) {
+            console.error('Error triggering AI agent:', error);
+          }
+          try {
+            // Poll for new content up to ~20s or until we see changes
+            const start = Date.now();
+            let updated = false;
+            while (Date.now() - start < 20000) {
+              await Promise.all([
+                queryClient.invalidateQueries({ queryKey: ['/api/insights'] }),
+                queryClient.invalidateQueries({ queryKey: ['/api/goals'] }),
+                queryClient.invalidateQueries({ queryKey: ['/api/goals/habits/today'] }),
+              ]);
+              // Slight delay between polls
+              await new Promise(r => setTimeout(r, 1200));
+              // Basic heuristic: if insights list increased, mark updated
+              // (We rely on SWR cache invalidation to refresh UI; toast still used for feedback.)
+              updated = true; // we don't have previous count here, so show completion regardless
+              if (updated) break;
+            }
+            toast.dismiss(t);
+            if (updated) {
+              toast.success('New insights added');
+              // Show reinforcement summary toast (persistent until dismissed)
+              try {
+                const [goalResp, habitResp] = await Promise.all([
+                  apiRequest('/api/goals/suggested', { method: 'GET' }),
+                  apiRequest('/api/goals/habits/suggested', { method: 'GET' }),
+                ]);
+                const reinforcedGoals = (goalResp || []).filter((g: any) => g.kind === 'reinforce' && (g.relatedTitle || g.title));
+                const reinforcedHabits = (habitResp || []).filter((h: any) => h.kind === 'reinforce' && (h.relatedTitle || h.title));
+                const lines: string[] = [];
+                for (const g of reinforcedGoals.slice(0, 3)) {
+                  lines.push(`Goal: ${g.relatedTitle || g.title}`);
+                }
+                for (const h of reinforcedHabits.slice(0, 3)) {
+                  lines.push(`Habit: ${h.relatedTitle || h.title}`);
+                }
+                const remaining = Math.max(0, (reinforcedGoals.length + reinforcedHabits.length) - lines.length);
+                const description = lines.length > 0
+                  ? `${lines.join(' \n')}${remaining > 0 ? `\n…and ${remaining} more` : ''}`
+                  : '';
+                if (description) {
+                  toast.message("You're already addressing this", {
+                    description,
+                    duration: 0,
+                  });
+                }
+              } catch (e) {
+                console.warn('Reinforcement toast fetch failed', e);
+              }
+              // Reload to reflect fresh data everywhere
+              window.location.reload();
+            } else {
+              toast.message('Still analyzing…');
+            }
+          } catch (e) {
+            console.error('Polling error:', e);
+            toast.dismiss(t);
+          }
+        })();
       }
-
-      const savedEntry = await response.json();
-      console.log('Journal entry saved:', savedEntry);
-      
-      // Clear the journal content
-      setJournalContent("");
-      
-      // Show success message
-      alert("Journal entry saved successfully! The AI will analyze it and generate insights.");
-      
-      // Refresh the page to show new insights and suggestions
-      window.location.reload();
     } catch (error) {
-      console.error('Error saving journal entry:', error);
-      alert('Failed to save journal entry. Please try again.');
-    } finally {
+      console.error('Error saving journal:', error);
       setIsSavingJournal(false);
+      toast.error('Failed to save journal');
     }
   };
 
@@ -85,77 +183,279 @@ export const Dashboard = ({ onOpenGPT, onDetailedViewChange, onClearDetailedView
   const { data: insights = [], isLoading: insightsLoading, error: insightsError } = useQuery({
     queryKey: ['/api/insights'],
     queryFn: async () => {
-      const response = await fetch('/api/insights', { credentials: 'include' });
-      if (!response.ok) throw new Error('Failed to fetch insights');
-      return response.json();
+      const response = await apiRequest('/api/insights', {
+        method: 'GET',
+      });
+      return response;
     },
     retry: 1,
+    enabled: isAuthenticated, // Only fetch when authenticated
+  });
+
+  // Fetch feedback status for insights
+  const { data: feedbackStatus = { voted: {}, lastAction: {} } } = useQuery({
+    queryKey: ['/api/feedback/status', insights],
+    queryFn: async () => {
+      if (!insights || insights.length === 0) {
+        return { voted: {}, lastAction: {} };
+      }
+      const ids = insights.map((i: any) => i.id).join(',');
+      const response = await apiRequest(`/api/feedback/status?type=insight&ids=${ids}`);
+      return response;
+    },
+    enabled: isAuthenticated && insights.length > 0,
   });
 
   // Fetch goals
   const { data: goals = [], isLoading: goalsLoading, error: goalsError } = useQuery({
     queryKey: ['/api/goals'],
     queryFn: async () => {
-      const response = await fetch('/api/goals', { credentials: 'include' });
-      if (!response.ok) throw new Error('Failed to fetch goals');
-      return response.json();
+      const response = await apiRequest('/api/goals', {
+        method: 'GET',
+      });
+      return response;
     },
     retry: 1,
+    enabled: isAuthenticated, // Only fetch when authenticated
   });
 
-  // Fetch habits
-  const { data: habits = [], isLoading: habitsLoading, error: habitsError } = useQuery({
-    queryKey: ['/api/goals/habits'],
+  // Fetch habits for today's completion modal (active goals only, not done today)
+  const { data: todaysHabits = [], isLoading: habitsLoading, error: habitsError } = useQuery({
+    queryKey: ['/api/goals/habits/today'],
     queryFn: async () => {
-      const response = await fetch('/api/goals/habits', { credentials: 'include' });
-      if (!response.ok) throw new Error('Failed to fetch habits');
-      return response.json();
+      const response = await apiRequest('/api/goals/habits/today', {
+        method: 'GET',
+      });
+      return response;
     },
     retry: 1,
+    enabled: isAuthenticated, // Only fetch when authenticated
   });
+
+  // Fetch completed habits for today
+  const { data: completedHabits = [], isLoading: completedHabitsLoading } = useQuery({
+    queryKey: ['/api/goals/habits/completed-today'],
+    queryFn: async () => {
+      const response = await apiRequest('/api/goals/habits/completed-today', {
+        method: 'GET',
+      });
+      console.log('Completed habits response:', response);
+      return response;
+    },
+    retry: 1,
+    enabled: isAuthenticated, // Only fetch when authenticated
+  });
+
+  // Debug logging for habit data
+  useEffect(() => {
+    console.log('Dashboard habit data:', {
+      todaysHabits: todaysHabits.length,
+      completedHabits: completedHabits.length,
+      selectedHabitIds
+    });
+  }, [todaysHabits, completedHabits, selectedHabitIds]);
+
+  const toggleHabitSelection = (habitId: string) => {
+    console.log('Dashboard: toggleHabitSelection called for:', habitId, 'current selectedHabitIds:', selectedHabitIds);
+    setSelectedHabitIds((prev) => {
+      const newSelection = prev.includes(habitId) ? prev.filter((id) => id !== habitId) : [...prev, habitId];
+      console.log('Dashboard: new selection:', newSelection);
+      return newSelection;
+    });
+  };
+
+  const handleCompleteSelected = async () => {
+    if (selectedHabitIds.length === 0) return;
+    setIsCompletingSelected(true);
+    try {
+      const selectedHabits = todaysHabits.filter((h: any) => selectedHabitIds.includes(h.id));
+      console.log('Completing habits:', selectedHabits.map((habit: any) => habit.name));
+      
+      // Call once per habit. Backend already fans-out progress updates to all associated goals.
+      const results = await Promise.all(selectedHabits.map(async (habit: any) => {
+        const result = await apiRequest(`/api/goals/habits/${habit.id}/complete`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({}),
+        });
+        console.log(`Habit ${habit.name} completion result:`, result);
+        return result;
+      }));
+      
+      console.log('All completion results:', results);
+      setSelectedHabitIds([]);
+      
+      // Refresh today + completed counts so the right panel numbers update immediately
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['/api/goals/habits/today'] }),
+        queryClient.invalidateQueries({ queryKey: ['/api/goals/habits/completed-today'] }),
+      ]);
+      
+      // Force an immediate refetch to avoid intermediary 304s
+      const refetchResult = await queryClient.refetchQueries({ queryKey: ['/api/goals/habits/completed-today'], type: 'active' });
+      console.log('Refetch result:', refetchResult);
+      
+      // Proactively upsert today's snapshots for all metrics so charts match ring values immediately
+      try {
+        await apiRequest('/api/admin/snapshots/run');
+        await queryClient.invalidateQueries({ queryKey: ['/api/life-metrics/progress'] });
+        await queryClient.invalidateQueries({ queryKey: ['metric-progress'] });
+      } catch (e) {
+        console.warn('Snapshot upsert after completion failed (non-fatal)', e);
+      }
+      await queryClient.invalidateQueries({ queryKey: ['/api/goals'] });
+      await queryClient.invalidateQueries({ queryKey: ['/api/life-metrics/progress'] });
+      await queryClient.invalidateQueries({ queryKey: ['metric-progress'] });
+      
+      // Refresh smart suggestions based on new state
+      try { 
+        await refetchSmartSuggestions(); 
+      } catch {}
+      
+      setShowHabitModal(false);
+    } catch (error) {
+      console.error('Error completing selected habits:', error);
+    } finally {
+      setIsCompletingSelected(false);
+    }
+  };
 
   // Fetch suggested goals
   const { data: suggestedGoals = [], isLoading: suggestedGoalsLoading, error: suggestedGoalsError } = useQuery({
     queryKey: ['/api/goals/suggested'],
     queryFn: async () => {
-      const response = await fetch('/api/goals/suggested', { credentials: 'include' });
-      if (!response.ok) throw new Error('Failed to fetch suggested goals');
-      return response.json();
+      const response = await apiRequest(`/api/goals/suggested?nocache=${Date.now()}`, {
+        method: 'GET',
+      });
+      return response;
     },
     retry: 1,
+    enabled: isAuthenticated, // Only fetch when authenticated
   });
 
   // Fetch suggested habits
   const { data: suggestedHabits = [], isLoading: suggestedHabitsLoading, error: suggestedHabitsError } = useQuery({
     queryKey: ['/api/goals/habits/suggested'],
     queryFn: async () => {
-      const response = await fetch('/api/goals/habits/suggested', { credentials: 'include' });
-      if (!response.ok) throw new Error('Failed to fetch suggested habits');
-      return response.json();
+      const response = await apiRequest(`/api/goals/habits/suggested?nocache=${Date.now()}`, {
+        method: 'GET',
+      });
+      return response;
     },
     retry: 1,
+    enabled: isAuthenticated, // Only fetch when authenticated
   });
 
-  // Get recent insights (last 3)
-  const recentInsights = insights.slice(0, 3);
+  // Get recent insights (last 3) with local dismissal - insights dismiss after voting on homepage
+  const [dismissedInsightIds, setDismissedInsightIds] = useState<string[]>(() => {
+    // Load dismissed insights from localStorage on component mount
+    const saved = localStorage.getItem('dashboard_dismissed_insights');
+    return saved ? JSON.parse(saved) : [];
+  });
+  
+  // Function to dismiss insight and persist to localStorage
+  const dismissInsight = (insightId: string) => {
+    setDismissedInsightIds((prev) => {
+      const newDismissed = Array.from(new Set([...prev, insightId]));
+      localStorage.setItem('dashboard_dismissed_insights', JSON.stringify(newDismissed));
+      return newDismissed;
+    });
+  };
+  
+  const recentInsights = insights
+    .filter((i:any)=> !dismissedInsightIds.includes(i.id)) // Local dismissal
+    .filter((i:any)=> !feedbackStatus?.voted?.[i.id]) // Also hide if already voted previously (persistent)
+    .slice(0, 3);
 
-  // Get suggested goals (last 3)
+  // Note: Insights dismiss from homepage after voting to keep it clean
+  // Vote state persists on the insights detail page
+
+  // Get suggested goals/habits (last 3) and whether there are any items/new items
   const recentSuggestedGoals = suggestedGoals.slice(0, 3);
-
-  // Get suggested habits (last 3)
   const recentSuggestedHabits = suggestedHabits.slice(0, 3);
+  const hasNewSuggestions = (suggestedGoals || []).some((g: any) => g?.kind !== 'existing') || (suggestedHabits || []).some((h: any) => h?.kind !== 'existing');
+  const hasAnySuggestions = (recentSuggestedGoals.length > 0) || (recentSuggestedHabits.length > 0);
 
   // Debug logging
   console.log('Dashboard data:', {
     insights: insights.length,
     goals: goals.length,
-    habits: habits.length,
+    todaysHabits: todaysHabits.length,
     suggestedGoals: suggestedGoals.length,
     suggestedHabits: suggestedHabits.length,
     recentInsights: recentInsights.length,
     recentSuggestedGoals: recentSuggestedGoals.length,
     recentSuggestedHabits: recentSuggestedHabits.length
   });
+
+  // Feedback dialog state for suggested goal/habit dismissals
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [feedbackTarget, setFeedbackTarget] = useState<{ kind: 'suggested_goal' | 'suggested_habit'; id: string } | null>(null);
+  const [feedbackReasons, setFeedbackReasons] = useState<string[]>([]);
+  const [feedbackNotes, setFeedbackNotes] = useState<string>("");
+  const FEEDBACK_REASON_OPTIONS: string[] = [
+    'Not relevant',
+    'Too generic',
+    'Poorly timed',
+    'Already doing this',
+    'Not achievable',
+    'Conflicts with priorities'
+  ];
+
+  const toggleReason = (r: string) => {
+    setFeedbackReasons((prev) => (prev.includes(r) ? prev.filter((x) => x !== r) : [...prev, r]));
+  };
+
+  const sendDismissFeedback = async () => {
+    if (!feedbackTarget) {
+      setFeedbackOpen(false);
+      return;
+    }
+    try {
+      await apiRequest('/api/feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: feedbackTarget.kind,
+          itemId: feedbackTarget.id,
+          action: 'dismiss',
+          context: { surface: 'dashboard_suggestions' },
+        }),
+      });
+      // Optional detailed reasons
+      if (feedbackReasons.length > 0 || feedbackNotes.trim()) {
+        await apiRequest('/api/feedback', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: feedbackTarget.kind,
+            itemId: feedbackTarget.id,
+            action: 'dismiss_reason',
+            context: { surface: 'dashboard_suggestions', reasons: feedbackReasons, notes: feedbackNotes },
+          }),
+        });
+      }
+      // Also archive the dismissed entity so it won't return again
+      try {
+        if (feedbackTarget.kind === 'suggested_goal') {
+          await insightsService.archiveGoal(feedbackTarget.id);
+        } else {
+          await insightsService.archiveHabit(feedbackTarget.id);
+        }
+      } catch {}
+    } catch (e) {
+      console.error('Failed sending dismiss feedback', e);
+    } finally {
+      setFeedbackOpen(false);
+      setFeedbackReasons([]);
+      setFeedbackNotes("");
+      setFeedbackTarget(null);
+      // Remove dismissed card by refreshing suggestions quickly
+      try { await refetchSmartSuggestions(); } catch {}
+      // Soft reload to update lists shown
+      window.location.reload();
+    }
+  };
 
   // Get celebration items (habit streaks and goal completions)
   interface CelebrationItem {
@@ -168,9 +468,9 @@ export const Dashboard = ({ onOpenGPT, onDetailedViewChange, onClearDetailedView
   
   const celebrationItems: CelebrationItem[] = [];
   
-  // Add habit streaks
-  habits.forEach((habit: any) => {
-    if (habit.currentStreak >= 3) {
+  // Add habit streaks (if streak data exists)
+  (todaysHabits || []).forEach((habit: any) => {
+    if (habit && typeof habit.currentStreak === 'number' && habit.currentStreak >= 3) {
       celebrationItems.push({
         type: 'habit_streak',
         title: `${habit.currentStreak}-day ${habit.title} streak!`,
@@ -194,51 +494,37 @@ export const Dashboard = ({ onOpenGPT, onDetailedViewChange, onClearDetailedView
     }
   });
 
-  // Generate smart suggestions
-  const smartSuggestions = [];
-  
-  // Add suggestions based on insights
-  if (recentInsights.length > 0) {
-    smartSuggestions.push({
-      type: 'insight_based',
-      title: 'Based on your recent insights, try...',
-      description: 'Morning journaling has improved your mood. Try adding a 5-minute reflection to your routine.',
-      action: 'Add Morning Journal Habit',
-      icon: TrendingUp,
-      color: 'blue'
-    });
-  }
+  // Smart Suggestions: fetched from API on-demand
+  const { data: smartSuggestions = [], refetch: refetchSmartSuggestions } = useQuery({
+    queryKey: ['/api/smart-suggestions'],
+    queryFn: async () => apiRequest('/api/smart-suggestions'),
+    staleTime: 60_000, // do not auto-refresh on mount per product decision
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
+    enabled: isAuthenticated,
+  });
 
-  // Add goal motivation
-  const closeToCompletion = goals.filter((goal: any) => goal.progress >= 80 && goal.progress < 100);
-  if (closeToCompletion.length > 0) {
-    const goal = closeToCompletion[0];
-    smartSuggestions.push({
-      type: 'goal_motivation',
-      title: `You're close to completing ${goal.title}!`,
-      description: `You're ${goal.progress}% there. One more push to reach your goal!`,
-      action: 'Update Progress',
-      icon: Target,
-      color: 'green'
-    });
-  }
-
-  // Add habit streak motivation
-  const atRiskHabits = habits.filter((habit: any) => habit.currentStreak > 0 && habit.currentStreak < 3);
-  if (atRiskHabits.length > 0) {
-    const habit = atRiskHabits[0];
-    smartSuggestions.push({
-      type: 'habit_reminder',
-      title: `Your ${habit.title} streak is at risk!`,
-      description: `Don't break your ${habit.currentStreak}-day streak. Complete it today!`,
-      action: 'Complete Today',
-      icon: Flame,
-      color: 'orange'
-    });
-  }
-
-  // Limit smart suggestions to 3
-  const recentSmartSuggestions = smartSuggestions.slice(0, 3);
+  // Fetch reinforcement (already in progress) items
+  const { data: reinforceGoals = [] } = useQuery({
+    queryKey: ['/api/goals/suggested', 'reinforcements'],
+    queryFn: async () => apiRequest('/api/goals/suggested?mode=reinforcements'),
+    enabled: isAuthenticated,
+    retry: 1,
+  });
+  const { data: reinforceHabits = [] } = useQuery({
+    queryKey: ['/api/goals/habits/suggested', 'reinforcements'],
+    queryFn: async () => apiRequest('/api/goals/habits/suggested?mode=reinforcements'),
+    enabled: isAuthenticated,
+    retry: 1,
+  });
+  const [dismissedReinforcements, setDismissedReinforcements] = useState<string[]>(() => {
+    try { return JSON.parse(localStorage.getItem('dismissed_reinforcements') || '[]'); } catch { return []; }
+  });
+  const dismissReinforcement = (key: string) => {
+    const next = Array.from(new Set([...dismissedReinforcements, key]));
+    setDismissedReinforcements(next);
+    localStorage.setItem('dismissed_reinforcements', JSON.stringify(next));
+  };
 
   // If a metric is selected, show the detailed view
   if (selectedMetric) {
@@ -252,6 +538,7 @@ export const Dashboard = ({ onOpenGPT, onDetailedViewChange, onClearDetailedView
         onBack={() => {
           console.log('Back button clicked');
           setSelectedMetric(null);
+          setPrefillGoal(null);
           onDetailedViewChange?.(false);
         }}
         selectedPeriod={selectedPeriod}
@@ -259,36 +546,45 @@ export const Dashboard = ({ onOpenGPT, onDetailedViewChange, onClearDetailedView
         onNavigateHome={() => {
           console.log('Home navigation clicked from detailed view');
           setSelectedMetric(null);
+          setPrefillGoal(null);
           onDetailedViewChange?.(false);
         }}
         onClearDetailedView={() => {
           console.log('Dashboard: Clearing detailed view via external call');
           setSelectedMetric(null);
+          setPrefillGoal(null);
           onDetailedViewChange?.(false);
         }}
+        onNavigateToMetric={(newMetric) => {
+          console.log('Navigating to metric:', newMetric);
+          setSelectedMetric(newMetric);
+        }}
+        prefillGoal={prefillGoal}
       />
     );
   }
 
   return (
-    <div className="p-4 lg:p-8 pb-24 lg:pb-8">
+    <div className="p-4 lg:px-6 lg:py-8 pb-24 lg:pb-8">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-6 lg:mb-8">
-          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-800 mb-2">
-            {greeting}, {userName}
-          </h1>
-          <p className="text-sm lg:text-base text-gray-600">
-            Ready to reflect and grow today?
-          </p>
+          <div>
+            <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-800 mb-2">
+              {greeting}, {userName}
+            </h1>
+            <p className="text-sm lg:text-base text-gray-600">
+              Ready to reflect and grow today?
+            </p>
+          </div>
         </div>
 
         {/* Mobile Layout: Single Column */}
         <div className="lg:hidden space-y-6">
           {/* Journal Chat Box - Mobile (Primary Action) */}
-          <div className="bg-gradient-to-br from-purple-600 to-blue-600 rounded-2xl p-4">
+          <div className="bg-gradient-to-br from-purple-600 to-blue-600 rounded-2xl p-3">
             {/* Chat-like input box with buttons inside */}
-            <div className="bg-white rounded-xl p-1.5">
+            <div className="bg-white rounded-xl p-1">
               <div className="text-left mb-1.5">
                 <textarea 
                   className="w-full h-24 p-1 border-0 rounded-lg resize-none focus:outline-none focus:ring-1 focus:ring-purple-300 text-gray-700 placeholder-gray-400 min-h-[6rem]"
@@ -300,19 +596,20 @@ export const Dashboard = ({ onOpenGPT, onDetailedViewChange, onClearDetailedView
               </div>
               
               {/* Action buttons inside the chat box - right aligned and smaller */}
-              <div className="flex gap-1 justify-end">
+              <div className="flex gap-2 justify-end">
                 <Button 
                   onClick={onOpenGPT}
-                  className="bg-green-500 text-white hover:bg-green-600 py-0.5 px-1.5 rounded-lg font-semibold text-xs"
+                  className="bg-green-500 text-white hover:bg-green-600 py-1 px-3 rounded-full font-semibold text-xs shadow-lg hover:shadow-xl transition-all duration-200 border-0"
                 >
                   <ExternalLink className="w-3 h-3 mr-1" />
                   Chat with Life Coach
                 </Button>
                 <Button 
-                  className="bg-purple-600 text-white hover:bg-purple-700 py-0.5 px-1.5 rounded-lg font-semibold text-xs"
+                  className="bg-purple-600 text-white hover:bg-purple-700 py-1 px-3 rounded-full font-semibold text-xs shadow-md transition-all duration-200 hover:shadow-lg"
                   onClick={handleSaveJournal}
                   disabled={isSavingJournal}
                 >
+                  <BookOpen className="w-3 h-3 mr-1" />
                   {isSavingJournal ? "Saving..." : "Save Journal"}
                 </Button>
               </div>
@@ -328,41 +625,106 @@ export const Dashboard = ({ onOpenGPT, onDetailedViewChange, onClearDetailedView
             />
           </div>
 
-          {/* Smart Suggestions - Mobile */}
-          {smartSuggestions.length > 0 && (
+          {/* Recent Insights - Mobile */}
+          {insightsLoading ? (
             <div className="bg-white rounded-lg p-4 shadow-md">
-              <div className="flex items-center space-x-3 mb-4">
+              <div className="flex items-center space-x-3 mb-3">
                 <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                  <Lightbulb className="w-4 h-4 text-blue-600" />
+                  <TrendingUp className="w-4 h-4 text-blue-600" />
                 </div>
                 <div>
-                  <h3 className="font-semibold text-gray-800 text-sm">Smart Suggestions</h3>
-                  <p className="text-xs text-gray-600">Top guidance to move forward</p>
+                  <h3 className="font-semibold text-gray-800 text-sm">Recent Insights</h3>
+                  <p className="text-xs text-gray-600">Help improve AI recommendations</p>
+                </div>
+              </div>
+              <div className="text-center py-4 text-sm text-gray-600">Loading insights...</div>
+            </div>
+          ) : insightsError ? (
+            <div className="bg-white rounded-lg p-4 shadow-md">
+              <div className="flex items-center space-x-3 mb-3">
+                <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                  <TrendingUp className="w-4 h-4 text-blue-600" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-gray-800 text-sm">Recent Insights</h3>
+                  <p className="text-xs text-gray-600">Help improve AI recommendations</p>
+                </div>
+              </div>
+              <div className="text-center py-6">
+                <div className="text-gray-500 text-sm">No insights yet</div>
+                <p className="text-xs text-gray-500 mt-1">Create a journal entry or chat with life coach to see suggestions.</p>
+              </div>
+            </div>
+          ) : recentInsights.length > 0 ? (
+            <div className="bg-white rounded-lg p-4 shadow-md">
+              <div className="flex items-center space-x-3 mb-3">
+                <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                  <TrendingUp className="w-4 h-4 text-blue-600" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-gray-800 text-sm">Recent Insights</h3>
+                  <p className="text-xs text-gray-600">Help improve AI recommendations</p>
                 </div>
               </div>
               <div className="space-y-3">
-                {smartSuggestions.map((suggestion: any, index: number) => (
-                  <div key={index} className="p-3 bg-blue-50 rounded-lg border border-blue-100">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="px-2 py-1 text-xs rounded-full bg-blue-200 text-blue-800">
-                        {suggestion.type === 'insight_based' ? 'Insight' : 'Motivation'}
-                      </span>
-                      <suggestion.icon className="w-4 h-4 text-blue-600" />
-                    </div>
-                    <h4 className="font-semibold text-gray-800 mb-1 text-sm">{suggestion.title}</h4>
-                    <p className="text-xs text-gray-600 mb-3">{suggestion.description}</p>
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      className="text-xs border-blue-200 text-blue-700 hover:bg-blue-50"
-                    >
-                      {suggestion.action}
-                    </Button>
-                  </div>
+                {recentInsights.map((insight: any) => (
+                  <InsightCard
+                    key={insight.id}
+                    id={insight.id}
+                    title={insight.title}
+                    explanation={insight.explanation || insight.description || ''}
+                    confidence={insight.confidence || 0}
+                    lifeMetrics={insight.lifeMetrics || []}
+                    suggestedGoals={insight.suggestedGoals || []}
+                    suggestedHabits={insight.suggestedHabits || []}
+                    onVote={(isUpvote) => {
+                      console.log('Dashboard vote', insight.id, isUpvote);
+                    }}
+                    onFeedbackRecorded={() => {
+                      console.log('Dashboard (mobile): onFeedbackRecorded for', insight.id);
+                      dismissInsight(insight.id);
+                    }}
+                    feedbackContext={{ surface: 'dashboard_recent_mobile' }}
+                    mode="compact"
+                    initialVoted={feedbackStatus?.voted?.[insight.id] || false}
+                    lastAction={feedbackStatus?.lastAction?.[insight.id] || null}
+                    kind={insight.kind}
+                    relatedTitle={insight.relatedTitle}
+                  />
                 ))}
               </div>
             </div>
+          ) : (
+            <div className="bg-white rounded-lg p-4 shadow-md">
+              <div className="flex items-center space-x-3 mb-3">
+                <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                  <TrendingUp className="w-4 h-4 text-blue-600" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-gray-800 text-sm">Recent Insights</h3>
+                  <p className="text-xs text-gray-600">Help improve AI recommendations</p>
+                </div>
+              </div>
+              <div className="text-center py-6">
+                <div className="text-gray-500 text-sm">No insights yet</div>
+                <p className="text-xs text-gray-500 mt-1">Create a journal entry or chat with life coach to see suggestions.</p>
+              </div>
+            </div>
           )}
+
+          {/* Complete Habits - Mobile: reuse the exact same module as desktop */}
+          <UnifiedHabitManager
+            todaysHabits={todaysHabits}
+            smartSuggestions={smartSuggestions}
+            completedHabits={completedHabits}
+            onCompleteHabits={handleCompleteSelected}
+            onToggleHabitSelection={toggleHabitSelection}
+            selectedHabitIds={selectedHabitIds}
+            showHabitModal={showHabitModal}
+            onShowHabitModalChange={setShowHabitModal}
+          />
+
+          {/* Smart Suggestions removed on mobile (now integrated into habit priority) */}
           
           {/* Suggested Goals and Habits - Mobile */}
           {(suggestedGoalsLoading || suggestedHabitsLoading) ? (
@@ -395,7 +757,7 @@ export const Dashboard = ({ onOpenGPT, onDetailedViewChange, onClearDetailedView
                 <div className="text-red-600 text-sm">Failed to load suggestions</div>
               </div>
             </div>
-          ) : (recentSuggestedGoals.length > 0 || recentSuggestedHabits.length > 0) && (
+          ) : hasAnySuggestions && (
             <div className="bg-white rounded-lg p-4 shadow-md">
               <div className="flex items-center space-x-3 mb-4">
                 <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center">
@@ -408,87 +770,185 @@ export const Dashboard = ({ onOpenGPT, onDetailedViewChange, onClearDetailedView
               </div>
               <div className="space-y-3">
                 {/* Suggested Goals */}
-                {recentSuggestedGoals.map((suggestedGoal: any) => (
-                  <div key={`goal-${suggestedGoal.id}`} className="p-3 bg-purple-50 rounded-lg border border-purple-100">
+                {recentSuggestedGoals.map((goal: any) => {
+                  const isExisting = goal?.kind === 'existing';
+                  const displayTitle = goal?.title || goal?.existingTitle || '';
+                  const key = isExisting ? `goal-existing-${goal?.existingId || 'na'}-${goal?.sourceInsightId || 'na'}` : `goal-${goal?.id}`;
+                  return (
+                  <div key={key} className="p-3 bg-purple-50 rounded-lg border border-purple-100">
                     <div className="flex items-center justify-between mb-2">
-                      <span className="px-2 py-1 text-xs rounded-full bg-purple-200 text-purple-800">
-                        Goal • {suggestedGoal.lifeMetric?.name || 'General'}
-                      </span>
-                      <span className="text-xs text-gray-500">
-                        {suggestedGoal.insight?.confidence || 85}% confident
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <div 
+                          className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium"
+                          style={{ 
+                            backgroundColor: getPillBackgroundColor(goal.lifeMetric?.name || 'General'),
+                            color: getPillTextColor(goal.lifeMetric?.name || 'General')
+                          }}
+                        >
+                          {goal.lifeMetric?.name || 'General'}
+                        </div>
+                        <span className="text-xs text-gray-500">
+                          {goal.insight?.confidence || 85}% confident
+                        </span>
+                      </div>
                     </div>
-                    <h4 className="font-semibold text-gray-800 mb-1 text-sm">{suggestedGoal.title}</h4>
+                    <h4 className="font-semibold text-gray-800 mb-1 text-sm">{displayTitle} {isExisting && (<span className="ml-2 text-[11px] text-green-700 bg-green-50 border border-green-200 px-1 py-0.5 rounded">Already in progress</span>)}</h4>
                     <p className="text-xs text-gray-600 mb-3">
-                      {suggestedGoal.description || "AI-generated goal suggestion based on your patterns."}
+                      {goal.description || "AI-generated goal suggestion based on your patterns."}
                     </p>
-                    <div className="flex items-center justify-end space-x-2">
-                      <Button variant="ghost" size="sm" className="text-xs hover:bg-purple-100">
-                        <ThumbsUp className="w-3 h-3 mr-1" />
-                        Helpful
-                      </Button>
-                      <Button variant="ghost" size="sm" className="text-xs hover:bg-red-100">
-                        <ThumbsDown className="w-3 h-3 mr-1" />
-                        Not Helpful
-                      </Button>
+                    <div className="flex items-center justify-between">
+                      {!isExisting ? (
+                        <div className="flex gap-2">
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="text-xs border-purple-200 text-purple-700 hover:bg-purple-50"
+                            onClick={() => {
+                              const prefillData = {
+                                title: goal.title,
+                                description: goal.description,
+                                lifeMetricId: goal.lifeMetric?.id,
+                                suggestedGoalId: goal.id
+                              };
+                              setPrefillGoal(prefillData);
+                              setSelectedMetric(goal.lifeMetric?.name);
+                            }}
+                          >
+                            Add to {goal.lifeMetric?.name || 'Life Metric'}
+                          </Button>
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className="text-xs hover:bg-red-50 text-red-600"
+                            onClick={() => {
+                              setFeedbackTarget({ kind: 'suggested_goal', id: goal.id });
+                              setFeedbackOpen(true);
+                            }}
+                            title="Dismiss suggestion"
+                          >
+                            <X className="w-3 h-3 mr-1" />
+                            Dismiss
+                          </Button>
+                        </div>
+                      ) : (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-xs hover:bg-green-50 text-green-700 ml-auto"
+                          onClick={async () => {
+                            try { await apiRequest('/api/feedback', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ type:'reinforcement_goal', itemId: goal.existingId, action:'dismiss', context:{ sourceInsightId: goal.sourceInsightId } }) }); } catch {}
+                          }}
+                          title="Got it"
+                        >
+                          <CheckCircle className="w-3 h-3 mr-1" />
+                          Got it
+                        </Button>
+                      )}
                     </div>
                   </div>
-                ))}
+                )})}
                 
                 {/* Suggested Habits */}
-                {recentSuggestedHabits.map((suggestedHabit: any) => (
-                  <div key={`habit-${suggestedHabit.id}`} className="p-3 bg-orange-50 rounded-lg border border-orange-100">
+                {recentSuggestedHabits.map((habit: any) => {
+                  const isExistingH = habit?.kind === 'existing';
+                  const displayTitleH = habit?.title || habit?.existingTitle || '';
+                  const keyH = isExistingH ? `habit-existing-${habit?.existingId || 'na'}-${habit?.sourceInsightId || 'na'}` : `habit-${habit?.id}`;
+                  return (
+                  <div key={keyH} className="p-3 bg-orange-50 rounded-lg border border-orange-100">
                     <div className="flex items-center justify-between mb-2">
-                      <span className="px-2 py-1 text-xs rounded-full bg-orange-200 text-orange-800">
-                        Habit • {suggestedHabit.lifeMetric?.name || 'General'}
-                      </span>
-                      <span className="text-xs text-gray-500">
-                        {suggestedHabit.insight?.confidence || 85}% confident
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <div 
+                          className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium"
+                          style={{ 
+                            backgroundColor: getPillBackgroundColor(habit.lifeMetric?.name || 'General'),
+                            color: getPillTextColor(habit.lifeMetric?.name || 'General')
+                          }}
+                        >
+                          {habit.lifeMetric?.name || 'General'}
+                        </div>
+                        <span className="text-xs text-gray-500">
+                          {habit.insight?.confidence || 85}% confident
+                        </span>
+                      </div>
                     </div>
-                    <h4 className="font-semibold text-gray-800 mb-1 text-sm">{suggestedHabit.title}</h4>
+                    <h4 className="font-semibold text-gray-800 mb-1 text-sm">{displayTitleH} {isExistingH && (<span className="ml-2 text-[11px] text-green-700 bg-green-50 border border-green-200 px-1 py-0.5 rounded">Already in progress</span>)}</h4>
                     <p className="text-xs text-gray-600 mb-3">
-                      {suggestedHabit.description || "AI-generated habit suggestion based on your patterns."}
+                      {habit.description || "AI-generated habit suggestion based on your patterns."}
                     </p>
-                    <div className="flex items-center justify-end space-x-2">
-                      <Button variant="ghost" size="sm" className="text-xs hover:bg-orange-100">
-                        <ThumbsUp className="w-3 h-3 mr-1" />
-                        Helpful
-                      </Button>
-                      <Button variant="ghost" size="sm" className="text-xs hover:bg-red-100">
-                        <ThumbsDown className="w-3 h-3 mr-1" />
-                        Not Helpful
-                      </Button>
+                    <div className="flex items-center justify-between">
+                      {!isExistingH ? (
+                        <div className="flex gap-2">
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="text-xs border-orange-200 text-orange-700 hover:bg-orange-50"
+                            onClick={() => {
+                              const metricId = habit.lifeMetric?.id;
+                              const activeGoalsSameMetric = (goals || [])
+                                .filter((g: any) => (g.status === 'active' || !g.status) && (metricId ? (g.lifeMetricId === metricId || g.lifeMetric?.id === metricId || (g.lifeMetric?.name && g.lifeMetric?.name === habit.lifeMetric?.name)) : true))
+                                .map((g:any) => String(g.goalInstance?.id || g.id));
+                              const prefill = {
+                                title: habit.title,
+                                description: habit.description,
+                                lifeMetricId: metricId || '',
+                                lifeMetricName: habit.lifeMetric?.name,
+                                suggestedHabitId: habit.id,
+                                recommendedGoalIds: activeGoalsSameMetric,
+                                recommendedActiveGoalIds: activeGoalsSameMetric,
+                                recommendedSuggestedGoalIds: Array.isArray(habit.recommendedSuggestedGoalIds) ? habit.recommendedSuggestedGoalIds : [],
+                              };
+                              setPrefillHabit(prefill);
+                              setShowAddHabitModal(true);
+                            }}
+                          >
+                            Add to Goals
+                          </Button>
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className="text-xs hover:bg-red-50 text-red-600"
+                            onClick={() => {
+                              setFeedbackTarget({ kind: 'suggested_habit', id: habit.id });
+                              setFeedbackOpen(true);
+                            }}
+                            title="Dismiss suggestion"
+                          >
+                            <X className="w-3 h-3 mr-1" />
+                            Dismiss
+                          </Button>
+                        </div>
+                      ) : (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-xs hover:bg-green-50 text-green-700 ml-auto"
+                          onClick={async () => {
+                            try { await apiRequest('/api/feedback', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ type:'reinforcement_habit', itemId: habit.existingId, action:'dismiss', context:{ sourceInsightId: habit.sourceInsightId } }) }); } catch {}
+                          }}
+                          title="Got it"
+                        >
+                          <CheckCircle className="w-3 h-3 mr-1" />
+                          Got it
+                        </Button>
+                      )}
                     </div>
                   </div>
-                ))}
+                )})}
               </div>
             </div>
           )}
 
-          {/* Complete Today's Habits - Mobile */}
-          {habits.length > 0 && (
-            <div className="bg-orange-600 rounded-lg p-4 text-center">
-              <Flame className="w-6 h-6 mx-auto mb-2 text-white" />
-              <p className="text-xs text-orange-100 mb-3">Track your daily progress and maintain streaks</p>
-                                <Button 
-                    className="w-full bg-white text-orange-600 hover:bg-orange-50 py-0.5 px-1.5 rounded-lg font-semibold text-xs"
-                    onClick={() => setShowHabitModal(true)}
-                  >
-                    Complete Habits
-                  </Button>
-            </div>
-          )}
+          {/* Removed legacy mobile habits panel; UnifiedHabitManager above handles mobile */}
         </div>
 
-        {/* Desktop Layout: Two Column */}
-        <div className="hidden lg:grid lg:grid-cols-12 lg:gap-8">
-          {/* Left Column - Journal CTA and Life Metrics */}
-          <div className="lg:col-span-8 space-y-6">
+        {/* Desktop Layout: Two Column (symmetric spacing; optimized for 1280px) */}
+        <div className="hidden lg:grid lg:grid-cols-[minmax(0,1fr)_280px] xl:grid-cols-[minmax(0,1fr)_320px] lg:gap-6 xl:gap-8 lg:px-0">
+          {/* Left Column - Journal CTA, Life Metrics, and Suggested Goals & Habits */}
+          <div className="space-y-6 lg:col-start-1 lg:col-end-2">
             {/* Journal Chat Box - Desktop (Primary Action) */}
-            <div className="bg-gradient-to-br from-purple-600 to-blue-600 rounded-2xl p-6">
+            <div className="bg-gradient-to-br from-purple-600 to-blue-600 rounded-2xl p-4">
               {/* Chat-like input box with buttons inside */}
-              <div className="bg-white rounded-xl p-2">
+              <div className="bg-white rounded-xl p-1.5">
                 <div className="text-left mb-2">
                   <textarea 
                     className="w-full h-32 p-1.5 border-0 rounded-lg resize-none focus:outline-none focus:ring-1 focus:ring-purple-300 text-gray-700 placeholder-gray-400 text-base min-h-[8rem]"
@@ -499,20 +959,21 @@ export const Dashboard = ({ onOpenGPT, onDetailedViewChange, onClearDetailedView
                   />
                 </div>
                 
-                {/* Action buttons inside the chat box - right aligned and smaller */}
-                <div className="flex gap-1.5 justify-end">
+                                {/* Action buttons inside the chat box - right aligned and smaller */}
+                <div className="flex gap-2 justify-end">
                   <Button 
                     onClick={onOpenGPT}
-                    className="bg-green-500 text-white hover:bg-green-600 py-0.75 px-2 rounded-lg font-semibold text-sm"
+                    className="bg-green-500 text-white hover:bg-green-600 py-1.5 px-4 rounded-full font-semibold text-sm shadow-lg hover:shadow-xl transition-all duration-200 border-0"
                   >
                     <ExternalLink className="w-4 h-4 mr-2" />
                     Chat with Life Coach
                   </Button>
                   <Button 
-                    className="bg-purple-600 text-white hover:bg-purple-700 py-0.75 px-2 rounded-lg font-semibold text-sm"
+                    className="bg-purple-600 text-white hover:bg-purple-700 py-1.5 px-4 rounded-full font-semibold text-sm shadow-md transition-all duration-200 hover:shadow-lg"
                     onClick={handleSaveJournal}
                     disabled={isSavingJournal}
                   >
+                    <BookOpen className="w-4 h-4 mr-1" />
                     {isSavingJournal ? "Saving..." : "Save Journal"}
                   </Button>
                 </div>
@@ -528,51 +989,7 @@ export const Dashboard = ({ onOpenGPT, onDetailedViewChange, onClearDetailedView
               />
             </div>
 
-            {/* Smart Suggestions - Desktop */}
-            {smartSuggestions.length > 0 && (
-              <div className="w-full">
-                <Card className="shadow-md border-0 bg-white/80 backdrop-blur-sm">
-                  <CardContent className="p-6">
-                    <div className="flex items-center space-x-3 mb-4">
-                      <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                        <Lightbulb className="w-5 h-5 text-blue-600" />
-                      </div>
-                      <div>
-                        <h3 className="font-semibold text-gray-800">Smart Suggestions</h3>
-                        <p className="text-sm text-gray-600">Top guidance to move forward</p>
-                      </div>
-                    </div>
-                    <div className="space-y-3">
-                      {smartSuggestions.map((suggestion: any, index: number) => (
-                        <div key={index} className="p-3 bg-blue-50 rounded-lg border border-blue-100">
-                          <div className="flex items-center justify-between mb-2">
-                            <span className="px-2 py-1 text-xs rounded-full bg-blue-200 text-blue-800">
-                              {suggestion.type === 'insight_based' ? 'Insight' : 'Motivation'}
-                            </span>
-                            <suggestion.icon className="w-4 h-4 text-blue-600" />
-                          </div>
-                          <h4 className="font-semibold text-gray-800 mb-1 text-sm">{suggestion.title}</h4>
-                          <p className="text-xs text-gray-600 mb-3">{suggestion.description}</p>
-                          <Button 
-                            variant="outline" 
-                            size="sm" 
-                            className="text-xs border-blue-200 text-blue-700 hover:bg-blue-50"
-                          >
-                            {suggestion.action}
-                          </Button>
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-            )}
-
-          </div>
-
-          {/* Right Column - Insights, Suggested Goals, and Habits */}
-          <div className="lg:col-span-4 lg:sticky lg:top-8 lg:h-fit space-y-6">
-            {/* Recent Insights */}
+            {/* Recent Insights - Moved here from right column */}
             {insightsLoading ? (
               <Card className="shadow-md border-0 bg-white/80 backdrop-blur-sm">
                 <CardContent className="p-6">
@@ -603,11 +1020,17 @@ export const Dashboard = ({ onOpenGPT, onDetailedViewChange, onClearDetailedView
                     </div>
                   </div>
                   <div className="text-center py-8">
-                    <div className="text-red-600">Failed to load insights. Please try again.</div>
+                    <div className="text-gray-500 mb-4">
+                      <TrendingUp className="mx-auto h-12 w-12 text-gray-300" />
+                    </div>
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">No insights yet</h3>
+                    <p className="text-gray-500 mb-4">
+                      Create a journal entry or chat with life coach to see suggestions.
+                    </p>
                   </div>
                 </CardContent>
               </Card>
-            ) : recentInsights.length > 0 && (
+            ) : recentInsights.length > 0 ? (
               <Card className="shadow-md border-0 bg-white/80 backdrop-blur-sm">
                 <CardContent className="p-6">
                   <div className="flex items-center space-x-3 mb-4">
@@ -621,43 +1044,60 @@ export const Dashboard = ({ onOpenGPT, onDetailedViewChange, onClearDetailedView
                   </div>
                   <div className="space-y-3">
                     {recentInsights.map((insight: any) => (
-                      <div key={insight.id} className="p-3 bg-green-50 rounded-lg border border-green-100">
-                        <div className="flex flex-col gap-2 mb-3">
-                          <div className="flex flex-wrap gap-2">
-                            {insight.lifeMetrics && insight.lifeMetrics.length > 0 && (
-                              <span className="px-2 py-1 text-xs rounded-full bg-green-200 text-green-800">
-                                {insight.lifeMetrics[0].name}
-                              </span>
-                            )}
-                          </div>
-                          <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded self-start">
-                            {insight.confidence}% confident
-                          </span>
-                        </div>
-                        
-                        <h4 className="font-semibold text-gray-800 mb-2 text-sm">{insight.content}</h4>
-                        <p className="text-xs text-gray-600 mb-3">
-                          {insight.description || "AI-generated insight based on your journal entries and activities."}
-                        </p>
-                        
-                        <div className="flex items-center justify-end space-x-2">
-                          <Button variant="ghost" size="sm" className="text-xs hover:bg-green-100">
-                            <ThumbsUp className="w-3 h-3 mr-1" />
-                            Helpful
-                          </Button>
-                          <Button variant="ghost" size="sm" className="text-xs hover:bg-red-100">
-                            <ThumbsDown className="w-3 h-3 mr-1" />
-                            Not Helpful
-                          </Button>
-                        </div>
-                      </div>
+                      <InsightCard
+                        key={insight.id}
+                        id={insight.id}
+                        title={insight.title}
+                        explanation={insight.explanation || insight.description || ''}
+                        confidence={insight.confidence || 0}
+                        lifeMetrics={insight.lifeMetrics || []}
+                        suggestedGoals={insight.suggestedGoals || []}
+                        suggestedHabits={insight.suggestedHabits || []}
+                        onVote={(isUpvote) => {
+                          console.log('Dashboard vote', insight.id, isUpvote);
+                        }}
+                        onFeedbackRecorded={() => {
+                          console.log('Dashboard: onFeedbackRecorded received for', insight.id);
+                          // Dismiss insight from homepage after voting + feedback
+                          dismissInsight(insight.id);
+                        }}
+                        feedbackContext={{ surface: 'dashboard_recent' }}
+                        mode="compact"
+                        initialVoted={feedbackStatus?.voted?.[insight.id] || false}
+                        lastAction={feedbackStatus?.lastAction?.[insight.id] || null}
+                        kind={insight.kind}
+                        relatedTitle={insight.relatedTitle}
+                      />
                     ))}
+                  </div>
+                </CardContent>
+              </Card>
+            ) : (
+              <Card className="shadow-md border-0 bg-white/80 backdrop-blur-sm">
+                <CardContent className="p-6">
+                  <div className="flex items-center space-x-3 mb-4">
+                    <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                      <TrendingUp className="w-5 h-5 text-blue-600" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-gray-800">Recent Insights</h3>
+                      <p className="text-sm text-gray-600">Help improve AI recommendations</p>
+                    </div>
+                  </div>
+                  <div className="text-center py-8">
+                    <div className="text-gray-500 mb-4">
+                      <TrendingUp className="mx-auto h-12 w-12 text-gray-300" />
+                    </div>
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">No insights yet</h3>
+                    <p className="text-gray-500 mb-4">
+                      Create a journal entry or chat with life coach to see suggestions.
+                    </p>
                   </div>
                 </CardContent>
               </Card>
             )}
 
-            {/* Suggested Goals and Habits */}
+            {/* Suggested Goals and Habits - Moved here from middle column */}
             {(suggestedGoalsLoading || suggestedHabitsLoading) ? (
               <Card className="shadow-md border-0 bg-white/80 backdrop-blur-sm">
                 <CardContent className="p-6">
@@ -688,11 +1128,17 @@ export const Dashboard = ({ onOpenGPT, onDetailedViewChange, onClearDetailedView
                     </div>
                   </div>
                   <div className="text-center py-8">
-                    <div className="text-red-600">Failed to load suggestions</div>
+                    <div className="text-gray-500 mb-4">
+                      <Target className="mx-auto h-12 w-12 text-gray-300" />
+                    </div>
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">No suggestions yet</h3>
+                    <p className="text-gray-500 mb-4">
+                      Create a journal entry or chat with life coach to see suggestions.
+                    </p>
                   </div>
                 </CardContent>
               </Card>
-            ) : (recentSuggestedGoals.length > 0 || recentSuggestedHabits.length > 0) && (
+            ) : hasAnySuggestions ? (
               <Card className="shadow-md border-0 bg-white/80 backdrop-blur-sm">
                 <CardContent className="p-6">
                   <div className="flex items-center space-x-3 mb-4">
@@ -704,173 +1150,450 @@ export const Dashboard = ({ onOpenGPT, onDetailedViewChange, onClearDetailedView
                       <p className="text-sm text-gray-600">AI-powered recommendations</p>
                     </div>
                   </div>
-                  <div className="space-y-3">
+                  <div className="space-y-4">
+                    {(reinforceGoals.length > 0 || reinforceHabits.length > 0) && (
+                      <div>
+                        <h4 className="font-medium text-gray-700 mb-2">Already in progress</h4>
+                        <p className="text-xs text-gray-500 mb-3">These active items already support this journal.</p>
+                        <div className="space-y-2">
+                          {reinforceGoals
+                            .filter((r:any)=> !dismissedReinforcements.includes(`goal:${r.existingId}:${r.sourceInsightId}`))
+                            .slice(0,5)
+                            .map((r:any) => (
+                              <div key={`rg-${r.existingId}-${r.sourceInsightId}`} className="p-3 bg-blue-50 rounded-lg border border-blue-100 flex items-start justify-between">
+                                <div>
+                                  <div className="text-xs text-blue-700 mb-1">Goal • {r.lifeMetric?.name || 'General'}</div>
+                                  <div className="text-sm font-medium text-gray-800">{r.existingTitle}</div>
+                                  <div className="text-[11px] text-gray-600 mt-1">Reinforces this journal</div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={async ()=>{
+                                    try { await apiRequest('/api/feedback', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ type:'reinforcement_goal', itemId:r.existingId, action:'confirm_relevance', context:{ sourceInsightId:r.sourceInsightId } }) }); } catch {}
+                                  }}>Confirm helps</Button>
+                                  <Button size="sm" variant="ghost" className="h-7 px-2 text-xs text-red-600" onClick={async ()=>{
+                                    try { await apiRequest('/api/feedback', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ type:'reinforcement_goal', itemId:r.existingId, action:'dismiss', context:{ sourceInsightId:r.sourceInsightId } }) }); } catch {}
+                                    dismissReinforcement(`goal:${r.existingId}:${r.sourceInsightId}`);
+                                  }}>Dismiss</Button>
+                                </div>
+                              </div>
+                          ))}
+                          {reinforceHabits
+                            .filter((r:any)=> !dismissedReinforcements.includes(`habit:${r.existingId}:${r.sourceInsightId}`))
+                            .slice(0,5)
+                            .map((r:any) => (
+                              <div key={`rh-${r.existingId}-${r.sourceInsightId}`} className="p-3 bg-blue-50 rounded-lg border border-blue-100 flex items-start justify-between">
+                                <div>
+                                  <div className="text-xs text-blue-700 mb-1">Habit • {r.lifeMetric?.name || 'General'}</div>
+                                  <div className="text-sm font-medium text-gray-800">{r.existingTitle}</div>
+                                  <div className="text-[11px] text-gray-600 mt-1">Reinforces this journal</div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={async ()=>{
+                                    try { await apiRequest('/api/feedback', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ type:'reinforcement_habit', itemId:r.existingId, action:'confirm_relevance', context:{ sourceInsightId:r.sourceInsightId } }) }); } catch {}
+                                  }}>Confirm helps</Button>
+                                  <Button size="sm" variant="ghost" className="h-7 px-2 text-xs text-red-600" onClick={async ()=>{
+                                    try { await apiRequest('/api/feedback', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ type:'reinforcement_habit', itemId:r.existingId, action:'dismiss', context:{ sourceInsightId:r.sourceInsightId } }) }); } catch {}
+                                    dismissReinforcement(`habit:${r.existingId}:${r.sourceInsightId}`);
+                                  }}>Dismiss</Button>
+                                </div>
+                              </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                     {/* Suggested Goals */}
-                    {recentSuggestedGoals.map((suggestedGoal: any) => (
-                      <div key={`goal-${suggestedGoal.id}`} className="p-3 bg-purple-50 rounded-lg border border-purple-100">
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="px-2 py-1 text-xs rounded-full bg-purple-200 text-purple-800">
-                            Goal • {suggestedGoal.lifeMetric?.name || 'General'}
-                          </span>
-                          <span className="text-xs text-gray-500">
-                            {suggestedGoal.insight?.confidence || 85}% confident
-                          </span>
-                        </div>
-                        <h4 className="font-semibold text-gray-800 mb-1 text-sm">{suggestedGoal.title}</h4>
-                        <p className="text-xs text-gray-600 mb-3">
-                          {suggestedGoal.description || "AI-generated goal suggestion based on your patterns."}
-                        </p>
-                        <div className="flex items-center justify-end space-x-2">
-                          <Button variant="ghost" size="sm" className="text-xs hover:bg-purple-100">
-                            <ThumbsUp className="w-3 h-3 mr-1" />
-                            Helpful
-                          </Button>
-                          <Button variant="ghost" size="sm" className="text-xs hover:bg-red-100">
-                            <ThumbsDown className="w-3 h-3 mr-1" />
-                            Not Helpful
-                          </Button>
+                    {recentSuggestedGoals.length > 0 && (
+                      <div>
+                        <h4 className="font-medium text-gray-700 mb-3">Suggested Goals</h4>
+                        <div className="space-y-3">
+                          {recentSuggestedGoals
+                            .filter((goal:any)=> !(goal?.kind === 'existing' && dismissedReinforcements.includes(`goal:${goal?.existingId || 'na'}:${goal?.sourceInsightId || 'na'}`)))
+                            .slice(0, 3)
+                            .map((goal: any) => {
+                            const isExisting = goal?.kind === 'existing';
+                            const displayTitle = goal?.title || goal?.existingTitle || '';
+                            const key = isExisting
+                              ? `goal-existing-${goal?.existingId || 'na'}-${goal?.sourceInsightId || 'na'}`
+                              : `goal-${goal?.id}`;
+                            return (
+                            <div key={key} className="p-3 bg-purple-50 rounded-lg border border-purple-100">
+                              <div className="flex items-center justify-between mb-2">
+                                <div className="flex items-center gap-2">
+                                  <div 
+                                    className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium"
+                                    style={{ 
+                                      backgroundColor: getPillBackgroundColor(goal.lifeMetric?.name || 'General'),
+                                      color: getPillTextColor(goal.lifeMetric?.name || 'General')
+                                    }}
+                                  >
+                                    {goal.lifeMetric?.name || 'General'}
+                                  </div>
+                                  <h5 className="font-semibold text-gray-800 text-sm">{displayTitle} {isExisting && (<span className="ml-2 text-[11px] text-green-700 bg-green-50 border border-green-200 px-1.5 py-0.5 rounded">You're already working on it</span>)}</h5>
+                                </div>
+                                <Target className="w-4 h-4 text-purple-600" />
+                              </div>
+                              {goal.description && (
+                                <p className="text-xs text-gray-600 mb-3">{goal.description}</p>
+                              )}
+                              {!isExisting && (
+                                <ReinforcementBadge 
+                                  kind={goal.kind || 'new'} 
+                                  relatedType="goal" 
+                                  relatedTitle={goal.relatedTitle}
+                                  className="mb-3"
+                                />
+                              )}
+                              <div className="flex gap-2">
+                                {!isExisting ? (
+                                  <>
+                                    <Button 
+                                      variant="outline" 
+                                      size="sm" 
+                                      className="text-xs border-purple-200 text-purple-700 hover:bg-purple-50"
+                                      onClick={() => {
+                                        const prefillData = {
+                                          title: goal.title,
+                                          description: goal.description,
+                                          lifeMetricId: goal.lifeMetric?.id,
+                                          suggestedGoalId: goal.id
+                                        };
+                                        setPrefillGoal(prefillData);
+                                        setSelectedMetric(goal.lifeMetric?.name);
+                                      }}
+                                    >
+                                      Add to {goal.lifeMetric?.name || 'Life Metric'}
+                                    </Button>
+                                    <Button 
+                                      variant="ghost" 
+                                      size="sm" 
+                                      className="text-xs hover:bg-red-50 text-red-600"
+                                      onClick={() => {
+                                        setFeedbackTarget({ kind: 'suggested_goal', id: goal.id });
+                                        setFeedbackOpen(true);
+                                      }}
+                                      title="Dismiss suggestion"
+                                    >
+                                      <X className="w-3 h-3 mr-1" />
+                                      Dismiss
+                                    </Button>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Button 
+                                      variant="outline" 
+                                      size="sm" 
+                                      className="text-xs border-purple-200 text-purple-700 hover:bg-purple-50"
+                                      onClick={() => {
+                                        if (goal.lifeMetric?.name) setSelectedMetric(goal.lifeMetric.name);
+                                      }}
+                                    >
+                                      View goal
+                                    </Button>
+                                    <Button 
+                                      variant="ghost" 
+                                      size="sm" 
+                                      className="text-xs hover:bg-green-50 text-green-700"
+                                      onClick={async () => {
+                                        try { await apiRequest('/api/feedback', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ type:'reinforcement_goal', itemId: goal.existingId, action:'dismiss', context:{ sourceInsightId: goal.sourceInsightId } }) }); } catch {}
+                                        dismissReinforcement(`goal:${goal?.existingId || 'na'}:${goal?.sourceInsightId || 'na'}`);
+                                      }}
+                                      title="Got it"
+                                    >
+                                      <CheckCircle className="w-3 h-3 mr-1" />
+                                      Got it
+                                    </Button>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                            );
+                          })}
                         </div>
                       </div>
-                    ))}
-                    
-                    {/* Suggested Habits */}
-                    {recentSuggestedHabits.map((suggestedHabit: any) => (
-                      <div key={`habit-${suggestedHabit.id}`} className="p-3 bg-orange-50 rounded-lg border border-orange-100">
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="px-2 py-1 text-xs rounded-full bg-orange-200 text-orange-800">
-                            Habit • {suggestedHabit.lifeMetric?.name || 'General'}
-                          </span>
-                          <span className="text-xs text-gray-500">
-                            {suggestedHabit.insight?.confidence || 85}% confident
-                          </span>
-                        </div>
-                        <h4 className="font-semibold text-gray-800 mb-1 text-sm">{suggestedHabit.title}</h4>
-                        <p className="text-xs text-gray-600 mb-3">
-                          {suggestedHabit.description || "AI-generated habit suggestion based on your patterns."}
-                        </p>
-                        <div className="flex items-center justify-end space-x-2">
-                          <Button variant="ghost" size="sm" className="text-xs hover:bg-orange-100">
-                            <ThumbsUp className="w-3 h-3 mr-1" />
-                            Helpful
-                          </Button>
-                          <Button variant="ghost" size="sm" className="text-xs hover:bg-red-100">
-                            <ThumbsDown className="w-3 h-3 mr-1" />
-                            Not Helpful
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
+                    )}
 
-            {/* Complete Today's Habits */}
-            {habits.length > 0 && (
-              <Card className="shadow-md border-0 bg-white/80 backdrop-blur-sm mt-8">
-                <CardContent className="p-6">
-                  <div className="flex items-center space-x-3 mb-4">
-                    <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center">
-                      <Flame className="w-5 h-5 text-orange-600" />
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-gray-800">Complete Habits</h3>
-                      <p className="text-sm text-gray-600">Track your daily progress</p>
-                    </div>
+                    {/* Suggested Habits */}
+                    {recentSuggestedHabits.length > 0 && (
+                      <div>
+                        <h4 className="font-medium text-gray-700 mb-3">Suggested Habits</h4>
+                        <div className="space-y-3">
+                          {recentSuggestedHabits
+                            .filter((habit:any)=> !(habit?.kind === 'existing' && dismissedReinforcements.includes(`habit:${habit?.existingId || 'na'}:${habit?.sourceInsightId || 'na'}`)))
+                            .slice(0, 3)
+                            .map((habit: any) => {
+                            const isExistingH = habit?.kind === 'existing';
+                            const displayTitleH = habit?.title || habit?.existingTitle || '';
+                            const keyH = isExistingH
+                              ? `habit-existing-${habit?.existingId || 'na'}-${habit?.sourceInsightId || 'na'}`
+                              : `habit-${habit?.id}`;
+                            return (
+                            <div key={keyH} className="p-3 bg-green-50 rounded-lg border border-green-100">
+                              <div className="flex items-center justify-between mb-2">
+                                <div className="flex items-center gap-2">
+                                  <span className="px-2 py-1 text-xs rounded-full bg-green-200 text-green-800">
+                                    Habit
+                                  </span>
+                                  <h5 className="font-semibold text-gray-800 text-sm">{displayTitleH} {isExistingH && (<span className="ml-2 text-[11px] text-green-700 bg-green-50 border border-green-200 px-1.5 py-0.5 rounded">You're already working on it</span>)}</h5>
+                                </div>
+                                <Flame className="w-4 h-4 text-green-600" />
+                              </div>
+                              {habit.description && (
+                                <p className="text-xs text-gray-600 mb-3">{habit.description}</p>
+                              )}
+                              {!isExistingH && (
+                                <ReinforcementBadge 
+                                  kind={habit.kind || 'new'} 
+                                  relatedType="habit" 
+                                  relatedTitle={habit.relatedTitle}
+                                  className="mb-3"
+                                />
+                              )}
+                              <div className="flex gap-2">
+                                {!isExistingH ? (
+                                  <>
+                                    <Button 
+                                      variant="outline" 
+                                      size="sm" 
+                                      className="text-xs border-green-200 text-green-700 hover:bg-green-50"
+                                      onClick={() => {
+                                        const metricId = habit.lifeMetric?.id;
+                                        const activeGoalsSameMetric = (goals || [])
+                                          .filter((g: any) => (g.status === 'active' || !g.status) && (metricId ? (g.lifeMetricId === metricId || g.lifeMetric?.id === metricId || (g.lifeMetric?.name && g.lifeMetric?.name === habit.lifeMetric?.name)) : true))
+                                          .map((g:any) => String(g.goalInstance?.id || g.id));
+                                        const prefill = {
+                                          title: habit.title,
+                                          description: habit.description,
+                                          lifeMetricId: metricId || '',
+                                          lifeMetricName: habit.lifeMetric?.name,
+                                          suggestedHabitId: habit.id,
+                                          recommendedGoalIds: activeGoalsSameMetric,
+                                          recommendedActiveGoalIds: activeGoalsSameMetric,
+                                          recommendedSuggestedGoalIds: Array.isArray(habit.recommendedSuggestedGoalIds) ? habit.recommendedSuggestedGoalIds : [],
+                                        };
+                                        setPrefillHabit(prefill);
+                                        setShowAddHabitModal(true);
+                                      }}
+                                    >
+                                      Add to Goals
+                                    </Button>
+                                    <Button 
+                                      variant="ghost" 
+                                      size="sm" 
+                                      className="text-xs hover:bg-red-50 text-red-600"
+                                      onClick={() => {
+                                        setFeedbackTarget({ kind: 'suggested_habit', id: habit.id });
+                                        setFeedbackOpen(true);
+                                      }}
+                                      title="Dismiss suggestion"
+                                    >
+                                      <X className="w-3 h-3 mr-1" />
+                                      Dismiss
+                                    </Button>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Button 
+                                      variant="ghost" 
+                                      size="sm" 
+                                      className="text-xs hover:bg-green-50 text-green-700"
+                                      onClick={async () => {
+                                        try { await apiRequest('/api/feedback', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ type:'reinforcement_habit', itemId: habit.existingId, action:'dismiss', context:{ sourceInsightId: habit.sourceInsightId } }) }); } catch {}
+                                        dismissReinforcement(`habit:${habit?.existingId || 'na'}:${habit?.sourceInsightId || 'na'}`);
+                                      }}
+                                      title="Got it"
+                                    >
+                                      <CheckCircle className="w-3 h-3 mr-1" />
+                                      Got it
+                                    </Button>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
                   </div>
-                  <Button 
-                    className="w-full bg-orange-600 text-white hover:bg-orange-700 py-0.75 px-2 rounded-lg font-semibold text-sm"
-                    onClick={() => setShowHabitModal(true)}
-                  >
-                    Complete Today's Habits
-                  </Button>
                 </CardContent>
               </Card>
+            ) : (
+              <div className="space-y-4">
+                <Card className="shadow-md border-0 bg-white/80 backdrop-blur-sm">
+                  <CardContent className="p-6">
+                    <div className="flex items-center space-x-3 mb-4">
+                      <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center">
+                        <Target className="w-5 h-5 text-purple-600" />
+                      </div>
+                      <div>
+                        <h3 className="font-semibold text-gray-800">Suggested Goals & Habits</h3>
+                        <p className="text-sm text-gray-600">AI-powered recommendations</p>
+                      </div>
+                    </div>
+                    <div className="text-center py-8">
+                      <div className="text-gray-500 mb-4">
+                        <Target className="mx-auto h-12 w-12 text-gray-300" />
+                      </div>
+                      <h3 className="text-lg font-medium text-gray-900 mb-2">No new suggestions</h3>
+                      <p className="text-gray-500 mb-4">
+                        Create a journal entry or chat with life coach to see suggestions.
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {(reinforceGoals.length > 0 || reinforceHabits.length > 0) && (
+                  <Card className="shadow-md border-0 bg-white/80 backdrop-blur-sm">
+                    <CardContent className="p-6">
+                      <div className="flex items-center space-x-3 mb-4">
+                        <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                          <Target className="w-5 h-5 text-blue-600" />
+                        </div>
+                        <div>
+                          <h3 className="font-semibold text-gray-800">Already in progress</h3>
+                          <p className="text-sm text-gray-600">These active items already support this journal.</p>
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        {reinforceGoals
+                          .filter((r:any)=> !dismissedReinforcements.includes(`goal:${r.existingId}:${r.sourceInsightId}`))
+                          .slice(0,6)
+                          .map((r:any) => (
+                            <div key={`rg2-${r.existingId}-${r.sourceInsightId}`} className="p-3 bg-blue-50 rounded-lg border border-blue-100 flex items-start justify-between">
+                              <div>
+                                <div className="text-xs text-blue-700 mb-1">Goal • {r.lifeMetric?.name || 'General'}</div>
+                                <div className="text-sm font-medium text-gray-800">{r.existingTitle}</div>
+                                <div className="text-[11px] text-gray-600 mt-1">Reinforces this journal</div>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={async ()=>{
+                                  try { await apiRequest('/api/feedback', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ type:'reinforcement_goal', itemId:r.existingId, action:'confirm_relevance', context:{ sourceInsightId:r.sourceInsightId } }) }); } catch {}
+                                }}>Confirm helps</Button>
+                                <Button size="sm" variant="ghost" className="h-7 px-2 text-xs text-red-600" onClick={async ()=>{
+                                  try { await apiRequest('/api/feedback', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ type:'reinforcement_goal', itemId:r.existingId, action:'dismiss', context:{ sourceInsightId:r.sourceInsightId } }) }); } catch {}
+                                  dismissReinforcement(`goal:${r.existingId}:${r.sourceInsightId}`);
+                                }}>Dismiss</Button>
+                              </div>
+                            </div>
+                        ))}
+                        {reinforceHabits
+                          .filter((r:any)=> !dismissedReinforcements.includes(`habit:${r.existingId}:${r.sourceInsightId}`))
+                          .slice(0,6)
+                          .map((r:any) => (
+                            <div key={`rh2-${r.existingId}-${r.sourceInsightId}`} className="p-3 bg-blue-50 rounded-lg border border-blue-100 flex items-start justify-between">
+                              <div>
+                                <div className="text-xs text-blue-700 mb-1">Habit • {r.lifeMetric?.name || 'General'}</div>
+                                <div className="text-sm font-medium text-gray-800">{r.existingTitle}</div>
+                                <div className="text-[11px] text-gray-600 mt-1">Reinforces this journal</div>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={async ()=>{
+                                  try { await apiRequest('/api/feedback', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ type:'reinforcement_habit', itemId:r.existingId, action:'confirm_relevance', context:{ sourceInsightId:r.sourceInsightId } }) }); } catch {}
+                                }}>Confirm helps</Button>
+                                <Button size="sm" variant="ghost" className="h-7 px-2 text-xs text-red-600" onClick={async ()=>{
+                                  try { await apiRequest('/api/feedback', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ type:'reinforcement_habit', itemId:r.existingId, action:'dismiss', context:{ sourceInsightId:r.sourceInsightId } }) }); } catch {}
+                                  dismissReinforcement(`habit:${r.existingId}:${r.sourceInsightId}`);
+                                }}>Dismiss</Button>
+                              </div>
+                            </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+              </div>
             )}
+          </div>
+
+          {/* Right Column - Unified Habit Management */}
+          <div className="lg:col-start-2 lg:col-end-3 lg:sticky lg:top-8 lg:h-fit space-y-6">
+            <UnifiedHabitManager
+              todaysHabits={todaysHabits}
+              smartSuggestions={smartSuggestions}
+              completedHabits={completedHabits}
+              onCompleteHabits={handleCompleteSelected}
+              onToggleHabitSelection={toggleHabitSelection}
+              selectedHabitIds={selectedHabitIds}
+              showHabitModal={showHabitModal}
+              onShowHabitModalChange={setShowHabitModal}
+            />
           </div>
         </div>
 
-        {/* Mobile Floating Action Button */}
-        <div className="lg:hidden fixed bottom-6 right-6 z-50">
-          <Button
-            onClick={() => setShowMobileActions(!showMobileActions)}
-            className="w-14 h-14 rounded-full bg-green-600 hover:bg-green-700 shadow-lg"
-          >
-            <Plus className="w-6 h-6" />
-          </Button>
-          
-          {/* Mobile Actions Menu */}
-          {showMobileActions && (
-            <div className="absolute bottom-16 right-0 space-y-2">
-              {/* GPT Chat */}
-              <Button
-                onClick={() => {
-                  setShowMobileActions(false);
-                  onOpenGPT();
-                }}
-                className="w-12 h-12 rounded-full bg-green-600 hover:bg-green-700 shadow-lg flex items-center justify-center"
-                title="GPT Chat"
-              >
-                <MessageCircle className="w-5 h-5" />
-              </Button>
-              
-              {/* Write Journal */}
-              <Button
-                onClick={() => setShowMobileActions(false)}
-                className="w-12 h-12 rounded-full bg-blue-600 hover:bg-blue-700 shadow-lg flex items-center justify-center"
-                title="Write Journal"
-              >
-                <BookOpen className="w-5 h-5" />
-              </Button>
-              
-              {/* Track Habits */}
-              {habits.length > 0 && (
-                <Button
-                  onClick={() => {
-                    setShowMobileActions(false);
-                    setShowHabitModal(true);
-                  }}
-                  className="w-12 h-12 rounded-full bg-orange-600 hover:bg-orange-700 shadow-lg flex items-center justify-center"
-                  title="Track Habits"
-                >
-                  <Flame className="w-5 h-5" />
-                </Button>
-              )}
-            </div>
-          )}
-        </div>
+        {/* Mobile Floating Action Button removed */}
       </div>
 
-      {/* Habit Completion Modal */}
-      <Dialog open={showHabitModal} onOpenChange={setShowHabitModal}>
-        <DialogContent className="max-w-md mx-4">
+
+      
+      {/* Add Habit Modal */}
+      <AddHabitModal
+        isOpen={showAddHabitModal}
+        onClose={() => {
+          setShowAddHabitModal(false);
+          setPrefillHabit(null);
+        }}
+        onHabitAdded={() => {
+          setShowAddHabitModal(false);
+          setPrefillHabit(null);
+          // Refresh the page to show the new habit
+          window.location.reload();
+        }}
+        onHabitAssociatedWithGoal={(goalId) => {
+          setShowAddHabitModal(false);
+          setPrefillHabit(null);
+          // Navigate to goal detail view
+          setSelectedMetric(null);
+          // We could improve this by storing the goal's life metric and navigating there
+          window.location.reload();
+        }}
+        prefillData={prefillHabit}
+      />
+      
+      {/* Auth Modal */}
+      <AuthModal 
+        isOpen={showAuthModal} 
+        onClose={() => setShowAuthModal(false)} 
+      />
+      
+      {/* Dismiss Feedback Modal */}
+      <Dialog open={feedbackOpen} onOpenChange={setFeedbackOpen}>
+        <DialogContent className="max-w-md mx-4" aria-describedby={undefined}>
           <DialogHeader>
-            <DialogTitle className="flex items-center space-x-2">
-              <CheckCircle className="w-5 h-5 text-orange-600" />
-              <span className="text-sm lg:text-base">Complete Today's Habits</span>
+            <DialogTitle className="text-sm">
+              Help us improve these suggestions
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
-            {habits.map((habit: any) => (
-              <div key={habit.id} className="flex items-center justify-between p-3 bg-orange-50 rounded-lg">
-                <div className="flex items-center space-x-3 flex-1 min-w-0">
-                  <CheckCircle className="w-5 h-5 text-orange-600 flex-shrink-0" />
-                  <div className="min-w-0 flex-1">
-                    <h4 className="font-medium text-gray-800 text-sm lg:text-base truncate">{habit.title}</h4>
-                    <p className="text-xs text-gray-600">
-                      {habit.currentStreak} day streak • {habit.totalCompletions} total completions
-                    </p>
-                  </div>
-                </div>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="text-xs flex-shrink-0 ml-2"
+            <div className="text-xs text-gray-600">Why are you dismissing this?</div>
+            <div className="grid grid-cols-2 gap-2">
+              {FEEDBACK_REASON_OPTIONS.map((r) => (
+                <button
+                  key={r}
+                  type="button"
+                  className={`text-xs rounded-md border px-2 py-1 ${feedbackReasons.includes(r) ? 'bg-red-50 border-red-200 text-red-700' : 'bg-white border-gray-200 text-gray-700'}`}
+                  onClick={() => toggleReason(r)}
                 >
-                  Complete
-                </Button>
-              </div>
-            ))}
+                  {r}
+                </button>
+              ))}
+            </div>
+            <div>
+              <textarea
+                className="w-full text-xs border border-gray-200 rounded-md p-2"
+                rows={3}
+                placeholder="Optional notes"
+                value={feedbackNotes}
+                onChange={(e) => setFeedbackNotes(e.target.value)}
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="ghost" size="sm" className="text-xs" onClick={() => setFeedbackOpen(false)}>
+                Cancel
+              </Button>
+              <Button size="sm" className="text-xs" onClick={sendDismissFeedback}>
+                Save feedback & archive
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>

@@ -4,7 +4,7 @@ dotenv.config();
 
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
-import * as schema from "../shared/schema";
+import * as schema from "../shared/schema.ts";
 
 console.log("Current DATABASE_URL:", process.env.DATABASE_URL);
 console.log("All env variables:", process.env);
@@ -18,3 +18,81 @@ const client = postgres(process.env.DATABASE_URL);
 
 // Create the database instance with schema
 export const db = drizzle(client, { schema });
+
+// Idempotently ensure optional columns that newer code paths rely on
+export async function ensureUsersTimezoneColumn(): Promise<void> {
+  try {
+    // Safe on Postgres: adds the column only if it's missing
+    await client`ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "timezone" varchar`;
+  } catch (e) {
+    console.warn("ensureUsersTimezoneColumn failed", e);
+  }
+}
+
+// Idempotently ensure feedback-related tables exist (when migrations haven't been applied)
+export async function ensureFeedbackTables(): Promise<void> {
+  try {
+    await client`CREATE EXTENSION IF NOT EXISTS "pgcrypto"`;
+  } catch {}
+  try {
+    await client`
+      CREATE TABLE IF NOT EXISTS "feedback_events" (
+        "id" uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+        "user_id" varchar NOT NULL,
+        "type" varchar(40) NOT NULL,
+        "item_id" varchar(255) NOT NULL,
+        "action" varchar(40) NOT NULL,
+        "context" jsonb,
+        "created_at" timestamp DEFAULT now() NOT NULL
+      )
+    `;
+  } catch (e) {
+    console.warn('ensureFeedbackTables: failed to create feedback_events', e);
+  }
+
+  // Suggestion memory for cooldowns
+  try {
+    await client`
+      CREATE TABLE IF NOT EXISTS "suggestion_memory" (
+        "id" uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+        "user_id" varchar NOT NULL,
+        "concept_hash" varchar(64) NOT NULL,
+        "type" varchar(40) NOT NULL,
+        "item_id" varchar(255),
+        "last_shown_at" timestamp DEFAULT now() NOT NULL,
+        "last_applied_at" timestamp,
+        "created_at" timestamp DEFAULT now() NOT NULL
+      )
+    `;
+  } catch (e) {
+    console.warn('ensureFeedbackTables: failed to create suggestion_memory', e);
+  }
+  try {
+    await client`
+      CREATE TABLE IF NOT EXISTS "agent_acceptance_metrics" (
+        "id" uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+        "user_id" varchar NOT NULL,
+        "type" varchar(40) NOT NULL,
+        "metric_name" varchar(100) NOT NULL,
+        "window_month" varchar(7) NOT NULL,
+        "impressions" integer DEFAULT 0 NOT NULL,
+        "accepts" integer DEFAULT 0 NOT NULL,
+        "dismisses" integer DEFAULT 0 NOT NULL,
+        "upvotes" integer DEFAULT 0 NOT NULL,
+        "downvotes" integer DEFAULT 0 NOT NULL,
+        "ignores" integer DEFAULT 0 NOT NULL,
+        "acceptance_rate" integer DEFAULT 0 NOT NULL,
+        "updated_at" timestamp DEFAULT now() NOT NULL
+      )
+    `;
+  } catch (e) {
+    console.warn('ensureFeedbackTables: failed to create agent_acceptance_metrics', e);
+  }
+
+  // Idempotently add time_availability to life_metric_definitions
+  try {
+    await client`ALTER TABLE "life_metric_definitions" ADD COLUMN IF NOT EXISTS "time_availability" varchar(20) DEFAULT 'some'`;
+  } catch (e) {
+    console.warn('ensureFeedbackTables: failed to add time_availability', e);
+  }
+}

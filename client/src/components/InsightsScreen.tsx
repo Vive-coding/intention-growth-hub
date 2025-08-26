@@ -2,28 +2,36 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { InsightCard } from "@/components/insights/InsightCard";
 import { ThumbsUp, ThumbsDown, Filter } from "lucide-react";
 import { useLifeMetricView } from "@/hooks/useLifeMetricView";
+import { Logo } from "@/components/ui/Logo";
 import { insightsService } from "@/services/insightsService";
 import type { Insight } from "@/services/insightsService";
 import { useLocation } from "wouter";
 
-const lifeMetrics = [
+const defaultLifeMetrics = [
   "All",
-  "Health & Fitness",
-  "Career Growth",
-  "Personal Development",
-  "Relationships",
-  "Finance"
+  "Health & Fitness 🏃‍♀️",
+  "Career Growth 🚀",
+  "Personal Development 🧠",
+  "Relationships ❤️",
+  "Finance 💰",
+  "Mental Health 🧘‍♂️",
 ];
 
 export const InsightsScreen = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [selectedFilter, setSelectedFilter] = useState("All");
+  const [voteFilter, setVoteFilter] = useState<'all' | 'upvoted' | 'downvoted' | 'unvoted'>("all");
+  const [metricOptions, setMetricOptions] = useState<string[]>(defaultLifeMetrics);
   const [insights, setInsights] = useState<Insight[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [votedMap, setVotedMap] = useState<Record<string, boolean>>({});
+  const [lastActionMap, setLastActionMap] = useState<Record<string, 'upvote' | 'downvote' | null>>({});
   const { clearMetricFilter } = useLifeMetricView();
 
   // Get metric filter from URL
@@ -39,6 +47,45 @@ export const InsightsScreen = () => {
     setIsLoading(true);
     const data = await insightsService.getInsights();
     setInsights(data);
+    // Fetch voted status for these insights
+    try {
+      if (data && data.length > 0) {
+        const ids = data.map((i:any)=> i.id).join(',');
+        console.log('[InsightsScreen] Fetching feedback status for ids', ids);
+        let resp = await fetch(`/api/feedback/status?type=insight&ids=${ids}&t=${Date.now()}`,
+          {
+            headers: {
+              'Authorization': `Bearer ${localStorage.getItem('token')}`,
+              'Cache-Control': 'no-cache, no-store, must-revalidate',
+              'Pragma': 'no-cache'
+            },
+            cache: 'reload'
+          }
+        );
+        if (resp.status === 304) {
+          // Retry once with a fresh cache-buster if an intermediary still returns 304
+          resp = await fetch(`/api/feedback/status?type=insight&ids=${ids}&t=${Date.now()}_${Math.random()}`,
+            {
+              headers: {
+                'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                'Cache-Control': 'no-cache, no-store, must-revalidate',
+                'Pragma': 'no-cache'
+              },
+              cache: 'reload'
+            }
+          );
+        }
+        if (resp.ok) {
+          const json = await resp.json();
+          console.log('[InsightsScreen] Feedback status response', json);
+          setVotedMap(json.voted || {});
+          setLastActionMap(json.lastAction || {});
+          // Build dynamic metric options from data
+          const fromData = Array.from(new Set((data || []).flatMap((i:any)=> (i.lifeMetrics||[]).map((m:any)=> m.name))));
+          setMetricOptions(["All", ...Array.from(new Set([...fromData, ...defaultLifeMetrics.filter(m=>m!=='All')]))]);
+        }
+      }
+    } catch {}
     setIsLoading(false);
   };
 
@@ -56,6 +103,30 @@ export const InsightsScreen = () => {
         }
         return insight;
       }));
+      // Update local maps immediately for UI persistence
+      setVotedMap(prev => ({ ...prev, [insightId]: true }));
+      setLastActionMap(prev => ({ ...prev, [insightId]: isUpvote ? 'upvote' : 'downvote' }));
+      // Revalidate this id from server to ensure cross-session persistence
+      try {
+        const resp = await fetch(`/api/feedback/status?type=insight&ids=${insightId}&t=${Date.now()}`, {
+          headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+          cache: 'no-store'
+        });
+        if (resp.ok) {
+          const json = await resp.json();
+          setVotedMap(prev => ({ ...prev, ...json.voted }));
+          setLastActionMap(prev => ({ ...prev, ...json.lastAction }));
+        }
+      } catch {}
+    }
+  };
+
+  const handleDelete = async (insightId: string) => {
+    const confirmed = window.confirm('Delete this insight? This will also remove its suggestions.');
+    if (!confirmed) return;
+    const success = await insightsService.deleteInsight(insightId);
+    if (success) {
+      setInsights(prev => prev.filter(i => i.id !== insightId));
     }
   };
 
@@ -106,116 +177,111 @@ export const InsightsScreen = () => {
     }
   }, [metricFilter, selectedFilter]);
 
-  const filteredInsights = selectedFilter === "All" 
+  const filteredInsights = (selectedFilter === "All" 
     ? insights 
     : insights.filter(insight => 
         insight.lifeMetrics.some(metric => metric.name === selectedFilter)
-      );
+      ))
+      .filter((insight) => {
+        const id = (insight as any).id as string;
+        if (voteFilter === 'all') return true;
+        const voted = !!votedMap[id];
+        const action = lastActionMap[id];
+        if (voteFilter === 'unvoted') return !voted;
+        if (voteFilter === 'upvoted') return voted && action === 'upvote';
+        if (voteFilter === 'downvoted') return voted && action === 'downvote';
+        return true;
+      })
+      .slice()
+      .sort((a:any,b:any)=> (b.confidence||0) - (a.confidence||0));
 
   const renderInsightCard = (insight: Insight) => (
-    <Card key={insight.id} className="h-full flex flex-col">
-      <CardHeader className="space-y-2 pb-3">
-        <div className="flex items-start justify-between">
-          <div className="flex flex-wrap gap-1">
-            {insight.lifeMetrics.map(metric => (
-              <Badge key={metric.id} variant="outline" style={{ borderColor: metric.color, color: metric.color }}>
-                {metric.name}
-              </Badge>
-            ))}
-          </div>
-          <Badge variant="secondary" className="shrink-0">
-            {insight.confidence}% confident
-          </Badge>
-        </div>
-        <CardTitle className="text-xl leading-tight">{insight.title}</CardTitle>
-      </CardHeader>
-      <CardContent className="flex-1 space-y-4">
-        <p className="text-base text-muted-foreground leading-relaxed">
-          {insight.explanation}
-        </p>
-        {(insight.suggestedGoals.length > 0 || insight.suggestedHabits.length > 0) && (
-          <div className="space-y-2">
-            {insight.suggestedGoals
-              .filter(goal => !goal.archived)
-              .map(goal => (
-                <div key={goal.id} className="flex items-center justify-between">
-                  <div className="flex items-center">
-                    <Badge variant="outline" className="mr-2 bg-blue-50 text-blue-700">
-                      Suggested Goal
-                    </Badge>
-                    <span className="text-sm">{goal.title}</span>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleArchiveGoal(goal.id, insight.id)}
-                    className="text-gray-500 hover:text-gray-700"
-                  >
-                    Archive
-                  </Button>
-                </div>
-              ))}
-            {insight.suggestedHabits
-              .filter(habit => !habit.archived)
-              .map(habit => (
-                <div key={habit.id} className="flex items-center justify-between">
-                  <div className="flex items-center">
-                    <Badge variant="outline" className="mr-2 bg-green-50 text-green-700">
-                      Suggested Habit
-                    </Badge>
-                    <span className="text-sm">{habit.title}</span>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleArchiveHabit(habit.id, insight.id)}
-                    className="text-gray-500 hover:text-gray-700"
-                  >
-                    Archive
-                  </Button>
-                </div>
-              ))}
-          </div>
-        )}
-        <div className="flex justify-end space-x-2 pt-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => handleVote(insight.id, true)}
-            className={`hover:bg-green-50 ${
-              insight.userVote === true ? 'text-green-600' : 'text-gray-500'
-            }`}
-          >
-            <ThumbsUp className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => handleVote(insight.id, false)}
-            className={`hover:bg-red-50 ${
-              insight.userVote === false ? 'text-red-600' : 'text-gray-500'
-            }`}
-          >
-            <ThumbsDown className="h-4 w-4" />
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
+    <InsightCard
+      key={insight.id}
+      id={insight.id}
+      title={insight.title}
+      explanation={insight.explanation}
+      confidence={insight.confidence}
+      lifeMetrics={insight.lifeMetrics}
+      onVote={(isUpvote) => handleVote(insight.id, isUpvote)}
+      onDelete={() => handleDelete(insight.id)}
+      initialVoted={!!votedMap[insight.id]}
+      onFeedbackRecorded={(_, action) => {
+        setVotedMap(prev => ({ ...prev, [insight.id]: true }));
+        if (action === 'upvote' || action === 'downvote') {
+          setLastActionMap(prev => ({ ...prev, [insight.id]: action }));
+        }
+      }}
+      lastAction={lastActionMap[insight.id] || null}
+      mode="full"
+      kind={(insight as any).kind as any}
+      relatedTitle={(insight as any).relatedTitle as any}
+    />
   );
 
   if (isLoading) {
     return (
-      <div className="p-4 lg:p-8 pb-24 lg:pb-8">
-        <div className="max-w-7xl mx-auto">
-          <div className="animate-pulse space-y-4">
-            <div className="h-8 bg-gray-200 rounded w-1/4"></div>
-            <div className="h-4 bg-gray-200 rounded w-1/2"></div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {[1, 2, 3].map(i => (
-                <div key={i} className="h-64 bg-gray-200 rounded"></div>
-              ))}
+      <div className="p-6">
+        <div className="max-w-4xl mx-auto">
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center space-x-3">
+              <Logo size="sm" className="text-gray-900" />
+              <h1 className="text-2xl font-bold text-gray-900">Insights</h1>
             </div>
+            <Button variant="outline" disabled>
+              <Filter className="w-4 h-4 mr-2" />
+              Filter
+            </Button>
           </div>
+          <div className="grid gap-6">
+            {[1, 2, 3].map((i) => (
+              <Card key={i} className="animate-pulse">
+                <CardContent className="p-6">
+                  <div className="flex items-center space-x-3 mb-4">
+                    <div className="w-10 h-10 bg-gray-200 rounded-full"></div>
+                    <div className="flex-1">
+                      <div className="h-4 bg-gray-200 rounded w-24 mb-2"></div>
+                      <div className="h-3 bg-gray-200 rounded w-32"></div>
+                    </div>
+                  </div>
+                  <div className="h-4 bg-gray-200 rounded w-full mb-2"></div>
+                  <div className="h-3 bg-gray-200 rounded w-3/4"></div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (insights.length === 0) {
+    return (
+      <div className="p-6">
+        <div className="max-w-4xl mx-auto">
+          <div className="flex items-center space-x-3 mb-6">
+            <Logo size="sm" className="text-gray-900" />
+            <h1 className="text-2xl font-bold text-gray-900">Insights</h1>
+          </div>
+          <Card>
+            <CardContent className="p-12 text-center">
+              <div className="text-gray-500 mb-4">
+                <svg className="mx-auto h-16 w-16 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                </svg>
+              </div>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">No insights yet</h3>
+              <p className="text-gray-500 mb-6 max-w-md mx-auto">
+                Create your first journal entry to generate AI-powered insights that will help you understand your patterns and growth areas.
+              </p>
+              <Button 
+                onClick={() => window.location.href = '/'}
+                className="bg-purple-600 hover:bg-purple-700 text-white"
+              >
+                Start Journaling
+              </Button>
+            </CardContent>
+          </Card>
         </div>
       </div>
     );
@@ -225,28 +291,36 @@ export const InsightsScreen = () => {
     <div className="p-4 lg:p-8 pb-24 lg:pb-8">
       <div className="max-w-7xl mx-auto">
         <div className="mb-6">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center space-x-3 mb-4">
+            <Logo size="sm" className="text-gray-800" />
             <h1 className="text-2xl lg:text-3xl font-bold text-gray-800">
               {metricFilter ? `${metricFilter} Insights` : "Your Insights"}
             </h1>
-            <div className="flex items-center gap-2">
-              <Filter className="h-4 w-4 text-gray-500" />
-              <span className="text-sm text-gray-500">Filter by Life Metric:</span>
-            </div>
           </div>
 
-          <div className="flex flex-wrap gap-2 mb-6">
-            {lifeMetrics.map((metric) => (
-              <Button
-                key={metric}
-                variant={selectedFilter === metric ? "default" : "outline"}
-                size="sm"
-                onClick={() => setSelectedFilter(metric)}
-                className={selectedFilter === metric ? "" : "text-gray-600"}
-              >
-                {metric}
-              </Button>
-            ))}
+          <div className="mb-6 flex items-center gap-4 flex-wrap">
+            <Select value={selectedFilter} onValueChange={setSelectedFilter}>
+              <SelectTrigger className="w-56">
+                <SelectValue placeholder="Life Metric" />
+              </SelectTrigger>
+              <SelectContent>
+                {metricOptions.map((metric) => (
+                  <SelectItem key={metric} value={metric}>{metric}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={voteFilter} onValueChange={(v:any)=>setVoteFilter(v)}>
+              <SelectTrigger className="w-56">
+                <SelectValue placeholder="Vote filter" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All votes</SelectItem>
+                <SelectItem value="upvoted">Voted - Upvote</SelectItem>
+                <SelectItem value="downvoted">Voted - Downvote</SelectItem>
+                <SelectItem value="unvoted">Unvoted</SelectItem>
+              </SelectContent>
+            </Select>
+            <span className="text-sm text-gray-500">Sorted by confidence (high to low)</span>
           </div>
 
           {isProcessing && (

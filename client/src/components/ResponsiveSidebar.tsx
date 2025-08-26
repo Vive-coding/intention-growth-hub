@@ -1,6 +1,7 @@
 import { Home, TrendingUp, Target, BookOpen, User, Flame } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { Logo } from "@/components/ui/Logo";
 
 interface ResponsiveSidebarProps {
   currentScreen: string;
@@ -17,7 +18,7 @@ export const ResponsiveSidebar = ({ currentScreen, onNavigate, className, isInDe
     { id: "insights", icon: TrendingUp, label: "Insights" },
     { id: "goals", icon: Target, label: "Goals" },
     { id: "habits", icon: Flame, label: "Habits" },
-    { id: "profile", icon: User, label: "Profile" },
+    // Profile removed from sidebar; use top-right bubble instead
   ];
 
   return (
@@ -28,9 +29,9 @@ export const ResponsiveSidebar = ({ currentScreen, onNavigate, className, isInDe
       <div className="flex flex-col h-full">
         {/* Header */}
         <div className="p-6 border-b border-sidebar-border">
-          <h1 className="text-xl font-bold text-sidebar-foreground">
-            Life Growth Hub
-          </h1>
+          <div className="flex justify-center">
+            <Logo size="lg" className="text-sidebar-foreground" />
+          </div>
         </div>
 
         {/* Navigation */}

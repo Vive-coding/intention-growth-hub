@@ -4,8 +4,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ChevronDown } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
+import { getLifeMetricColors } from "@/lib/utils";
 import type { LifeMetricWithProgress } from "@shared/schema";
 import { useMetricProgress } from "@/hooks/useMetricProgress";
+import { apiRequest } from "@/lib/queryClient";
 
 interface LifeMetric {
   category: string;
@@ -13,20 +15,39 @@ interface LifeMetric {
   color: string;
   bgColor: string;
   hasGoals: boolean;
+  originalColors?: { text: string; bg: string; hex: string };
 }
 
-// Color mapping for life metrics
+// Unified color mapping for life metrics - now consistent with our pill colors
 const getMetricColors = (name: string) => {
-  const colorMap: Record<string, { text: string; bg: string }> = {
-    "Health & Fitness": { text: "text-green-600", bg: "bg-green-100" },
-    "Career Growth": { text: "text-blue-600", bg: "bg-blue-100" },
-    "Personal Development": { text: "text-purple-600", bg: "bg-purple-100" },
-    "Relationships": { text: "text-orange-600", bg: "bg-orange-100" },
-    "Finance": { text: "text-red-600", bg: "bg-red-100" },
-    "Mental Health": { text: "text-purple-600", bg: "bg-purple-100" },
+  if (name.includes('Health & Fitness')) return { text: 'text-green-600', bg: 'bg-green-100', hex: '#16a34a' };
+  if (name.includes('Career Growth')) return { text: 'text-blue-600', bg: 'bg-blue-100', hex: '#2563eb' };
+  if (name.includes('Personal Development')) return { text: 'text-purple-600', bg: 'bg-purple-100', hex: '#9333ea' };
+  if (name.includes('Relationships')) return { text: 'text-orange-600', bg: 'bg-orange-100', hex: '#ea580c' };
+  if (name.includes('Finance')) return { text: 'text-red-600', bg: 'bg-red-100', hex: '#dc2626' };
+  if (name.includes('Mental Health')) return { text: 'text-teal-600', bg: 'bg-teal-100', hex: '#0d9488' };
+  return { text: 'text-gray-600', bg: 'bg-gray-100', hex: '#4b5563' }; // Default
+};
 
-  };
-  return colorMap[name] || { text: "text-gray-600", bg: "bg-gray-100" };
+// Custom pill color mapping for unique, meaningful colors
+const getPillBackgroundColor = (metricName: string) => {
+  if (metricName.includes('Health & Fitness')) return '#dcfce7'; // Light green
+  if (metricName.includes('Career Growth')) return '#dbeafe'; // Light blue
+  if (metricName.includes('Personal Development')) return '#f3e8ff'; // Light purple
+  if (metricName.includes('Relationships')) return '#fed7aa'; // Light orange
+  if (metricName.includes('Finance')) return '#fecaca'; // Light red
+  if (metricName.includes('Mental Health')) return '#ccfbf1'; // Light teal
+  return '#f3f4f6'; // Default light gray
+};
+
+const getPillTextColor = (metricName: string) => {
+  if (metricName.includes('Health & Fitness')) return '#166534'; // Dark green
+  if (metricName.includes('Career Growth')) return '#1e40af'; // Dark blue
+  if (metricName.includes('Personal Development')) return '#7c3aed'; // Dark purple
+  if (metricName.includes('Relationships')) return '#ea580c'; // Dark orange
+  if (metricName.includes('Finance')) return '#dc2626'; // Dark red
+  if (metricName.includes('Mental Health')) return '#0f766e'; // Dark teal
+  return '#6b7280'; // Default dark gray
 };
 
 interface LifeMetricsDashboardProps {
@@ -49,47 +70,39 @@ export const LifeMetricsDashboard = ({
   const { data: lifeMetrics, isLoading, error } = useQuery({
     queryKey: ['/api/life-metrics/progress', currentPeriod],
     queryFn: async () => {
-      const response = await fetch('/api/life-metrics/progress', { credentials: 'include' });
-      if (!response.ok) throw new Error('Failed to fetch life metrics');
-      const metrics = await response.json();
+      const response = await apiRequest('/api/life-metrics/progress');
       
       // For "This Month", fetch goals for each metric and calculate progress the same way as detailed view
       if (currentPeriod === "This Month") {
         const metricsWithProgress = await Promise.all(
-          metrics.map(async (metric: any) => {
+          response.map(async (metric: any) => {
             try {
               // Fetch goals for this metric using the same API as detailed view
-              const goalsResponse = await fetch(`/api/goals?metric=${encodeURIComponent(metric.name)}`, { 
-                credentials: 'include' 
-              });
+              const goals = await apiRequest(`/api/goals?metric=${encodeURIComponent(metric.name)}`);
               
-              if (goalsResponse.ok) {
-                const goals = await goalsResponse.json();
-                
-                if (goals.length === 0) {
-                  return {
-                    ...metric,
-                    progress: 0,
-                    totalGoals: 0,
-                    completedGoals: 0
-                  };
-                }
-                
-                // Calculate average progress using the same logic as detailed view
-                const totalProgress = goals.reduce((sum: number, goal: any) => {
-                  return sum + (goal.progress || 0);
-                }, 0);
-                
-                const averageProgress = Math.round(totalProgress / goals.length);
-                const completedGoals = goals.filter((goal: any) => goal.status === 'completed').length;
-                
+              if (goals.length === 0) {
                 return {
                   ...metric,
-                  progress: averageProgress,
-                  totalGoals: goals.length,
-                  completedGoals
+                  progress: 0,
+                  totalGoals: 0,
+                  completedGoals: 0
                 };
               }
+              
+              // Calculate average progress using the same logic as detailed view
+              const totalProgress = goals.reduce((sum: number, goal: any) => {
+                return sum + (goal.progress || 0);
+              }, 0);
+              
+              const averageProgress = Math.round(totalProgress / goals.length);
+              const completedGoals = goals.filter((goal: any) => goal.status === 'completed').length;
+              
+              return {
+                ...metric,
+                progress: averageProgress,
+                totalGoals: goals.length,
+                completedGoals
+              };
             } catch (error) {
               console.error(`Failed to fetch goals for ${metric.name}:`, error);
             }
@@ -102,53 +115,50 @@ export const LifeMetricsDashboard = ({
       
       // For historical periods, use progress snapshots
       const metricsWithProgress = await Promise.all(
-        metrics.map(async (metric: any) => {
+        response.map(async (metric: any) => {
           try {
             const snapshotsUrl = `/api/life-metrics/${encodeURIComponent(metric.name)}/progress-snapshots?period=${encodeURIComponent(currentPeriod)}`;
-            const snapshotsResponse = await fetch(snapshotsUrl, { credentials: 'include' });
+            const snapshots = await apiRequest(snapshotsUrl);
             
-            if (snapshotsResponse.ok) {
-              const snapshots = await snapshotsResponse.json();
+            // Apply period-specific filtering
+            let relevantSnapshots;
+            switch (currentPeriod) {
+              case "Last 3 Months":
+                relevantSnapshots = snapshots.slice(-3);
+                break;
+              case "Last 6 Months":
+                relevantSnapshots = snapshots.slice(-6);
+                break;
+              case "This Year":
+                const currentYear = new Date().getFullYear();
+                relevantSnapshots = snapshots.filter((snapshot: any) => {
+                  const snapshotYear = parseInt(snapshot.monthYear.split('-')[0]);
+                  return snapshotYear === currentYear;
+                });
+                break;
+              case "All Time":
+                relevantSnapshots = snapshots;
+                break;
+              default:
+                relevantSnapshots = snapshots.slice(-6);
+            }
+            
+            if (relevantSnapshots.length > 0) {
+              const totalProgress = relevantSnapshots.reduce((sum: number, snapshot: any) => {
+                return sum + snapshot.progressPercentage;
+              }, 0);
               
-              // Apply period-specific filtering
-              let relevantSnapshots;
-              switch (currentPeriod) {
-                case "Last 3 Months":
-                  relevantSnapshots = snapshots.slice(-3);
-                  break;
-                case "Last 6 Months":
-                  relevantSnapshots = snapshots.slice(-6);
-                  break;
-                case "This Year":
-                  const currentYear = new Date().getFullYear();
-                  relevantSnapshots = snapshots.filter((snapshot: any) => {
-                    const snapshotYear = parseInt(snapshot.monthYear.split('-')[0]);
-                    return snapshotYear === currentYear;
-                  });
-                  break;
-                case "All Time":
-                  relevantSnapshots = snapshots;
-                  break;
-                default:
-                  relevantSnapshots = snapshots.slice(-6);
-              }
+              const averageProgress = Math.round(totalProgress / relevantSnapshots.length);
               
-              if (relevantSnapshots.length > 0) {
-                const totalProgress = relevantSnapshots.reduce((sum: number, snapshot: any) => {
-                  return sum + snapshot.progressPercentage;
-                }, 0);
-                const averageProgress = Math.round(totalProgress / relevantSnapshots.length);
-                
-                return {
-                  ...metric,
-                  progress: averageProgress,
-                  totalGoals: relevantSnapshots[0].totalGoals,
-                  completedGoals: relevantSnapshots[0].goalsCompleted
-                };
-              }
+              return {
+                ...metric,
+                progress: averageProgress,
+                totalGoals: relevantSnapshots.length,
+                completedGoals: relevantSnapshots.filter((snapshot: any) => snapshot.progressPercentage >= 90).length
+              };
             }
           } catch (error) {
-            console.error(`Failed to fetch progress for ${metric.name}:`, error);
+            console.error(`Failed to fetch snapshots for ${metric.name}:`, error);
           }
           return metric;
         })
@@ -156,7 +166,7 @@ export const LifeMetricsDashboard = ({
       
       return metricsWithProgress;
     },
-    retry: 1,
+    enabled: true, // Always enabled since we're using apiRequest which handles auth
   });
 
   const getMetricsForPeriod = (period: string): LifeMetric[] => {
@@ -169,47 +179,131 @@ export const LifeMetricsDashboard = ({
       const colors = getMetricColors(metric.name);
       const hasGoals = metric.totalGoals > 0;
       
+      // Determine progress ring color based on thresholds
+      let progressColor = "text-gray-400"; // Default for no goals
+      if (hasGoals) {
+        if (metric.progress > 80) {
+          progressColor = "text-emerald-600"; // Vibrant green for "home stretch" > 80%
+        } else {
+          progressColor = colors.text; // Use life metric color for normal progress
+        }
+      }
+      
       return {
         category: metric.name,
         progress: hasGoals ? metric.progress : 0,
-        color: hasGoals ? colors.text : "text-gray-400",
+        color: progressColor,
         bgColor: hasGoals ? colors.bg : "bg-gray-100",
         hasGoals,
+        originalColors: colors, // Keep original colors for pills
       };
     });
   };
 
   const metrics = getMetricsForPeriod(currentPeriod);
 
-  // Show loading state
   if (isLoading) {
     return (
-      <Card className="mb-6 shadow-md border-0 bg-white/80 backdrop-blur-sm h-[400px]">
-        <CardHeader>
-          <CardTitle>Your Life Overview</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="text-center py-8">
-            <div className="text-gray-600">Loading your metrics...</div>
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-xl font-semibold text-gray-900">Your Life Overview</h2>
+          <div className="relative">
+            <Button
+              variant="outline"
+              onClick={() => setShowDropdown(!showDropdown)}
+              className="flex items-center gap-2"
+            >
+              {currentPeriod}
+              <ChevronDown className="h-4 w-4" />
+            </Button>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {[1, 2, 3].map((i) => (
+            <Card key={i} className="animate-pulse">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="h-4 bg-gray-200 rounded w-24"></div>
+                  <div className="h-4 bg-gray-200 rounded w-16"></div>
+                </div>
+                <div className="flex justify-center">
+                  <div className="h-16 w-16 bg-gray-200 rounded-full"></div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
     );
   }
 
-  // Show error state
-  if (error) {
+  if (error || !lifeMetrics || lifeMetrics.length === 0) {
+    // Preview metrics to show what users can expect
+    const previewMetrics = [
+      { category: "Health & Fitness 🏃‍♀️", progress: 0, color: "text-green-600", bgColor: "bg-green-100", hasGoals: false },
+      { category: "Career Growth 🚀", progress: 0, color: "text-blue-600", bgColor: "bg-blue-100", hasGoals: false },
+      { category: "Personal Development 🧠", progress: 0, color: "text-purple-600", bgColor: "bg-purple-100", hasGoals: false },
+      { category: "Relationships ❤️", progress: 0, color: "text-orange-600", bgColor: "bg-orange-100", hasGoals: false },
+      { category: "Finance 💰", progress: 0, color: "text-red-600", bgColor: "bg-red-100", hasGoals: false },
+      { category: "Mental Health 🧘‍♂️", progress: 0, color: "text-indigo-600", bgColor: "bg-indigo-100", hasGoals: false },
+    ];
+
     return (
-      <Card className="mb-6 shadow-md border-0 bg-white/80 backdrop-blur-sm h-[400px]">
-        <CardHeader>
-          <CardTitle>Your Life Overview</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="text-center py-8">
-            <div className="text-red-600">Failed to load metrics. Please try again.</div>
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-xl font-semibold text-gray-900">Your Life Overview</h2>
+          <div className="relative">
+            <Button
+              variant="outline"
+              onClick={() => setShowDropdown(!showDropdown)}
+              className="flex items-center gap-2"
+            >
+              {currentPeriod}
+              <ChevronDown className="h-4 w-4" />
+            </Button>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {previewMetrics.map((metric, index) => (
+            <Card key={index} className="bg-gray-50/50">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-medium text-gray-700 text-sm">{metric.category}</h3>
+                </div>
+                <div className="flex justify-center">
+                  <div className="relative">
+                    <svg className="w-16 h-16 transform -rotate-90" viewBox="0 0 36 36">
+                      <path
+                        className="text-gray-200"
+                        stroke="currentColor"
+                        strokeWidth="3"
+                        fill="none"
+                        d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                      />
+                      <path
+                        className="text-gray-400"
+                        stroke="currentColor"
+                        strokeWidth="3"
+                        fill="none"
+                        strokeDasharray="100, 100"
+                        d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                      />
+                    </svg>
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <span className="text-xs font-medium text-gray-500">0%</span>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+        <div className="text-center mt-4">
+          <p className="text-sm text-gray-600">
+            Create journals and add goals to start tracking your progress
+          </p>
+        </div>
+      </div>
     );
   }
 
@@ -293,7 +387,13 @@ export const LifeMetricsDashboard = ({
             <div 
               key={metric.category} 
               className="flex flex-col items-center space-y-1 lg:space-y-2 cursor-pointer hover:bg-gray-50 p-1 lg:p-2 rounded-lg transition-colors"
-              onClick={() => onMetricClick?.(metric.category)}
+              onClick={() => {
+                console.log('🔍 Life metric clicked:', metric.category);
+                console.log('🔍 Token status before navigation:');
+                console.log('  Token:', localStorage.getItem("token") ? 'PRESENT' : 'MISSING');
+                console.log('  User:', localStorage.getItem("user") ? 'PRESENT' : 'MISSING');
+                onMetricClick?.(metric.category);
+              }}
             >
               <CircularProgress 
                 progress={metric.progress} 
@@ -301,9 +401,15 @@ export const LifeMetricsDashboard = ({
                 bgColor={metric.bgColor}
                 hasGoals={metric.hasGoals}
               />
-              <span className={`text-xs font-medium text-center leading-tight ${metric.hasGoals ? 'text-gray-700' : 'text-gray-400'}`}>
+              <div 
+                className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium"
+                style={{ 
+                  backgroundColor: getPillBackgroundColor(metric.category),
+                  color: getPillTextColor(metric.category)
+                }}
+              >
                 {metric.category}
-              </span>
+              </div>
             </div>
           ))}
         </div>

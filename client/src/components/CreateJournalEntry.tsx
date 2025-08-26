@@ -6,18 +6,36 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowLeft, Save, Calendar } from "lucide-react";
 import { format } from "date-fns";
+import { apiRequest } from "@/lib/queryClient";
 
 interface CreateJournalEntryProps {
   onSave: () => void;
   onCancel: () => void;
+  // Prefill values (used for edit mode)
+  entryId?: string; // when present, component acts in edit mode
+  initialTitle?: string;
+  initialContent?: string;
+  initialMood?: string;
+  initialTags?: string[];
+  initialDate?: string; // yyyy-MM-dd
 }
 
-export const CreateJournalEntry = ({ onSave, onCancel }: CreateJournalEntryProps) => {
-  const [title, setTitle] = useState("");
-  const [content, setContent] = useState("");
-  const [mood, setMood] = useState("");
-  const [tags, setTags] = useState("");
-  const [entryDate, setEntryDate] = useState(format(new Date(), "yyyy-MM-dd"));
+export const CreateJournalEntry = ({ 
+  onSave, 
+  onCancel, 
+  entryId,
+  initialTitle = "",
+  initialContent = "", 
+  initialMood = "neutral",
+  initialTags = [],
+  initialDate
+}: CreateJournalEntryProps) => {
+  const isEdit = Boolean(entryId);
+  const [title, setTitle] = useState(initialTitle);
+  const [content, setContent] = useState(initialContent);
+  const [mood, setMood] = useState(initialMood);
+  const [tags, setTags] = useState<string[]>(initialTags);
+  const [entryDate, setEntryDate] = useState(initialDate || format(new Date(), "yyyy-MM-dd"));
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -31,32 +49,38 @@ export const CreateJournalEntry = ({ onSave, onCancel }: CreateJournalEntryProps
     setIsSubmitting(true);
 
     try {
-      const tagsArray = tags.split(',').map(tag => tag.trim()).filter(tag => tag.length > 0);
-      
-      const response = await fetch('/api/journals', {
-        method: 'POST',
+      const payload = {
+        title: title.trim(),
+        content: content.trim(),
+        mood: mood,
+        tags: tags,
+        entryDate: new Date(entryDate).toISOString(),
+        isPrivate: true,
+      };
+
+      const response = await apiRequest(isEdit ? `/api/journals/${entryId}` : '/api/journals', {
+        method: isEdit ? 'PUT' : 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        credentials: 'include',
-        body: JSON.stringify({
-          title: title.trim(),
-          content: content.trim(),
-          mood: mood || null,
-          tags: tagsArray.length > 0 ? tagsArray : null,
-          entryDate: new Date(entryDate).toISOString(),
-          isPrivate: true,
-        }),
+        body: JSON.stringify(payload),
       });
 
-      if (response.ok) {
+      if (response) {
+        // Trigger agent to reconsider suggestions after journal changes
+        try {
+          await apiRequest('/api/insights/trigger-latest', { method: 'POST' });
+        } catch (err) {
+          console.warn('Agent trigger after journal save failed:', err);
+        }
+        if (!isEdit) {
+          setTitle('');
+          setContent('');
+        }
         onSave();
-      } else {
-        const error = await response.json();
-        alert(error.message || "Failed to save journal entry");
       }
     } catch (error) {
-      console.error("Error creating journal entry:", error);
+      console.error("Error saving journal entry:", error);
       alert("Failed to save journal entry");
     } finally {
       setIsSubmitting(false);
@@ -96,7 +120,7 @@ export const CreateJournalEntry = ({ onSave, onCancel }: CreateJournalEntryProps
               
               <CardTitle className="flex items-center gap-2">
                 <Calendar className="w-5 h-5 text-indigo-600" />
-                New Journal Entry
+                {isEdit ? 'Edit Journal Entry' : 'New Journal Entry'}
               </CardTitle>
             </div>
           </CardHeader>
@@ -163,8 +187,8 @@ export const CreateJournalEntry = ({ onSave, onCancel }: CreateJournalEntryProps
                 <Input
                   id="tags"
                   type="text"
-                  value={tags}
-                  onChange={(e) => setTags(e.target.value)}
+                  value={tags.join(', ')}
+                  onChange={(e) => setTags(e.target.value.split(',').map(tag => tag.trim()).filter(tag => tag.length > 0))}
                   placeholder="work, personal, reflection, goals (comma-separated)"
                 />
                 <p className="text-sm text-gray-500 mt-1">

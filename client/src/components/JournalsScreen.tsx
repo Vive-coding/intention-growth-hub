@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { useQuery } from "@tanstack/react-query";
 import { Calendar, BookOpen, Plus, Search, ChevronRight, Clock } from "lucide-react";
 import { format, parseISO, startOfMonth, endOfMonth } from "date-fns";
+import { Logo } from "@/components/ui/Logo";
 import { JournalEntryDetail } from "./JournalEntryDetail";
 import { CreateJournalEntry } from "./CreateJournalEntry";
 import type { JournalEntry } from "@shared/schema";
@@ -11,6 +12,7 @@ import type { JournalEntry } from "@shared/schema";
 export const JournalsScreen = () => {
   const [selectedEntry, setSelectedEntry] = useState<JournalEntry | null>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [editEntry, setEditEntry] = useState<JournalEntry | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [viewMode, setViewMode] = useState<"all" | "month">("all");
 
@@ -24,13 +26,14 @@ export const JournalsScreen = () => {
     return (
       <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-cyan-50 p-4">
         <div className="max-w-4xl mx-auto">
-          <Card className="shadow-md border-0 bg-white/80 backdrop-blur-sm">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <BookOpen className="w-5 h-5 text-indigo-600" />
-                Your Journal
-              </CardTitle>
-            </CardHeader>
+                      <Card className="shadow-md border-0 bg-white/80 backdrop-blur-sm">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-3">
+                  <Logo size="sm" className="text-indigo-600" />
+                  <BookOpen className="w-5 h-5 text-indigo-600" />
+                  Your Journal
+                </CardTitle>
+              </CardHeader>
             <CardContent>
               <div className="text-center py-8">
                 <div className="text-gray-600">Loading your journal entries...</div>
@@ -54,12 +57,31 @@ export const JournalsScreen = () => {
     );
   }
 
+  if (editEntry) {
+    const dateStr = editEntry.entryDate
+      ? (typeof editEntry.entryDate === 'string' ? editEntry.entryDate.slice(0,10) : format(editEntry.entryDate, 'yyyy-MM-dd'))
+      : format(new Date(), 'yyyy-MM-dd');
+    return (
+      <CreateJournalEntry
+        entryId={editEntry.id}
+        initialTitle={editEntry.title}
+        initialContent={editEntry.content}
+        initialMood={editEntry.mood as string}
+        initialTags={editEntry.tags as string[]}
+        initialDate={dateStr}
+        onSave={() => { setEditEntry(null); refetch(); }}
+        onCancel={() => setEditEntry(null)}
+      />
+    );
+  }
+
   if (selectedEntry) {
     return (
       <JournalEntryDetail
         entry={selectedEntry}
         onBack={() => setSelectedEntry(null)}
-        onUpdate={() => refetch()}
+        onEdit={(entry) => { setEditEntry(entry); }}
+        onDelete={() => { setSelectedEntry(null); refetch(); }}
       />
     );
   }
@@ -104,7 +126,8 @@ export const JournalsScreen = () => {
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle className="flex items-center gap-2 text-xl">
+                <CardTitle className="flex items-center gap-3 text-xl">
+                  <Logo size="sm" className="text-indigo-600" />
                   <BookOpen className="w-6 h-6 text-indigo-600" />
                   Your Journal
                 </CardTitle>

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useQuery } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
 
 interface EditGoalModalProps {
   isOpen: boolean;
@@ -14,6 +15,7 @@ interface EditGoalModalProps {
     id: string;
     title: string;
     description?: string;
+    targetDate?: string;
     lifeMetric: {
       name: string;
       color: string;
@@ -38,32 +40,86 @@ export const EditGoalModal = ({
   const { data: lifeMetrics = [] } = useQuery({
     queryKey: ['/api/life-metrics'],
     queryFn: async () => {
-      const response = await fetch('/api/life-metrics', { credentials: 'include' });
-      if (!response.ok) throw new Error('Failed to fetch life metrics');
-      return response.json();
+      return apiRequest('/api/life-metrics');
     },
     retry: 1,
   });
 
+  // Initialize form with current goal data when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      console.log('EditGoalModal opened with goal data:', goal);
+      console.log('Available life metrics:', lifeMetrics);
+      
+      // Set title and description immediately
+      setTitle(goal.title);
+      setDescription(goal.description || "");
+      
+      // Find and set life metric ID
+      if (lifeMetrics.length > 0) {
+        const currentLifeMetric = lifeMetrics.find((metric: any) => 
+          metric.name === goal.lifeMetric.name
+        );
+        if (currentLifeMetric) {
+          setLifeMetricId(currentLifeMetric.id);
+          console.log('Set life metric ID:', currentLifeMetric.id, 'for metric:', goal.lifeMetric.name);
+        } else {
+          console.warn('Could not find life metric ID for:', goal.lifeMetric.name);
+        }
+      }
+      
+      // Set target date if it exists
+      if (goal.targetDate) {
+        const date = new Date(goal.targetDate);
+        const formattedDate = date.toISOString().split('T')[0];
+        setTargetDate(formattedDate);
+        console.log('Set target date:', formattedDate, 'from:', goal.targetDate);
+      } else {
+        setTargetDate("");
+        console.log('No target date found, setting to empty');
+      }
+    }
+  }, [isOpen, lifeMetrics, goal]);
+
   const handleSave = () => {
     if (!title?.trim()) return;
 
-    onSave(goal.id, {
+    const updates: any = {
       title: title.trim(),
       description: description.trim(),
-      lifeMetricId: lifeMetricId || goal.lifeMetric.name,
-      targetDate: targetDate || null,
-    });
+      lifeMetricId: lifeMetricId, // Always include life metric ID
+      targetDate: targetDate || null, // Include target date (null if empty)
+    };
 
+    console.log('Saving goal updates:', updates);
+    onSave(goal.id, updates);
     onClose();
   };
 
   const handleClose = () => {
-    // Reset form
+    // Reset form to original values
     setTitle(goal.title);
     setDescription(goal.description || "");
-    setLifeMetricId("");
-    setTargetDate("");
+    
+    // Reset life metric to the current goal's life metric
+    if (lifeMetrics.length > 0) {
+      const currentLifeMetric = lifeMetrics.find((metric: any) => 
+        metric.name === goal.lifeMetric.name
+      );
+      if (currentLifeMetric) {
+        setLifeMetricId(currentLifeMetric.id);
+      }
+    }
+    
+    // Reset target date to original value
+    if (goal.targetDate) {
+      const date = new Date(goal.targetDate);
+      const formattedDate = date.toISOString().split('T')[0];
+      setTargetDate(formattedDate);
+    } else {
+      setTargetDate("");
+    }
+    
     onClose();
   };
 

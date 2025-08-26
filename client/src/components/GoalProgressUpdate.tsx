@@ -5,7 +5,7 @@ import { Progress } from "@/components/ui/progress";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { queryClient } from "@/lib/queryClient";
+import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { CheckCircle, Target, Plus, Minus } from "lucide-react";
 import type { GoalInstance } from "@shared/schema";
@@ -30,20 +30,10 @@ export const GoalProgressUpdate = ({ goalInstance, onUpdate }: GoalProgressUpdat
 
   const updateProgressMutation = useMutation({
     mutationFn: async (currentValue: number) => {
-      const response = await fetch(`/api/goals/${goalInstance.id}/progress`, {
+      return await apiRequest(`/api/goals/${goalInstance.id}/progress`, {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
         body: JSON.stringify({ currentValue }),
-        credentials: 'include',
       });
-      
-      if (!response.ok) {
-        throw new Error(`${response.status}: ${response.statusText}`);
-      }
-      
-      return response.json();
     },
     onSuccess: () => {
       toast({

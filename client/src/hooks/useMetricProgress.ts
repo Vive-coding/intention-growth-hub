@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
 
 interface MetricProgressData {
   progress: number;
@@ -14,13 +15,12 @@ export const useMetricProgress = (metricName: string, selectedPeriod: string) =>
     queryKey: ['metric-progress', metricName, selectedPeriod],
     queryFn: async (): Promise<MetricProgressData> => {
       try {
-        // For historical periods, use progress snapshots
+        // For all periods, fetch snapshots; for This Month we'll use daily
         if (selectedPeriod !== "This Month") {
           const snapshotsUrl = `/api/life-metrics/${encodeURIComponent(metricName)}/progress-snapshots?period=${encodeURIComponent(selectedPeriod)}`;
-          const snapshotsResponse = await fetch(snapshotsUrl, { credentials: 'include' });
+          const snapshots = await apiRequest(snapshotsUrl);
           
-          if (snapshotsResponse.ok) {
-            const snapshots = await snapshotsResponse.json();
+          if (snapshots) {
             
             // Apply period-specific filtering
             let relevantSnapshots;
@@ -68,19 +68,31 @@ export const useMetricProgress = (metricName: string, selectedPeriod: string) =>
           }
         }
         
-        // For "This Month", use the progress API
-        const progressUrl = `/api/life-metrics/${encodeURIComponent(metricName)}/progress/${encodeURIComponent(selectedPeriod)}`;
-        const progressResponse = await fetch(progressUrl, { credentials: 'include' });
-        
-        if (progressResponse.ok) {
-          const periodProgress = await progressResponse.json();
-          return {
-            progress: periodProgress.progress || 0,
-            totalGoals: periodProgress.totalGoals,
-            completedGoals: periodProgress.goalsCompleted,
-            progressSnapshots: []
-          };
-        }
+        // For "This Month", fetch daily snapshots directly
+        const dailyUrl = `/api/life-metrics/${encodeURIComponent(metricName)}/progress-snapshots?period=${encodeURIComponent('This Month')}`;
+        const dailySnapshots = await apiRequest(dailyUrl);
+        console.log('useMetricProgress - This Month snapshots', {
+          metricName,
+          count: Array.isArray(dailySnapshots) ? dailySnapshots.length : 0,
+          preview: (dailySnapshots || []).slice(-7).map((s: any) => ({
+            snapshotDate: s.snapshotDate,
+            progress: s.progressPercentage,
+            completed: s.goalsCompleted,
+          }))
+        });
+        const daysThisMonth = dailySnapshots as any[];
+
+        // Compute latest progress for ring from last snapshot (or 0)
+        const latest = daysThisMonth && daysThisMonth.length > 0
+          ? daysThisMonth[daysThisMonth.length - 1]
+          : { progressPercentage: 0, goalsCompleted: 0, totalGoals: 0 };
+
+        return {
+          progress: latest.progressPercentage || 0,
+          totalGoals: latest.totalGoals,
+          completedGoals: latest.goalsCompleted,
+          progressSnapshots: daysThisMonth,
+        };
         
         // Fallback
         return {
