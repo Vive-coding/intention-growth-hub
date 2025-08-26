@@ -12,11 +12,19 @@ nlpManager.addNamedEntityText('address', 'address', ['en'], ['street', 'avenue',
 nlpManager.addNamedEntityText('ssn', 'ssn', ['en'], ['ssn', 'social security']);
 nlpManager.addNamedEntityText('credit_card', 'credit_card', ['en'], ['credit card', 'visa', 'mastercard']);
 
-// Initialize Redis for rate limiting (only in production)
+// Initialize Redis for rate limiting (only if REDIS_URL is provided)
 let redis: Redis | null = null;
 
-if (process.env.NODE_ENV === 'production') {
-  redis = new Redis(process.env.REDIS_URL || 'redis://localhost:6379');
+if (process.env.REDIS_URL) {
+  try {
+    redis = new Redis(process.env.REDIS_URL);
+    console.log('Redis connected successfully');
+  } catch (error) {
+    console.warn('Redis connection failed, rate limiting disabled:', error);
+    redis = null;
+  }
+} else if (process.env.NODE_ENV === 'production') {
+  console.log('No REDIS_URL provided, rate limiting disabled');
 }
 
 // Encryption key management
