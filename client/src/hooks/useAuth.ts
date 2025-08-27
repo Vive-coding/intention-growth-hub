@@ -58,7 +58,8 @@ export function useAuth() {
     try {
       const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
       if (!tz) return;
-      fetch('/api/users/timezone', {
+      const apiBaseUrl = import.meta.env.VITE_API_URL || '';
+      fetch(`${apiBaseUrl}/api/users/timezone`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('token')}` },
         body: JSON.stringify({ timezone: tz })
