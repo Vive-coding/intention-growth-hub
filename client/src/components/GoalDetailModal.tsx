@@ -428,7 +428,8 @@ export const GoalDetailModal = ({
   // Function to refresh goal data
   const refreshGoalData = async () => {
     try {
-      const response = await fetch(`/api/goals/${goalData.id}`, {
+      const apiBaseUrl = import.meta.env.VITE_API_URL || '';
+      const response = await fetch(`${apiBaseUrl}/api/goals/${goalData.id}`, {
         credentials: 'include',
       });
       if (response.ok) {
@@ -561,7 +562,7 @@ export const GoalDetailModal = ({
         
         // Refresh the goal data to show the new habit
         try {
-          const goalResponse = await fetch(`/api/goals/${goalData.id}`, { credentials: 'include' });
+          const goalResponse = await fetch(`${apiBaseUrl}/api/goals/${goalData.id}`, { credentials: 'include' });
           if (goalResponse.ok) {
             const updatedGoal = await goalResponse.json();
             // Update the goal data in the parent component
