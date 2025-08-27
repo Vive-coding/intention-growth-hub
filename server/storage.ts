@@ -50,6 +50,7 @@ export interface IStorage {
   getUserLifeMetrics(userId: string): Promise<LifeMetricDefinition[]>;
   getUserLifeMetricsWithProgress(userId: string): Promise<LifeMetricWithProgress[]>;
   getMonthlyGoalCompletions(userId: string, lifeMetricName: string): Promise<{ month: string; completed: number }[]>;
+  getGoalCompletionsByDateRange(userId: string, lifeMetricName: string, startDate: Date, endDate: Date): Promise<{ date: string; completed: number }[]>;
   createLifeMetric(metric: InsertLifeMetricDefinition): Promise<LifeMetricDefinition>;
   
   // Goal operations
@@ -478,6 +479,48 @@ export class DatabaseStorage implements IStorage {
     return allMonths.map(month => ({
       month,
       completed: completionMap.get(month) || 0
+    }));
+  }
+
+  async getGoalCompletionsByDateRange(userId: string, lifeMetricName: string, startDate: Date, endDate: Date): Promise<{ date: string; completed: number }[]> {
+    // Get daily completion data from database
+    const completions = await db
+      .select({
+        date: sql<string>`DATE(${goalInstances.completedAt})`.as('date'),
+        completed: sql<number>`COUNT(*)`.as('completed')
+      })
+      .from(goalInstances)
+      .innerJoin(goalDefinitions, eq(goalInstances.goalDefinitionId, goalDefinitions.id))
+      .where(and(
+        eq(goalInstances.userId, userId),
+        eq(goalDefinitions.category, lifeMetricName),
+        eq(goalInstances.status, 'completed'),
+        gte(goalInstances.completedAt, startDate),
+        lt(goalInstances.completedAt, endDate)
+      ))
+      .groupBy(sql<string>`DATE(${goalInstances.completedAt})`)
+      .orderBy(sql<string>`DATE(${goalInstances.completedAt})`);
+
+    // Generate all dates in range
+    const allDates: string[] = [];
+    const currentDate = new Date(startDate);
+    
+    while (currentDate < endDate) {
+      allDates.push(currentDate.toISOString().split('T')[0]);
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+
+    // Create a map of existing completions
+    const completionMap = new Map(
+      completions
+        .filter(c => c.date !== null)
+        .map(c => [c.date!, Number(c.completed)])
+    );
+
+    // Return all dates with completions (including zeros)
+    return allDates.map(date => ({
+      date,
+      completed: completionMap.get(date) || 0
     }));
   }
 

@@ -674,6 +674,86 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Toggle goal completion status
+  app.post('/api/goals/:instanceId/toggle-completion', authMiddleware, async (req: any, res) => {
+    try {
+      const { instanceId } = req.params;
+      const userId = req.user.id || req.user.claims.sub;
+
+      // Get the current goal state
+      const currentGoal = await db
+        .select()
+        .from(goalInstances)
+        .where(and(eq(goalInstances.id, instanceId), eq(goalInstances.userId, userId)))
+        .limit(1)
+        .then(rows => rows[0]);
+
+      if (!currentGoal) {
+        return res.status(404).json({ message: "Goal not found" });
+      }
+
+      // Toggle completion status
+      const isCompleted = currentGoal.status === 'completed';
+      const newStatus = isCompleted ? 'active' : 'completed';
+      const completedAt = isCompleted ? null : new Date();
+      const currentValue = isCompleted ? (currentGoal.currentValue || 0) : 100;
+
+      const [updatedInstance] = await db
+        .update(goalInstances)
+        .set({
+          status: newStatus,
+          completedAt,
+          currentValue,
+        })
+        .where(eq(goalInstances.id, instanceId))
+        .returning();
+
+      res.json(updatedInstance);
+    } catch (error) {
+      console.error("Error toggling goal completion:", error);
+      res.status(500).json({ message: "Failed to toggle goal completion" });
+    }
+  });
+
+  // Get goal completion counts by date range for chart
+  app.get('/api/goals/completions/:metricName', authMiddleware, async (req: any, res) => {
+    try {
+      const { metricName } = req.params;
+      const userId = req.user.id || req.user.claims.sub;
+      const { period = 'Last 6 Months' } = req.query;
+
+      // Calculate date range based on period
+      const endDate = new Date();
+      const startDate = new Date();
+      
+      switch (period) {
+        case 'This Month':
+          startDate.setDate(1);
+          break;
+        case 'Last 3 Months':
+          startDate.setMonth(startDate.getMonth() - 3);
+          break;
+        case 'Last 6 Months':
+          startDate.setMonth(startDate.getMonth() - 6);
+          break;
+        case 'This Year':
+          startDate.setMonth(0, 1);
+          break;
+        case 'All Time':
+          startDate.setFullYear(2020); // Reasonable start date
+          break;
+        default:
+          startDate.setMonth(startDate.getMonth() - 6);
+      }
+
+      const completions = await storage.getGoalCompletionsByDateRange(userId, metricName, startDate, endDate);
+      res.json(completions);
+    } catch (error) {
+      console.error("Error fetching goal completions:", error);
+      res.status(500).json({ message: "Failed to fetch goal completions" });
+    }
+  });
+
   // Journal routes with security middleware
   app.get('/api/journals', authMiddleware, securityMiddleware, async (req: any, res) => {
     try {
