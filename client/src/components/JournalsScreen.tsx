@@ -29,7 +29,6 @@ export const JournalsScreen = () => {
                       <Card className="shadow-md border-0 bg-white/80 backdrop-blur-sm">
               <CardHeader>
                 <CardTitle className="flex items-center gap-3">
-                  <Logo size="sm" className="text-indigo-600" />
                   <BookOpen className="w-5 h-5 text-indigo-600" />
                   Your Journal
                 </CardTitle>
@@ -127,7 +126,6 @@ export const JournalsScreen = () => {
             <div className="flex items-center justify-between">
               <div>
                 <CardTitle className="flex items-center gap-3 text-xl">
-                  <Logo size="sm" className="text-indigo-600" />
                   <BookOpen className="w-6 h-6 text-indigo-600" />
                   Your Journal
                 </CardTitle>

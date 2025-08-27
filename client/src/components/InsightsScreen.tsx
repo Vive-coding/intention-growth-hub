@@ -260,8 +260,7 @@ export const InsightsScreen = () => {
     return (
       <div className="p-6">
         <div className="max-w-4xl mx-auto">
-          <div className="flex items-center space-x-3 mb-6">
-            <Logo size="sm" className="text-gray-900" />
+          <div className="mb-6">
             <h1 className="text-2xl font-bold text-gray-900">Insights</h1>
           </div>
           <Card>
@@ -292,8 +291,7 @@ export const InsightsScreen = () => {
     <div className="p-4 lg:p-8 pb-24 lg:pb-8">
       <div className="max-w-7xl mx-auto">
         <div className="mb-6">
-          <div className="flex items-center space-x-3 mb-4">
-            <Logo size="sm" className="text-gray-800" />
+          <div className="mb-4">
             <h1 className="text-2xl lg:text-3xl font-bold text-gray-800">
               {metricFilter ? `${metricFilter} Insights` : "Your Insights"}
             </h1>

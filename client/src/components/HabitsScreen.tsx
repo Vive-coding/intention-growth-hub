@@ -41,8 +41,7 @@ export function HabitsScreen() {
   if (isLoading) {
     return (
       <div className="container mx-auto p-6">
-        <div className="flex items-center space-x-3 mb-6">
-          <Logo size="md" className="text-gray-800" />
+        <div className="mb-6">
           <h1 className="text-2xl font-bold text-gray-800">Habits</h1>
         </div>
         <div className="grid gap-4">
@@ -65,8 +64,7 @@ export function HabitsScreen() {
   if (error) {
     return (
       <div className="container mx-auto p-6">
-        <div className="flex items-center space-x-3 mb-6">
-          <Logo size="md" className="text-gray-800" />
+        <div className="mb-6">
           <h1 className="text-2xl font-bold text-gray-800">Habits</h1>
         </div>
         <Card>
@@ -81,8 +79,7 @@ export function HabitsScreen() {
   if (!habits || habits.length === 0) {
     return (
       <div className="container mx-auto p-6">
-        <div className="flex items-center space-x-3 mb-6">
-          <Logo size="md" className="text-gray-800" />
+        <div className="mb-6">
           <h1 className="text-2xl font-bold text-gray-800">
             {metricFilter ? `${metricFilter} Habits` : "Habits"}
           </h1>
@@ -109,8 +106,7 @@ export function HabitsScreen() {
 
   return (
     <div className="container mx-auto p-6">
-      <div className="flex items-center space-x-3 mb-6">
-        <Logo size="md" className="text-gray-800" />
+      <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-800">
           {metricFilter ? `${metricFilter} Habits` : "Habits"}
         </h1>
