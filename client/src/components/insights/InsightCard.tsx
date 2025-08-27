@@ -111,7 +111,8 @@ export function InsightCard({
     try {
       console.log('[InsightCard] sendOptionalFeedback', { id, feedbackType, selectedReasons, notes });
       if (!id || !feedbackType) { setFeedbackOpen(false); return; }
-      await fetch('/api/feedback', {
+      const apiBaseUrl = import.meta.env.VITE_API_URL || '';
+      await fetch(`${apiBaseUrl}/api/feedback`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('token')}` },
         body: JSON.stringify({
@@ -221,7 +222,8 @@ export function InsightCard({
               onVote?.(true);
               // Fire-and-forget feedback event
               try {
-                await fetch('/api/feedback', {
+                const apiBaseUrl = import.meta.env.VITE_API_URL || '';
+                await fetch(`${apiBaseUrl}/api/feedback`, {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('token')}` },
                   body: JSON.stringify({ type: 'insight', itemId: id, action: 'upvote', context: feedbackContext || {} })
@@ -248,7 +250,8 @@ export function InsightCard({
             onClick={async () => {
               onVote?.(false);
               try {
-                await fetch('/api/feedback', {
+                const apiBaseUrl = import.meta.env.VITE_API_URL || '';
+                await fetch(`${apiBaseUrl}/api/feedback`, {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('token')}` },
                   body: JSON.stringify({ type: 'insight', itemId: id, action: 'downvote', context: feedbackContext || {} })

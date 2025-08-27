@@ -39,7 +39,11 @@ export const AuthModal = ({ isOpen, onClose, initialMode = 'signup' }: AuthModal
         ? { email, password, firstName, lastName }
         : { email, password };
 
-      const response = await fetch(endpoint, {
+      // Get the API base URL from environment variable
+      const apiBaseUrl = import.meta.env.VITE_API_URL || '';
+      const fullUrl = `${apiBaseUrl}${endpoint}`;
+
+      const response = await fetch(fullUrl, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

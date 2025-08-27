@@ -4,7 +4,13 @@ import { QueryClient } from "@tanstack/react-query";
 async function fetchWithCredentials(url: string, config?: RequestInit) {
   const token = localStorage.getItem("token");
   
-  console.log(`🌐 Making request to ${url} with token: ${token ? 'present' : 'missing'}`);
+  // Get the API base URL from environment variable
+  const apiBaseUrl = import.meta.env.VITE_API_URL || '';
+  
+  // If it's a relative URL, prepend the API base URL
+  const fullUrl = url.startsWith('/') ? `${apiBaseUrl}${url}` : url;
+  
+  console.log(`🌐 Making request to ${fullUrl} with token: ${token ? 'present' : 'missing'}`);
   
   const headers = {
     'Content-Type': 'application/json',
@@ -12,7 +18,7 @@ async function fetchWithCredentials(url: string, config?: RequestInit) {
     ...config?.headers,
   };
 
-  const response = await fetch(url, {
+  const response = await fetch(fullUrl, {
     ...config,
     credentials: 'include', // Include cookies for authentication
     headers,
