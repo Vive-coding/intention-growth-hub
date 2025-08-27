@@ -26,9 +26,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
     await setupDevAuth(app);
   }
   const authMiddleware = isDev ? isDevAuthenticated : (req: any, res: any, next: any) => {
-    // For production, we'll implement JWT auth middleware here
-    // For now, allow all requests in production
-    next();
+    // Production JWT authentication
+    const token = req.headers.authorization?.replace('Bearer ', '');
+    
+    if (!token) {
+      return res.status(401).json({ message: "No token provided" });
+    }
+    
+    try {
+      const decoded = verifyToken(token);
+      if (!decoded) {
+        return res.status(401).json({ message: "Invalid token" });
+      }
+      
+      // Add the user to the request with proper ID
+      req.user = {
+        id: decoded.userId,
+        claims: {
+          sub: decoded.userId,
+        }
+      };
+      next();
+    } catch (error) {
+      console.error('Token verification error:', error);
+      return res.status(401).json({ message: "Invalid token" });
+    }
   };
 
   // Register insights routes with auth middleware
