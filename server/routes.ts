@@ -768,10 +768,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           goalTitle: goalDefinitions.title,
           goalTargetDate: goalInstances.targetDate,
           targetValue: habitInstances.targetValue,
-          // Default values for backward compatibility
-          frequency: dsql<string>`'daily'`.as('frequency'),
-          perPeriodTarget: dsql<number>`1`.as('perPeriodTarget'),
-          periodsCount: dsql<number>`1`.as('periodsCount'),
+          frequencySettings: habitInstances.frequencySettings,
         })
         .from(habitInstances)
         .innerJoin(goalInstances, eq(habitInstances.goalInstanceId, goalInstances.id))

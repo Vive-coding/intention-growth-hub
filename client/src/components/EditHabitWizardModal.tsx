@@ -73,16 +73,21 @@ export const EditHabitWizardModal = ({
         const formattedAssociations = response.map((assoc: any) => {
           const targetValue = assoc.targetValue || 1;
           
-          // For existing associations, we need to infer the breakdown
-          // Since we don't have the original frequency/period data stored,
-          // we'll make a reasonable assumption based on the target value
+          // Use the actual frequency settings from the database if available
           let frequency = 'daily';
           let perPeriodTarget = 1;
           let periodsCount = targetValue;
           
-          // If targetValue is 1, assume 1 per day × 1 day
-          // If targetValue > 1, assume 1 per day × targetValue days
-          // This preserves the current behavior while allowing future enhancement
+          if (assoc.frequencySettings) {
+            frequency = assoc.frequencySettings.frequency || 'daily';
+            perPeriodTarget = assoc.frequencySettings.perPeriodTarget || 1;
+            periodsCount = assoc.frequencySettings.periodsCount || targetValue;
+          } else {
+            // Fallback for backward compatibility: infer from target value
+            // If targetValue > 1, assume 1 per day × targetValue days
+            perPeriodTarget = 1;
+            periodsCount = targetValue;
+          }
           
           return {
             id: assoc.id,
