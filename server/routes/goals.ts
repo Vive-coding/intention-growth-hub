@@ -147,7 +147,17 @@ router.get("/", async (req: Request, res: Response) => {
     for (const { goalDefinition, goalInstance } of goalsWithInstances) {
       const associatedHabits = await db
         .select({
-          habitInstance: habitInstances,
+          habitInstance: {
+            id: habitInstances.id,
+            goalInstanceId: habitInstances.goalInstanceId,
+            habitDefinitionId: habitInstances.habitDefinitionId,
+            userId: habitInstances.userId,
+            targetValue: habitInstances.targetValue,
+            currentValue: habitInstances.currentValue,
+            goalSpecificStreak: habitInstances.goalSpecificStreak,
+            createdAt: habitInstances.createdAt,
+            updatedAt: habitInstances.updatedAt,
+          },
           habitDefinition: habitDefinitions,
         })
         .from(habitInstances)
@@ -1112,7 +1122,17 @@ router.get("/habits/today", async (req: Request, res: Response) => {
     // Habit instances connected to active goals for this user
     const activeHabitRows = await db
       .select({
-        habitInstance: habitInstances,
+        habitInstance: {
+          id: habitInstances.id,
+          goalInstanceId: habitInstances.goalInstanceId,
+          habitDefinitionId: habitInstances.habitDefinitionId,
+          userId: habitInstances.userId,
+          targetValue: habitInstances.targetValue,
+          currentValue: habitInstances.currentValue,
+          goalSpecificStreak: habitInstances.goalSpecificStreak,
+          createdAt: habitInstances.createdAt,
+          updatedAt: habitInstances.updatedAt,
+        },
         habitDefinition: habitDefinitions,
         goalInstance: goalInstances,
       })
@@ -1771,7 +1791,17 @@ router.get("/:id", async (req: Request, res: Response) => {
     // Get associated habits for this goal
     const associatedHabits = await db
       .select({
-        habitInstance: habitInstances,
+        habitInstance: {
+          id: habitInstances.id,
+          goalInstanceId: habitInstances.goalInstanceId,
+          habitDefinitionId: habitInstances.habitDefinitionId,
+          userId: habitInstances.userId,
+          targetValue: habitInstances.targetValue,
+          currentValue: habitInstances.currentValue,
+          goalSpecificStreak: habitInstances.goalSpecificStreak,
+          createdAt: habitInstances.createdAt,
+          updatedAt: habitInstances.updatedAt,
+        },
         habitDefinition: habitDefinitions,
       })
       .from(habitInstances)
