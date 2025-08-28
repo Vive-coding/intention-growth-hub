@@ -2,7 +2,7 @@ import { Router } from "express";
 import { db } from "../db";
 
 console.log('=== GOALS ROUTES FILE === Loading goals routes file...');
-import { and, eq, desc, sql, inArray, gte, lt } from "drizzle-orm";
+import { and, eq, desc, sql, inArray, gte, lt, lte } from "drizzle-orm";
 import { 
   goalDefinitions, 
   goalInstances,
@@ -1127,6 +1127,83 @@ router.get("/habits/today", async (req: Request, res: Response) => {
       .limit(200);
 
     // Group by habit definition to avoid duplicates (same habit across multiple goals)
+    // Helper function to determine if a habit should be shown for completion
+    const shouldShowHabitForCompletion = async (habitDefinitionId: string, habitInstance: any, userId: string, today: Date) => {
+      // Get the habit's frequency settings
+      const frequencySettings = habitInstance.frequencySettings;
+      
+      if (!frequencySettings) {
+        // Fallback: if no frequency settings, treat as daily
+        const alreadyToday = await db
+          .select()
+          .from(habitCompletions)
+          .where(and(
+            eq(habitCompletions.habitDefinitionId, habitDefinitionId),
+            eq(habitCompletions.userId, userId),
+            gte(habitCompletions.completedAt, today),
+            lt(habitCompletions.completedAt, new Date(today.getTime() + 24 * 60 * 60 * 1000))
+          ))
+          .limit(1);
+        return alreadyToday.length === 0;
+      }
+
+      const { frequency, perPeriodTarget, periodsCount } = frequencySettings;
+      const totalTarget = perPeriodTarget * periodsCount;
+
+      // Calculate the start of the current period based on frequency
+      let periodStart: Date;
+      let periodEnd: Date;
+      
+      switch (frequency) {
+        case 'daily':
+          // Daily: check if completed today
+          periodStart = new Date(today);
+          periodStart.setHours(0, 0, 0, 0);
+          periodEnd = new Date(today);
+          periodEnd.setHours(23, 59, 59, 999);
+          break;
+          
+        case 'weekly':
+          // Weekly: check if completed this week (Monday to Sunday)
+          const dayOfWeek = today.getDay();
+          const daysFromMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // Sunday = 0, Monday = 1
+          periodStart = new Date(today);
+          periodStart.setDate(today.getDate() - daysFromMonday);
+          periodStart.setHours(0, 0, 0, 0);
+          periodEnd = new Date(periodStart);
+          periodEnd.setDate(periodStart.getDate() + 6);
+          periodEnd.setHours(23, 59, 59, 999);
+          break;
+          
+        case 'monthly':
+          // Monthly: check if completed this month
+          periodStart = new Date(today.getFullYear(), today.getMonth(), 1);
+          periodEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0, 23, 59, 59, 999);
+          break;
+          
+        default:
+          // Fallback to daily
+          periodStart = new Date(today);
+          periodStart.setHours(0, 0, 0, 0);
+          periodEnd = new Date(today);
+          periodEnd.setHours(23, 59, 59, 999);
+      }
+
+      // Count completions in the current period
+      const completionsInPeriod = await db
+        .select()
+        .from(habitCompletions)
+        .where(and(
+          eq(habitCompletions.habitDefinitionId, habitDefinitionId),
+          eq(habitCompletions.userId, userId),
+          gte(habitCompletions.completedAt, periodStart),
+          lte(habitCompletions.completedAt, periodEnd)
+        ));
+
+      // Show habit if not completed enough times for the current period
+      return completionsInPeriod.length < totalTarget;
+    };
+
     // Group rows by habit definition, keeping all goal associations
     const habitIdToRows: Record<string, typeof activeHabitRows> = {} as any;
     for (const row of activeHabitRows) {
@@ -1138,18 +1215,16 @@ router.get("/habits/today", async (req: Request, res: Response) => {
     const result: any[] = [];
     for (const rows of Object.values(habitIdToRows)) {
       const row = rows[0];
-      // Skip if completed today
-      const existingToday = await db
-        .select()
-        .from(habitCompletions)
-        .where(and(
-          eq(habitCompletions.habitDefinitionId, row.habitDefinition.id),
-          eq(habitCompletions.userId, userId),
-          gte(habitCompletions.completedAt, today),
-          lt(habitCompletions.completedAt, tomorrow)
-        ))
-        .limit(1);
-      if (existingToday.length > 0) continue;
+      
+      // Check if habit should be shown based on its frequency and completion status
+      const shouldShowHabit = await shouldShowHabitForCompletion(
+        row.habitDefinition.id, 
+        row.habitInstance, 
+        userId, 
+        today
+      );
+      
+      if (!shouldShowHabit) continue;
 
       const goalIds = rows.map(r => r.goalInstance.id);
       // Compute streak and totals for this habit for the user

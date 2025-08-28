@@ -9,7 +9,7 @@ import goalsRouter from "./routes/goals";
 import { securityMiddleware } from "./middleware/security";
 import { InsightService } from "./services/insightService";
 import { db, ensureUsersTimezoneColumn } from "./db";
-import { and, eq, gte, lt, sql as dsql, inArray, desc } from "drizzle-orm";
+import { and, eq, gte, lt, lte, sql as dsql, inArray, desc } from "drizzle-orm";
 import {
   habitInstances,
   habitDefinitions,
@@ -477,6 +477,83 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.user.id || req.user.claims.sub;
 
+      // Helper function to determine if a habit should be shown for completion
+      const shouldShowHabitForCompletion = async (habitDefinitionId: string, habitInstance: any, userId: string, today: Date) => {
+        // Get the habit's frequency settings
+        const frequencySettings = habitInstance.frequencySettings;
+        
+        if (!frequencySettings) {
+          // Fallback: if no frequency settings, treat as daily
+          const alreadyToday = await db
+            .select()
+            .from(habitCompletions)
+            .where(and(
+              eq(habitCompletions.habitDefinitionId, habitDefinitionId),
+              eq(habitCompletions.userId, userId),
+              gte(habitCompletions.completedAt, today),
+              lt(habitCompletions.completedAt, new Date(today.getTime() + 24 * 60 * 60 * 1000))
+            ))
+            .limit(1);
+          return alreadyToday.length === 0;
+        }
+
+        const { frequency, perPeriodTarget, periodsCount } = frequencySettings;
+        const totalTarget = perPeriodTarget * periodsCount;
+
+        // Calculate the start of the current period based on frequency
+        let periodStart: Date;
+        let periodEnd: Date;
+        
+        switch (frequency) {
+          case 'daily':
+            // Daily: check if completed today
+            periodStart = new Date(today);
+            periodStart.setHours(0, 0, 0, 0);
+            periodEnd = new Date(today);
+            periodEnd.setHours(23, 59, 59, 999);
+            break;
+            
+          case 'weekly':
+            // Weekly: check if completed this week (Monday to Sunday)
+            const dayOfWeek = today.getDay();
+            const daysFromMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // Sunday = 0, Monday = 1
+            periodStart = new Date(today);
+            periodStart.setDate(today.getDate() - daysFromMonday);
+            periodStart.setHours(0, 0, 0, 0);
+            periodEnd = new Date(periodStart);
+            periodEnd.setDate(periodStart.getDate() + 6);
+            periodEnd.setHours(23, 59, 59, 999);
+            break;
+            
+          case 'monthly':
+            // Monthly: check if completed this month
+            periodStart = new Date(today.getFullYear(), today.getMonth(), 1);
+            periodEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0, 23, 59, 59, 999);
+            break;
+            
+          default:
+            // Fallback to daily
+            periodStart = new Date(today);
+            periodStart.setHours(0, 0, 0, 0);
+            periodEnd = new Date(today);
+            periodEnd.setHours(23, 59, 59, 999);
+        }
+
+        // Count completions in the current period
+        const completionsInPeriod = await db
+          .select()
+          .from(habitCompletions)
+          .where(and(
+            eq(habitCompletions.habitDefinitionId, habitDefinitionId),
+            eq(habitCompletions.userId, userId),
+            gte(habitCompletions.completedAt, periodStart),
+            lte(habitCompletions.completedAt, periodEnd)
+          ));
+
+        // Show habit if not completed enough times for the current period
+        return completionsInPeriod.length < totalTarget;
+      };
+
       // 1) Load active goals
       const goals = await storage.getUserGoals(userId);
 
@@ -509,17 +586,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const seenHabitDef = new Set<string>();
       for (const { habitDefinition, habitInstance, goalInstance, lifeMetric } of habitsForActiveGoals as any[]) {
         if (seenHabitDef.has(habitDefinition.id)) continue;
-        const alreadyToday = await db
-          .select()
-          .from(habitCompletions)
-          .where(and(
-            eq(habitCompletions.habitDefinitionId, habitDefinition.id),
-            eq(habitCompletions.userId, userId),
-            gte(habitCompletions.completedAt, today),
-            lt(habitCompletions.completedAt, tomorrow)
-          ))
-          .limit(1);
-        if (alreadyToday.length === 0) {
+        
+        // Check if habit should be shown based on its frequency and completion status
+        const shouldShowHabit = await shouldShowHabitForCompletion(
+          habitDefinition.id, 
+          habitInstance, 
+          userId, 
+          today
+        );
+        
+        if (shouldShowHabit) {
           uniqueHabits.push({
             id: habitDefinition.id,
             title: habitDefinition.name,
