@@ -1754,6 +1754,7 @@ router.post("/:goalId/habits", async (req: Request, res: Response) => {
         targetValue: targetValue || 1,
         currentValue: 0,
         goalSpecificStreak: 0,
+        frequencySettings: req.body.frequencySettings || null,
       })
       .returning();
 

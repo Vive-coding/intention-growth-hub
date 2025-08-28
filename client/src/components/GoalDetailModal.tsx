@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { ArrowLeft, Edit, Plus, Flame, X, Search, CheckCircle, Archive, Trash } from "lucide-react";
+import { ArrowLeft, Edit, Plus, Flame, X, CheckCircle, Archive, Trash } from "lucide-react";
 
 import { HabitCompletionProgress } from "./HabitCompletionProgress";
 import { Input } from "@/components/ui/input";
@@ -109,9 +109,49 @@ export const GoalDetailModal = ({
   const [newHabitCategory, setNewHabitCategory] = useState(goalData.lifeMetric.name);
   const [newHabitFrequency, setNewHabitFrequency] = useState("daily");
   const [newHabitTargetCompletions, setNewHabitTargetCompletions] = useState(1);
+  const [newHabitPeriods, setNewHabitPeriods] = useState(1);
+  const [existingHabitFrequency, setExistingHabitFrequency] = useState("daily");
+  const [existingHabitPerPeriod, setExistingHabitPerPeriod] = useState(1);
+  const [existingHabitPeriods, setExistingHabitPeriods] = useState(1);
   const [activeTab, setActiveTab] = useState("select");
   const [targetValue, setTargetValue] = useState(1);
   const [selectedHabitId, setSelectedHabitId] = useState("");
+  const [showHabitList, setShowHabitList] = useState(false);
+  
+  // Calculate periods based on goal target date and frequency
+  const calculatePeriodsFromTargetDate = (frequency: string) => {
+    if (!goalData.targetDate) return 1;
+    const targetDate = new Date(goalData.targetDate);
+    const today = new Date();
+    const diffTime = targetDate.getTime() - today.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    switch (frequency) {
+      case 'daily':
+        return Math.max(1, diffDays);
+      case 'weekly':
+        return Math.max(1, Math.ceil(diffDays / 7));
+      case 'monthly':
+        return Math.max(1, Math.ceil(diffDays / 30));
+      default:
+        return Math.max(1, diffDays);
+    }
+  };
+  
+  // Auto-set periods when frequency changes (if goal has target date)
+  useEffect(() => {
+    if (goalData.targetDate) {
+      const calculatedPeriods = calculatePeriodsFromTargetDate(newHabitFrequency);
+      setNewHabitPeriods(calculatedPeriods);
+    }
+  }, [newHabitFrequency, goalData.targetDate]);
+  
+  useEffect(() => {
+    if (goalData.targetDate) {
+      const calculatedPeriods = calculatePeriodsFromTargetDate(existingHabitFrequency);
+      setExistingHabitPeriods(calculatedPeriods);
+    }
+  }, [existingHabitFrequency, goalData.targetDate]);
   
   // Edit goal panel state
   const [editTitle, setEditTitle] = useState(goalData.title);
@@ -543,6 +583,11 @@ export const GoalDetailModal = ({
           body: JSON.stringify({
             habitDefinitionId: selectedHabitId,
             targetValue: targetValue,
+            frequencySettings: {
+              frequency: existingHabitFrequency,
+              perPeriodTarget: existingHabitPerPeriod,
+              periodsCount: existingHabitPeriods,
+            },
           }),
         });
         
@@ -601,6 +646,11 @@ export const GoalDetailModal = ({
           body: JSON.stringify({
             habitDefinitionId: createResponse.id,
             targetValue: targetValue,
+            frequencySettings: {
+              frequency: newHabitFrequency,
+              perPeriodTarget: newHabitTargetCompletions,
+              periodsCount: newHabitPeriods,
+            },
           }),
         });
         
@@ -623,6 +673,10 @@ export const GoalDetailModal = ({
       setNewHabitDescription("");
       setNewHabitFrequency("daily");
       setNewHabitTargetCompletions(1);
+      setNewHabitPeriods(1);
+      setExistingHabitFrequency("daily");
+      setExistingHabitPerPeriod(1);
+      setExistingHabitPeriods(1);
       setTargetValue(1);
       setSearchTerm("");
       setShowAddHabitPanel(false);
@@ -648,9 +702,9 @@ export const GoalDetailModal = ({
   return (
     <>
       <Dialog open={isOpen} onOpenChange={onClose}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl w-11/12 max-h-[90vh] overflow-y-auto overflow-x-hidden">
           {/* Main Goal Content */}
-          <div className={`transition-transform duration-300 ${showAddHabitPanel ? '-translate-x-full' : 'translate-x-0'}`}>
+          <div className={`transition-transform duration-300 overflow-x-hidden ${showAddHabitPanel || showEditPanel ? '-translate-x-full' : 'translate-x-0'}`}>
             <DialogHeader>
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2">
@@ -696,10 +750,10 @@ export const GoalDetailModal = ({
               <DialogTitle className="text-xl font-bold">{goalData.title}</DialogTitle>
             </DialogHeader>
 
-            <div className="space-y-6">
+            <div className="space-y-6 px-2 sm:px-0 overflow-x-hidden">
             {/* Goal Progress Section */}
             <Card>
-              <CardContent className="p-6">
+              <CardContent className="p-3 sm:p-6">
                 <h3 className="font-semibold text-lg mb-4">Overall Progress</h3>
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
@@ -763,16 +817,17 @@ export const GoalDetailModal = ({
 
             {/* Associated Habits Section */}
             <Card>
-              <CardContent className="p-6">
+              <CardContent className="p-3 sm:p-6">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="font-semibold text-lg">Associated Habits</h3>
                   <Button
                     onClick={() => setShowAddHabitPanel(true)}
                     size="sm"
-                    className="flex items-center space-x-2"
+                    className="flex items-center space-x-2 text-xs sm:text-sm"
                   >
                     <Plus className="w-4 h-4" />
-                    <span>Add Habit</span>
+                    <span className="hidden sm:inline">Add Habit</span>
+                    <span className="sm:hidden">Add</span>
                   </Button>
                 </div>
                 
@@ -810,8 +865,8 @@ export const GoalDetailModal = ({
         </div>
 
         {/* Add Habit Sliding Panel */}
-        <div className={`absolute inset-0 bg-white transition-transform duration-300 ${showAddHabitPanel ? 'translate-x-0' : 'translate-x-full'}`}>
-          <div className="p-6 h-full overflow-y-auto">
+        <div className={`absolute inset-0 bg-white transition-transform duration-300 ${showAddHabitPanel ? 'translate-x-0' : 'translate-x-full'} z-10`}>
+          <div className="p-3 sm:p-6 h-full flex flex-col overflow-hidden bg-white relative" style={{ height: 'calc(90vh - 2rem)' }}>
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center space-x-2">
                 <Button
@@ -830,106 +885,209 @@ export const GoalDetailModal = ({
               </div>
             </div>
             
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <div className="flex-1 overflow-y-auto overflow-x-hidden">
+              <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
               <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="select">Select Existing</TabsTrigger>
-                <TabsTrigger value="create">Create New</TabsTrigger>
+                              <TabsTrigger value="select" className="text-xs sm:text-sm">Select Existing</TabsTrigger>
+              <TabsTrigger value="create" className="text-xs sm:text-sm">Create New</TabsTrigger>
               </TabsList>
 
               <TabsContent value="select" className="space-y-4 mt-4">
-                {/* Top recommended (compact) */}
-                {Array.isArray(recommendedHabits) && recommendedHabits.length > 0 && (
-                  <div>
-                    <div className="text-xs uppercase tracking-wide text-gray-500 mb-2">Recommended</div>
-                    <div className="grid grid-cols-1 gap-2">
-                      {recommendedHabits.map((h: any) => (
-                        <button
-                          key={h.id}
-                          onClick={() => setSelectedHabitId(h.id)}
-                          className={`flex items-start justify-between rounded-md border p-2 text-left hover:bg-gray-50 ${selectedHabitId === h.id ? 'border-blue-500 bg-blue-50' : 'border-gray-200'}`}
-                        >
-                          <div className="pr-3">
-                            <div className="font-medium text-sm">{h.title}</div>
-                            {h.description && <div className="text-xs text-gray-600 line-clamp-2">{h.description}</div>}
-                          </div>
-                          <div className="text-[10px] text-gray-500">Score {(h.score*100).toFixed(0)}</div>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                  <Input
-                    placeholder="Search habits..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10"
-                  />
-                </div>
-                
                 <div className="space-y-2">
                   <p className="text-sm text-gray-600">Select a habit to add to this goal:</p>
-                  {isLoading ? (
-                    <div className="text-center py-4">
-                      <div className="text-gray-600">Loading habits...</div>
-                    </div>
-                  ) : (
-                    <div className="space-y-2 max-h-60 overflow-y-auto">
-                      {existingHabits
-                        .filter((habit: any) =>
-                          habit.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          habit.description?.toLowerCase().includes(searchTerm.toLowerCase())
-                        )
-                        .filter((habit: any) => 
-                          // Filter out habits that are already associated with this goal
-                          !goalData.habits.some((associatedHabit: any) => 
-                            associatedHabit.id === habit.id
-                          )
-                        )
-                        .map((habit: any) => (
-                          <div
-                            key={habit.id}
-                            className={`p-2 border rounded-md cursor-pointer transition-colors ${
-                              selectedHabitId === habit.id
-                                ? 'border-blue-500 bg-blue-50'
-                                : 'border-gray-200 hover:bg-gray-50'
-                            } ${!habit.isActive ? 'opacity-60' : ''}`}
-                            onClick={() => setSelectedHabitId(habit.id)}
-                          >
-                            <div className="flex items-center justify-between">
-                              <div className="font-medium text-sm">{habit.title}</div>
-                              {/* Recommendation badge removed per simplified behavior */}
-                              {!habit.isActive && (
-                                <span className="text-[10px] text-gray-500 bg-gray-100 px-2 py-0.5 rounded">
-                                  Inactive
-                                </span>
-                              )}
+                  
+                  {/* Expandable Habit Selection */}
+                  <div className="space-y-2">
+                    
+                    {/* Selected Habit Display */}
+                    {selectedHabitId && (
+                      <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1">
+                            <div className="font-medium text-sm text-blue-800">
+                              {existingHabits.find(h => h.id === selectedHabitId)?.title}
                             </div>
-                            {habit.description && (
-                              <div className="text-xs text-gray-600 mt-1 line-clamp-2">{habit.description}</div>
+                            {existingHabits.find(h => h.id === selectedHabitId)?.description && (
+                              <div className="text-xs text-blue-600 mt-1">
+                                {existingHabits.find(h => h.id === selectedHabitId)?.description}
+                              </div>
                             )}
                           </div>
-                        ))}
-                    </div>
-                  )}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setSelectedHabitId("")}
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          >
+                            <X className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Expandable Habit List */}
+                    {showHabitList && (
+                      <div className="border rounded-md max-h-64 overflow-y-auto">
+                        {/* Search Input */}
+                        <div className="p-3 border-b bg-gray-50">
+                          <Input
+                            placeholder="Search habits..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="h-8 text-sm"
+                          />
+                        </div>
+                        
+                        {/* Recommended Habits Section */}
+                        {Array.isArray(recommendedHabits) && recommendedHabits.length > 0 && (
+                          <>
+                            <div className="px-3 py-2 text-xs font-medium text-gray-500 bg-gray-100 border-b">
+                              RECOMMENDED
+                            </div>
+                            {recommendedHabits
+                              .filter((habit: any) =>
+                                habit.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                                habit.description?.toLowerCase().includes(searchTerm.toLowerCase())
+                              )
+                              .filter((habit: any) => 
+                                // Filter out habits that are already associated with this goal
+                                !goalData.habits.some((associatedHabit: any) => 
+                                  associatedHabit.id === habit.id
+                                )
+                              )
+                              .map((habit: any) => (
+                                <div
+                                  key={habit.id}
+                                  className={`p-3 border-b cursor-pointer hover:bg-gray-50 ${
+                                    selectedHabitId === habit.id ? 'bg-blue-50 border-blue-200' : ''
+                                  }`}
+                                  onClick={() => setSelectedHabitId(habit.id)}
+                                >
+                                  <div className="flex justify-between items-start">
+                                    <div className="flex-1">
+                                      <div className="font-medium text-sm">{habit.title}</div>
+                                      {habit.description && (
+                                        <div className="text-xs text-gray-600 line-clamp-2 mt-1">{habit.description}</div>
+                                      )}
+                                    </div>
+                                    <div className="text-xs text-gray-500 ml-3 flex-shrink-0">
+                                      Score {(habit.score*100).toFixed(0)}
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                          </>
+                        )}
+                        
+                        {/* All Other Habits */}
+                        <div className="px-3 py-2 text-xs font-medium text-gray-500 bg-gray-100 border-b">
+                          ALL HABITS
+                        </div>
+                        {existingHabits
+                          .filter((habit: any) =>
+                            habit.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                            habit.description?.toLowerCase().includes(searchTerm.toLowerCase())
+                          )
+                          .filter((habit: any) => 
+                            // Filter out habits that are already associated with this goal
+                            !goalData.habits.some((associatedHabit: any) => 
+                              associatedHabit.id === habit.id
+                            )
+                          )
+                          .map((habit: any) => (
+                            <div
+                              key={habit.id}
+                              className={`p-3 border-b cursor-pointer hover:bg-gray-50 ${
+                                selectedHabitId === habit.id ? 'bg-blue-50 border-blue-200' : ''
+                              }`}
+                              onClick={() => setSelectedHabitId(habit.id)}
+                            >
+                              <div className="font-medium text-sm">{habit.title}</div>
+                              {habit.description && (
+                                <div className="text-xs text-gray-600 line-clamp-2 mt-1">{habit.description}</div>
+                              )}
+                            </div>
+                          ))}
+                      </div>
+                    )}
+                  </div>
+                  
                 </div>
                 
-                {selectedHabitId && (
-                  <div className="space-y-2">
-                    <Label htmlFor="targetValue">Target Value for this Goal</Label>
-                    <Input
-                      id="targetValue"
-                      type="number"
-                      min="1"
-                      value={targetValue}
-                      onChange={(e) => setTargetValue(Number(e.target.value))}
-                      placeholder="e.g., 5"
-                    />
-                    <p className="text-xs text-gray-500">How many times should this habit be completed to contribute to the goal?</p>
+                {/* Target Setting Module - Always Visible */}
+                <div className="space-y-4">
+                  <div className="bg-gray-50 p-4 rounded-lg">
+                    <h4 className="font-medium text-sm mb-3">
+                      Set Habit Targets for this Goal
+                      {selectedHabitId ? (
+                        <span className="text-xs text-gray-500 ml-2">
+                          (Selected: {selectedHabitId})
+                        </span>
+                      ) : (
+                        <span className="text-xs text-gray-500 ml-2">
+                          (Select a habit above to configure targets)
+                        </span>
+                      )}
+                    </h4>
+                      
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div>
+                          <Label htmlFor="existingHabitFrequency">Frequency</Label>
+                          <Select value={existingHabitFrequency} onValueChange={setExistingHabitFrequency}>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select frequency" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="daily">Daily</SelectItem>
+                              <SelectItem value="weekly">Weekly</SelectItem>
+                              <SelectItem value="monthly">Monthly</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        
+                        <div>
+                          <Label htmlFor="existingHabitPerPeriod">Target per period</Label>
+                          <Input
+                            id="existingHabitPerPeriod"
+                            type="number"
+                            min="1"
+                            value={existingHabitPerPeriod}
+                            onChange={(e) => setExistingHabitPerPeriod(Number(e.target.value))}
+                            placeholder="e.g., 1"
+                          />
+                        </div>
+                        
+                        <div>
+                          <Label htmlFor="existingHabitPeriods">
+                            {existingHabitFrequency === 'daily' ? 'Number of days' : 
+                             existingHabitFrequency === 'weekly' ? 'Number of weeks' : 
+                             'Number of months'}
+                          </Label>
+                          <Input
+                            id="existingHabitPeriods"
+                            type="number"
+                            min="1"
+                            value={existingHabitPeriods}
+                            onChange={(e) => setExistingHabitPeriods(Number(e.target.value))}
+                            placeholder="e.g., 7"
+                          />
+                        </div>
+                      </div>
+                      
+                      <div className="mt-3 p-3 bg-blue-50 rounded border border-blue-200">
+                        <div className="text-sm text-blue-800">
+                          <strong>Target:</strong> {existingHabitPerPeriod} per {existingHabitFrequency} × {existingHabitPeriods} {existingHabitFrequency === 'daily' ? 'days' : existingHabitFrequency === 'weekly' ? 'weeks' : 'months'} = {existingHabitPerPeriod * existingHabitPeriods} total
+                        </div>
+                      </div>
+                      
+                      {!selectedHabitId && (
+                        <div className="text-center py-4 text-sm text-gray-500">
+                          Select a habit above to configure its targets for this goal
+                        </div>
+                      )}
+                    </div>
                   </div>
-                )}
-              </TabsContent>
+                </TabsContent>
 
               <TabsContent value="create" className="space-y-4 mt-4">
                 <div>
@@ -952,53 +1110,68 @@ export const GoalDetailModal = ({
                   />
                 </div>
                 
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="newHabitFrequency">Target Frequency</Label>
-                    <Select value={newHabitFrequency} onValueChange={setNewHabitFrequency}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="daily">Daily</SelectItem>
-                        <SelectItem value="weekly">Weekly</SelectItem>
-                        <SelectItem value="monthly">Monthly</SelectItem>
-                      </SelectContent>
-                    </Select>
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <h4 className="font-medium text-sm mb-3">Set Habit Targets</h4>
+                  
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div>
+                      <Label htmlFor="newHabitFrequency">Frequency</Label>
+                      <Select value={newHabitFrequency} onValueChange={setNewHabitFrequency}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="daily">Daily</SelectItem>
+                          <SelectItem value="weekly">Weekly</SelectItem>
+                          <SelectItem value="monthly">Monthly</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    <div>
+                      <Label htmlFor="newHabitTargetCompletions">Target per period</Label>
+                      <Input
+                        id="newHabitTargetCompletions"
+                        type="number"
+                        min="1"
+                        value={newHabitTargetCompletions}
+                        onChange={(e) => setNewHabitTargetCompletions(Number(e.target.value))}
+                        placeholder="e.g., 1"
+                      />
+                    </div>
+                    
+                    <div>
+                      <Label htmlFor="newHabitPeriods">
+                        {newHabitFrequency === 'daily' ? 'Number of days' : 
+                         newHabitFrequency === 'weekly' ? 'Number of weeks' : 
+                         'Number of months'}
+                      </Label>
+                      <Input
+                        id="newHabitPeriods"
+                        type="number"
+                        min="1"
+                        value={newHabitPeriods || 1}
+                        onChange={(e) => setNewHabitPeriods(Number(e.target.value))}
+                        placeholder="e.g., 7"
+                      />
+                    </div>
                   </div>
                   
-                  <div>
-                    <Label htmlFor="newHabitTargetCompletions">Target Count</Label>
-                    <Input
-                      id="newHabitTargetCompletions"
-                      type="number"
-                      min="1"
-                      value={newHabitTargetCompletions}
-                      onChange={(e) => setNewHabitTargetCompletions(Number(e.target.value))}
-                    />
+                  <div className="mt-3 p-3 bg-blue-50 rounded border border-blue-200">
+                    <div className="text-sm text-blue-800">
+                      <strong>Target:</strong> {newHabitTargetCompletions} per {newHabitFrequency} × {newHabitPeriods} {newHabitFrequency === 'daily' ? 'days' : newHabitFrequency === 'weekly' ? 'weeks' : 'months'} = {newHabitTargetCompletions * newHabitPeriods} total
+                    </div>
                   </div>
                 </div>
-                
-                <div>
-                  <Label htmlFor="newHabitTargetValue">Target Value for this Goal</Label>
-                  <Input
-                    id="newHabitTargetValue"
-                    type="number"
-                    min="1"
-                    value={targetValue}
-                    onChange={(e) => setTargetValue(Number(e.target.value))}
-                    placeholder="e.g., 5"
-                  />
-                  <p className="text-xs text-gray-500">How many times should this habit be completed to contribute to the goal?</p>
-                </div>
               </TabsContent>
-            </Tabs>
+                          </Tabs>
+            </div>
             
-            <div className="flex justify-end space-x-2 pt-6">
-              <Button variant="outline" onClick={() => setShowAddHabitPanel(false)}>
+            <div className="flex flex-col sm:flex-row justify-end gap-2 pt-6 mt-4">
+              <Button variant="outline" onClick={() => setShowAddHabitPanel(false)} className="w-full sm:w-auto">
                 Cancel
               </Button>
-              <Button onClick={handleAddHabit}>
+              <Button onClick={handleAddHabit} className="w-full sm:w-auto">
                 Add Habit
               </Button>
             </div>
@@ -1006,8 +1179,8 @@ export const GoalDetailModal = ({
         </div>
 
         {/* Edit Goal Sliding Panel */}
-        <div className={`absolute inset-0 bg-white transition-transform duration-300 ${showEditPanel ? 'translate-x-0' : 'translate-x-full'}`}>
-          <div className="p-6 h-full overflow-y-auto">
+        <div className={`absolute inset-0 bg-white transition-transform duration-300 ${showEditPanel ? 'translate-x-0' : 'translate-x-full'} z-10`}>
+          <div className="p-3 sm:p-6 h-full flex flex-col overflow-hidden bg-white relative" style={{ height: 'calc(90vh - 2rem)' }}>
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center space-x-2">
                 <Button 
@@ -1026,69 +1199,71 @@ export const GoalDetailModal = ({
               </div>
             </div>
             
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="editTitle">Goal Title *</Label>
-                <Input
-                  id="editTitle"
-                  value={editTitle}
-                  onChange={(e) => setEditTitle(e.target.value)}
-                  placeholder="e.g., Improve Sleep Quality"
-                />
-              </div>
+            <div className="flex-1 overflow-y-auto overflow-x-hidden">
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="editTitle">Goal Title *</Label>
+                  <Input
+                    id="editTitle"
+                    value={editTitle}
+                    onChange={(e) => setEditTitle(e.target.value)}
+                    placeholder="e.g., Improve Sleep Quality"
+                  />
+                </div>
 
-              <div>
-                <Label htmlFor="editDescription">Description</Label>
-                <Textarea
-                  id="editDescription"
-                  value={editDescription}
-                  onChange={(e) => setEditDescription(e.target.value)}
-                  placeholder="Describe your goal..."
-                  rows={3}
-                />
-              </div>
+                <div>
+                  <Label htmlFor="editDescription">Description</Label>
+                  <Textarea
+                    id="editDescription"
+                    value={editDescription}
+                    onChange={(e) => setEditDescription(e.target.value)}
+                    placeholder="Describe your goal..."
+                    rows={3}
+                  />
+                </div>
 
-              <div>
-                <Label htmlFor="editLifeMetric">Life Metric</Label>
-                <Select value={editLifeMetricId} onValueChange={setEditLifeMetricId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder={goalData.lifeMetric.name} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {lifeMetrics.map((metric: any) => (
-                      <SelectItem key={metric.id} value={metric.id}>
-                        {metric.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+                <div>
+                  <Label htmlFor="editLifeMetric">Life Metric</Label>
+                  <Select value={editLifeMetricId} onValueChange={setEditLifeMetricId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder={goalData.lifeMetric.name} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {lifeMetrics.map((metric: any) => (
+                        <SelectItem key={metric.id} value={metric.id}>
+                          {metric.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
 
-              <div>
-                <Label htmlFor="editTargetDate">Target Date (Optional)</Label>
-                <Input
-                  id="editTargetDate"
-                  type="date"
-                  value={editTargetDate}
-                  onChange={(e) => setEditTargetDate(e.target.value)}
-                />
+                <div>
+                  <Label htmlFor="editTargetDate">Target Date (Optional)</Label>
+                  <Input
+                    id="editTargetDate"
+                    type="date"
+                    value={editTargetDate}
+                    onChange={(e) => setEditTargetDate(e.target.value)}
+                  />
+                </div>
               </div>
+            </div>
 
-              <div className="flex space-x-3 pt-4">
-                <Button 
-                  onClick={() => setShowEditPanel(false)}
-                  variant="outline"
-                  className="flex-1"
-                >
-                  Cancel
-                </Button>
-                <Button 
-                  onClick={handleEditGoal}
-                  className="flex-1"
-                >
-                  Save Changes
-                </Button>
-              </div>
+            <div className="flex space-x-3 pt-4">
+              <Button 
+                onClick={() => setShowEditPanel(false)}
+                variant="outline"
+                className="flex-1"
+              >
+                Cancel
+              </Button>
+              <Button 
+                onClick={handleEditGoal}
+                className="flex-1"
+              >
+                Save Changes
+              </Button>
             </div>
           </div>
         </div>
