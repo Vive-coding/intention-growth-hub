@@ -800,7 +800,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           id: habitInstances.id,
           targetValue: habitInstances.targetValue,
           goalId: goalInstances.id,
-          frequencySettings: habitInstances.frequencySettings,
         })
         .from(habitInstances)
         .innerJoin(goalInstances, eq(habitInstances.goalInstanceId, goalInstances.id))
@@ -845,11 +844,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .update(habitInstances)
         .set({
           targetValue: targetValue || 1,
-          frequencySettings: {
-            frequency: frequency || 'daily',
-            perPeriodTarget: perPeriodTarget || 1,
-            periodsCount: periodsCount || 1
-          }
+          // Note: frequencySettings field not yet added to database
+          // Will be enabled after running: ALTER TABLE habit_instances ADD COLUMN frequency_settings JSONB;
         })
         .where(and(
           eq(habitInstances.habitDefinitionId, habitDefinitionId),
