@@ -7,7 +7,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Edit } from "lucide-react";
-import { EditHabitModal } from "./EditHabitModal";
+import { EditHabitWizardModal } from "./EditHabitWizardModal";
 
 // Custom pill color mapping for unique, meaningful colors
 const getPillBackgroundColor = (metricName: string) => {
@@ -191,11 +191,16 @@ export function HabitCompletionCard({ habit }: HabitCompletionCardProps) {
           </Button>
         </div>
 
-        <EditHabitModal
+        <EditHabitWizardModal
           isOpen={isEditing}
           onClose={() => setIsEditing(false)}
-          habit={{ id: habit.id, title: habit.title, description: habit.description }}
-          onSaved={() => {
+          habit={{ 
+            id: habit.id, 
+            title: habit.title, 
+            description: habit.description,
+            category: habit.category 
+          }}
+          onHabitUpdated={() => {
             queryClient.invalidateQueries({ queryKey: ["habits"] });
             queryClient.invalidateQueries({ queryKey: ["/api/goals"] });
           }}

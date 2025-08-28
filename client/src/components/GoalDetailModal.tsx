@@ -82,6 +82,8 @@ export const GoalDetailModal = ({
 
   console.log('Goal data:', goalData);
   console.log('Associated habits:', goalData.habits);
+  console.log('Goal ID:', goalData.id);
+  console.log('Sample habit structure:', goalData.habits[0]);
 
   const [progress, setProgress] = useState(goalData.progress);
   // Split habit vs manual so users can see the adjustment that explains the number
@@ -780,14 +782,26 @@ export const GoalDetailModal = ({
                       No habits associated with this goal yet.
                     </p>
                   ) : (
-                    goalData.habits.map((habit) => (
-                      <HabitCompletionProgress
-                        key={habit.id}
-                        habit={habit}
+                    goalData.habits.map((habit) => {
+                      console.log('Full habit data:', habit);
+                      return (
+                        <HabitCompletionProgress
+                          key={habit.id}
+                                                                          habit={{
+                          ...habit,
+                          goalId: goalData.id,
+                          habitDefinitionId: habit.id, // This is the habit definition ID
+                        }}
                         onComplete={() => handleHabitComplete(habit.id)}
                         onRemove={() => onRemoveHabit(goalData.id, habit.id)}
-                      />
-                    ))
+                        onHabitUpdated={() => {
+                          // Refresh goal data to show updated habit targets
+                          queryClient.invalidateQueries({ queryKey: ['/api/goals'] });
+                          queryClient.invalidateQueries({ queryKey: ['/api/goals', goalData.id] });
+                        }}
+                        />
+                      );
+                    })
                   )}
                 </div>
               </CardContent>

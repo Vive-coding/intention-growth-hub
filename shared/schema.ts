@@ -213,6 +213,7 @@ export const habitInstances = pgTable("habit_instances", {
   targetValue: integer("target_value").notNull(), // How many times needed for this goal
   currentValue: integer("current_value").default(0), // How many times completed for this goal
   goalSpecificStreak: integer("goal_specific_streak").default(0), // Streak for this specific goal
+  frequencySettings: jsonb("frequency_settings"), // Store frequency breakdown: {frequency, perPeriodTarget, periodsCount}
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
