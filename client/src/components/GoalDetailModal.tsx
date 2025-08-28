@@ -116,7 +116,6 @@ export const GoalDetailModal = ({
   const [activeTab, setActiveTab] = useState("select");
   const [targetValue, setTargetValue] = useState(1);
   const [selectedHabitId, setSelectedHabitId] = useState("");
-  const [showHabitList, setShowHabitList] = useState(false);
   
   // Calculate periods based on goal target date and frequency
   const calculatePeriodsFromTargetDate = (frequency: string) => {
@@ -925,9 +924,8 @@ export const GoalDetailModal = ({
                       </div>
                     )}
                     
-                    {/* Expandable Habit List */}
-                    {showHabitList && (
-                      <div className="border rounded-md max-h-64 overflow-y-auto">
+                    {/* Habit List - Always Visible */}
+                    <div className="border rounded-md max-h-64 overflow-y-auto">
                         {/* Search Input */}
                         <div className="p-3 border-b bg-gray-50">
                           <Input
@@ -1009,7 +1007,6 @@ export const GoalDetailModal = ({
                             </div>
                           ))}
                       </div>
-                    )}
                   </div>
                   
                 </div>
