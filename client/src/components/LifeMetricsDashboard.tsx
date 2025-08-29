@@ -263,39 +263,52 @@ export const LifeMetricsDashboard = ({
             </Button>
           </div>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-3 grid-rows-2 gap-1 sm:gap-2 lg:gap-3 xl:gap-4">
           {previewMetrics.map((metric, index) => (
-            <Card key={index} className="bg-gray-50/50">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="font-medium text-gray-700 text-sm">{metric.category}</h3>
+            <div 
+              key={index} 
+              className="flex flex-col items-center justify-center space-y-1 lg:space-y-2 p-1 lg:p-2 rounded-lg min-h-[80px] sm:min-h-[100px] lg:min-h-[120px]"
+            >
+              <div className="relative w-10 h-10 sm:w-12 sm:h-12 lg:w-16 lg:h-16">
+                <svg className="w-10 h-10 sm:w-12 sm:h-12 lg:w-16 lg:h-16 transform -rotate-90" viewBox="0 0 64 64">
+                  {/* Background circle - use metric color with light opacity */}
+                  <circle
+                    cx="32"
+                    cy="32"
+                    r="30"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                    fill="transparent"
+                    className={metric.color}
+                    style={{ opacity: 0.3 }}
+                  />
+                  {/* Progress circle - same color, no progress */}
+                  <circle
+                    cx="32"
+                    cy="32"
+                    r="30"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                    fill="transparent"
+                    strokeDasharray="188.5, 188.5"
+                    strokeDashoffset="188.5"
+                    className={metric.color}
+                  />
+                </svg>
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <span className={`text-xs font-bold ${metric.color}`}>0%</span>
                 </div>
-                <div className="flex justify-center">
-                  <div className="relative">
-                    <svg className="w-16 h-16 transform -rotate-90" viewBox="0 0 36 36">
-                      <path
-                        className="text-gray-200"
-                        stroke="currentColor"
-                        strokeWidth="3"
-                        fill="none"
-                        d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                      />
-                      <path
-                        className="text-gray-400"
-                        stroke="currentColor"
-                        strokeWidth="3"
-                        fill="none"
-                        strokeDasharray="100, 100"
-                        d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                      />
-                    </svg>
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <span className="text-xs font-medium text-gray-500">0%</span>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+              </div>
+              <div 
+                className="inline-flex items-center justify-center px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-full text-[10px] sm:text-xs font-medium text-center leading-tight max-w-full"
+                style={{ 
+                  backgroundColor: getPillBackgroundColor(metric.category),
+                  color: getPillTextColor(metric.category)
+                }}
+              >
+                {metric.category}
+              </div>
+            </div>
           ))}
         </div>
         <div className="text-center mt-4">
@@ -314,8 +327,9 @@ export const LifeMetricsDashboard = ({
     const strokeDashoffset = circumference - (progress / 100) * circumference;
 
     return (
-      <div className="relative w-12 h-12 sm:w-16 sm:h-16 lg:w-20 lg:h-20">
-        <svg className="w-12 h-12 sm:w-16 sm:h-16 lg:w-20 lg:h-20 transform -rotate-90" viewBox="0 0 64 64">
+      <div className="relative w-10 h-10 sm:w-12 sm:h-12 lg:w-16 lg:h-16">
+        <svg className="w-10 h-10 sm:w-12 sm:h-12 lg:w-16 lg:h-16 transform -rotate-90" viewBox="0 0 64 64">
+          {/* Background circle - always use the metric color, not grey */}
           <circle
             cx="32"
             cy="32"
@@ -323,8 +337,10 @@ export const LifeMetricsDashboard = ({
             stroke="currentColor"
             strokeWidth="4"
             fill="transparent"
-            className="text-gray-200"
+            className={color}
+            style={{ opacity: 0.3 }} // Light version of the color for background
           />
+          {/* Progress circle - use the same color */}
           <circle
             cx="32"
             cy="32"
@@ -340,7 +356,7 @@ export const LifeMetricsDashboard = ({
         </svg>
         <div className="absolute inset-0 flex items-center justify-center">
           <span className={`text-xs font-bold ${color}`}>
-            {hasGoals ? `${progress}%` : 'No goals'}
+            {hasGoals ? `${progress}%` : '0%'}
           </span>
         </div>
       </div>
@@ -382,11 +398,11 @@ export const LifeMetricsDashboard = ({
         </div>
       </CardHeader>
       <CardContent>
-        <div className="grid grid-cols-3 grid-rows-2 gap-2 lg:gap-3 xl:gap-4">
+        <div className="grid grid-cols-3 grid-rows-2 gap-1 sm:gap-2 lg:gap-3 xl:gap-4">
           {metrics.map((metric) => (
             <div 
               key={metric.category} 
-              className="flex flex-col items-center space-y-1 lg:space-y-2 cursor-pointer hover:bg-gray-50 p-1 lg:p-2 rounded-lg transition-colors"
+              className="flex flex-col items-center justify-center space-y-1 lg:space-y-2 cursor-pointer hover:bg-gray-50 p-1 lg:p-2 rounded-lg transition-colors min-h-[80px] sm:min-h-[100px] lg:min-h-[120px]"
               onClick={() => {
                 console.log('🔍 Life metric clicked:', metric.category);
                 console.log('🔍 Token status before navigation:');
@@ -402,7 +418,7 @@ export const LifeMetricsDashboard = ({
                 hasGoals={metric.hasGoals}
               />
               <div 
-                className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium"
+                className="inline-flex items-center justify-center px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-full text-[10px] sm:text-xs font-medium text-center leading-tight max-w-full"
                 style={{ 
                   backgroundColor: getPillBackgroundColor(metric.category),
                   color: getPillTextColor(metric.category)

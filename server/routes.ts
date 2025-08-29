@@ -315,6 +315,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get all users (admin only - for now, we'll make it public for demo purposes)
+  app.get('/api/users/all', async (req: any, res) => {
+    try {
+      const allUsers = await storage.getAllUsers();
+      res.json({ 
+        totalUsers: allUsers.length,
+        users: allUsers.map(user => ({
+          id: user.id,
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          onboardingCompleted: user.onboardingCompleted,
+          createdAt: user.createdAt,
+          updatedAt: user.updatedAt
+        }))
+      });
+    } catch (error) {
+      console.error("Error getting all users:", error);
+      res.status(500).json({ message: "Failed to get users" });
+    }
+  });
+
 
 
   // Life metrics routes
