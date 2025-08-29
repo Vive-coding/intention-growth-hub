@@ -28,8 +28,17 @@ const Index = () => {
   const [isInDetailedView, setIsInDetailedView] = useState(false);
   const [dashboardKey, setDashboardKey] = useState(0);
   
-  // Check if user has completed onboarding from database
-  const hasCompletedOnboarding = typedUser?.onboardingCompleted ?? false;
+  // Check if user has completed onboarding - localStorage takes absolute priority
+  const localStorageOnboarding = localStorage.getItem("onboardingCompleted");
+  const hasCompletedOnboarding = localStorageOnboarding !== null ? localStorageOnboarding === "true" : (typedUser?.onboardingCompleted || false);
+  
+  // Debug onboarding logic
+  console.log('🔍 Onboarding Debug:', {
+    localStorageOnboarding: localStorage.getItem("onboardingCompleted"),
+    databaseOnboarding: typedUser?.onboardingCompleted,
+    finalResult: hasCompletedOnboarding,
+    bypassOnboarding: localStorage.getItem("bypassOnboarding")
+  });
   
   // Move all hooks to the top before any conditional returns
   const completeOnboardingMutation = useMutation({
@@ -51,7 +60,17 @@ const Index = () => {
 
   const handleOnboardingComplete = () => {
     console.log('handleOnboardingComplete called');
-    completeOnboardingMutation.mutate();
+    
+    // Set localStorage to mark onboarding as completed
+    localStorage.setItem('onboardingCompleted', 'true');
+    
+    // Invalidate user query to refetch updated data
+    queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
+    
+    // Force a small delay to ensure the query refetches
+    setTimeout(() => {
+      setCurrentScreen("home");
+    }, 100);
   };
   
   // Debug detailed view state changes
@@ -83,8 +102,11 @@ const Index = () => {
   }
 
   const renderScreen = () => {
-    // Show onboarding if user hasn't completed it
-    if (!hasCompletedOnboarding) {
+    // Check for bypass flag (important for local development)
+    const bypassOnboarding = localStorage.getItem("bypassOnboarding") === "true";
+    
+    // Show onboarding if user hasn't completed it and no bypass flag
+    if (!hasCompletedOnboarding && !bypassOnboarding) {
       return (
         <div>
           <OnboardingFlow onComplete={handleOnboardingComplete} />
@@ -131,7 +153,39 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-blue-50">
-      {/* Only show sidebar and navigation when not in onboarding */}
+      {/* Top-right profile bubble - always visible when authenticated */}
+      <div className="absolute right-6 top-6 z-40">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" className="rounded-full w-12 h-12 p-0 border-2 border-black bg-white shadow-sm">
+              <span className="w-11 h-11 rounded-full flex items-center justify-center text-base font-bold tracking-wide text-black">
+                {`${(typedUser?.firstName?.[0] || 'U').toUpperCase()}${(typedUser?.lastName?.[0] || '').toUpperCase()}`}
+              </span>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-56">
+            <div className="px-2 py-2">
+              <div className="text-sm font-semibold">{typedUser?.firstName || ''} {typedUser?.lastName || ''}</div>
+              <div className="text-xs text-gray-500">{typedUser?.email}</div>
+            </div>
+            <DropdownMenuItem onClick={() => setCurrentScreen("profile")}>Your account</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => {
+              // Set localStorage to force onboarding mode
+              localStorage.setItem('onboardingCompleted', 'false');
+              localStorage.removeItem('bypassOnboarding');
+              
+              // Force the user query to refetch
+              queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
+              
+              // Refresh the page to trigger onboarding flow
+              window.location.reload();
+            }}>Return to Onboarding</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => { localStorage.removeItem('user'); localStorage.removeItem('token'); window.location.reload(); }}>Log Out</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+
+      {/* Conditionally show sidebar and navigation based on onboarding status */}
       {hasCompletedOnboarding ? (
         <>
           <ResponsiveSidebar 
@@ -147,37 +201,6 @@ const Index = () => {
           />
           
           <div className="lg:ml-64 relative">
-            {/* Top-right profile bubble inline with page header area */}
-            <div className="absolute right-6 top-6 z-40">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="rounded-full w-12 h-12 p-0 border-2 border-black bg-white shadow-sm">
-                    <span className="w-11 h-11 rounded-full flex items-center justify-center text-base font-bold tracking-wide text-black">
-                      {`${(typedUser?.firstName?.[0] || 'U').toUpperCase()}${(typedUser?.lastName?.[0] || '').toUpperCase()}`}
-                    </span>
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-56">
-                  <div className="px-2 py-2">
-                    <div className="text-sm font-semibold">{typedUser?.firstName || ''} {typedUser?.lastName || ''}</div>
-                    <div className="text-xs text-gray-500">{typedUser?.email}</div>
-                  </div>
-                  <DropdownMenuItem onClick={() => setCurrentScreen("profile")}>Your account</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => {
-                    // Simple localStorage approach - no API calls needed
-                    localStorage.removeItem('onboardingCompleted');
-                    localStorage.removeItem('bypassOnboarding');
-                    
-                    // Force the user query to refetch
-                    queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
-                    
-                    // Refresh the page to trigger onboarding flow
-                    window.location.reload();
-                  }}>Return to Onboarding</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => { localStorage.removeItem('user'); localStorage.removeItem('token'); window.location.reload(); }}>Log Out</DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
             {renderScreen()}
           </div>
           
