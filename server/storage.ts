@@ -45,7 +45,7 @@ export interface IStorage {
   createUser(userData: { email: string; password: string; firstName: string; lastName: string; profileImageUrl?: string; onboardingCompleted?: boolean }): Promise<User>;
   upsertUser(user: UpsertUser): Promise<User>;
   completeOnboarding(userId: string): Promise<void>;
-  resetOnboarding(userId: string): Promise<void>;
+
   
   // Life metrics operations
   getUserLifeMetrics(userId: string): Promise<LifeMetricDefinition[]>;
@@ -364,15 +364,7 @@ export class DatabaseStorage implements IStorage {
       .where(eq(users.id, userId));
   }
 
-  async resetOnboarding(userId: string): Promise<void> {
-    await db
-      .update(users)
-      .set({ 
-        onboardingCompleted: false,
-        updatedAt: new Date(),
-      })
-      .where(eq(users.id, userId));
-  }
+
 
   // Life metrics operations
   async getUserLifeMetrics(userId: string): Promise<LifeMetricDefinition[]> {

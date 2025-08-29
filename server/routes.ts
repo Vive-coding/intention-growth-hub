@@ -20,14 +20,6 @@ import {
 } from "../shared/schema";
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  console.log('=== STARTING ROUTE REGISTRATION ===');
-  
-  // Add a simple test route immediately
-  app.get('/api/debug-test', (req, res) => {
-    console.log('Debug test endpoint hit!');
-    res.json({ message: "Debug test working", timestamp: new Date().toISOString() });
-  });
-  
   // Auth middleware based on environment
   const isDev = process.env.NODE_ENV === "development";
   if (isDev) {
@@ -323,31 +315,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Reset onboarding
-  app.post('/api/users/reset-onboarding', authMiddleware, async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub;
-      await storage.resetOnboarding(userId);
-      res.json({ success: true });
-    } catch (error) {
-      console.error("Error resetting onboarding:", error);
-      res.status(500).json({ message: "Failed to reset onboarding" });
-    }
-  });
 
-  // Test endpoint to verify server is working
-  app.get('/api/test', (req, res) => {
-    console.log('Test endpoint hit');
-    res.json({ message: "Server is working", timestamp: new Date().toISOString() });
-  });
-
-  // Public test endpoint (no auth required)
-  app.get('/api/public-test', (req, res) => {
-    console.log('Public test endpoint hit');
-    res.json({ message: "Public endpoint working", timestamp: new Date().toISOString() });
-  });
-
-  console.log('=== REGISTERING TEST ENDPOINTS ===');
 
   // Life metrics routes
   app.get('/api/life-metrics', authMiddleware, async (req: any, res) => {

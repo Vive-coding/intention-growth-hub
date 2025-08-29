@@ -163,34 +163,17 @@ const Index = () => {
                     <div className="text-xs text-gray-500">{typedUser?.email}</div>
                   </div>
                   <DropdownMenuItem onClick={() => setCurrentScreen("profile")}>Your account</DropdownMenuItem>
-                                <DropdownMenuItem onClick={async () => {
-                try {
-                  console.log('Attempting to reset onboarding...');
-                  
-                  // TEMPORARY WORKAROUND: Since the server endpoint isn't deployed yet,
-                  // we'll manually reset the onboarding state in localStorage
-                  console.log('Using temporary workaround - resetting localStorage state');
-                  
-                  // Clear any onboarding completion flags
-                  localStorage.removeItem('onboardingCompleted');
-                  localStorage.removeItem('bypassOnboarding');
-                  
-                  // Force the user query to refetch
-                  queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
-                  
-                  // Show success message
-                  alert('Onboarding reset successfully! Refreshing page...');
-                  
-                  // Refresh the page to trigger onboarding flow
-                  setTimeout(() => {
+                  <DropdownMenuItem onClick={() => {
+                    // Simple localStorage approach - no API calls needed
+                    localStorage.removeItem('onboardingCompleted');
+                    localStorage.removeItem('bypassOnboarding');
+                    
+                    // Force the user query to refetch
+                    queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
+                    
+                    // Refresh the page to trigger onboarding flow
                     window.location.reload();
-                  }, 500);
-                  
-                } catch (error) {
-                  console.error('Failed to reset onboarding:', error);
-                  alert(`Failed to reset onboarding: ${error.message}`);
-                }
-              }}>Return to Onboarding</DropdownMenuItem>
+                  }}>Return to Onboarding</DropdownMenuItem>
                   <DropdownMenuItem onClick={() => { localStorage.removeItem('user'); localStorage.removeItem('token'); window.location.reload(); }}>Log Out</DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
