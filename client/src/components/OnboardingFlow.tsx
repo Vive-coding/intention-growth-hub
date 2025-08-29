@@ -51,30 +51,30 @@ export const OnboardingFlow = ({ onComplete }: OnboardingFlowProps) => {
 
   return (
     <div className="min-h-screen flex items-start justify-center pt-20 p-6">
-      <Card className="w-full max-w-md mx-auto shadow-xl border-0 bg-white/80 backdrop-blur-sm min-h-[500px]">
-        <CardContent className="p-8 text-center">
-          {/* Icon section - further reduced height and margin */}
-          <div className="h-20 mb-1 flex items-center justify-center">
+      <Card className="w-full max-w-md mx-auto shadow-xl border-0 bg-white/80 backdrop-blur-sm min-h-[400px] sm:min-h-[500px]">
+        <CardContent className="p-4 sm:p-6 lg:p-8 text-center">
+          {/* Icon section - responsive height and margin */}
+          <div className="min-h-[16] sm:min-h-[20] mb-1 flex items-center justify-center">
             {currentStepData.icon}
           </div>
           
-          {/* Title section - minimal margin */}
-          <div className="h-12 mb-1 flex items-center justify-center">
-            <h1 className="text-2xl font-bold text-gray-800">
+          {/* Title section - responsive height and margin */}
+          <div className="min-h-[10] sm:min-h-[12] mb-1 flex items-center justify-center">
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-800">
               {currentStepData.title}
             </h1>
           </div>
           
-          {/* Subtitle section - minimal margin */}
-          <div className="h-8 mb-2 flex items-center justify-center">
-            <p className="text-lg text-green-600 font-medium">
+          {/* Subtitle section - responsive height and margin */}
+          <div className="min-h-[8] sm:min-h-[10] mb-4 flex items-center justify-center">
+            <p className="text-base sm:text-lg text-green-600 font-medium">
               {currentStepData.subtitle}
             </p>
           </div>
           
-          {/* Description section - fixed height */}
-          <div className="h-24 mb-8 flex items-center justify-center">
-            <p className="text-gray-600 leading-relaxed text-center">
+          {/* Description section - responsive height */}
+          <div className="min-h-[20] sm:min-h-[24] mb-8 flex items-center justify-center">
+            <p className="text-sm sm:text-base text-gray-600 leading-relaxed text-center px-2">
               {currentStepData.description}
             </p>
           </div>
