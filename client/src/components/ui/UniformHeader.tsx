@@ -25,8 +25,8 @@ export const UniformHeader: React.FC<UniformHeaderProps> = ({
   return (
     <header className="w-full bg-white/90 backdrop-blur-sm border-b border-gray-200 shadow-sm z-50">
       <div className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 lg:py-8">
-        {/* Logo - Left side - Only show on mobile/tablet (not desktop) */}
-        <div className="flex items-center lg:hidden">
+        {/* Logo - Left side - Show on all screen sizes */}
+        <div className="flex items-center">
           <Logo size="md" className="text-purple-600" />
         </div>
 

@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Heart, Shield, MessageCircle, ChevronRight, ChevronLeft } from "lucide-react";
+import { Heart, Shield, MessageCircle, ChevronRight, ChevronLeft, BookOpen } from "lucide-react";
 import { Logo } from "@/components/ui/Logo";
 
 interface OnboardingFlowProps {
@@ -26,10 +26,10 @@ export const OnboardingFlow = ({ onComplete }: OnboardingFlowProps) => {
       description: "Your conversations and insights are encrypted and private. We never share your personal data, and you have complete control over your information at all times.",
     },
     {
-      icon: <MessageCircle className="w-16 h-16 text-purple-500 mx-auto" />,
+      icon: <BookOpen className="w-16 h-16 text-purple-500 mx-auto" />,
       title: "Write Your First Journal Entry",
       subtitle: "Ready to reflect on your day?",
-      description: "Start your journey by writing about your day, goals, or any specific aspects you want to focus on - whether it's your health, career, relationships, or personal growth. This will help us understand your patterns and provide personalized insights.",
+      description: "Start your journey by writing about your day, goals, or any specific aspects you want to focus on. This will help us understand your patterns and provide personalized insights.",
     },
   ];
 
@@ -53,20 +53,20 @@ export const OnboardingFlow = ({ onComplete }: OnboardingFlowProps) => {
     <div className="min-h-screen flex items-start justify-center pt-20 p-6">
       <Card className="w-full max-w-md mx-auto shadow-xl border-0 bg-white/80 backdrop-blur-sm min-h-[500px]">
         <CardContent className="p-8 text-center">
-          {/* Icon section - fixed height */}
-          <div className="h-32 mb-4 flex items-center justify-center">
+          {/* Icon section - further reduced height and margin */}
+          <div className="h-20 mb-1 flex items-center justify-center">
             {currentStepData.icon}
           </div>
           
-          {/* Title section - fixed height */}
-          <div className="h-12 mb-2 flex items-center justify-center">
+          {/* Title section - minimal margin */}
+          <div className="h-12 mb-1 flex items-center justify-center">
             <h1 className="text-2xl font-bold text-gray-800">
               {currentStepData.title}
             </h1>
           </div>
           
-          {/* Subtitle section - fixed height */}
-          <div className="h-8 mb-4 flex items-center justify-center">
+          {/* Subtitle section - minimal margin */}
+          <div className="h-8 mb-2 flex items-center justify-center">
             <p className="text-lg text-green-600 font-medium">
               {currentStepData.subtitle}
             </p>

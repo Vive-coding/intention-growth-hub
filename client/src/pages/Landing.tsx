@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AuthModal } from "@/components/AuthModal";
-import { Target, TrendingUp, BookOpen, Users, Zap } from "lucide-react";
+import { Target, TrendingUp, BookOpen, Users, Zap, Flame } from "lucide-react";
 import { Logo } from "@/components/ui/Logo";
 
 export const Landing = () => {
@@ -146,7 +146,7 @@ export const Landing = () => {
             <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm">
               <CardHeader>
                 <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center mb-4">
-                  <Zap className="w-6 h-6 text-orange-600" />
+                  <Flame className="w-6 h-6 text-orange-600" />
                 </div>
                 <CardTitle className="text-xl">Habit Building</CardTitle>
               </CardHeader>
