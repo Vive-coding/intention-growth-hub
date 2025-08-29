@@ -27,10 +27,15 @@ export const ResponsiveSidebar = ({ currentScreen, onNavigate, className, isInDe
       className
     )}>
       <div className="flex flex-col h-full">
-        {/* Header */}
-        <div className="p-6 border-b border-sidebar-border">
+        {/* Header - Logo for desktop, Navigation text for mobile */}
+        <div className="p-3 lg:p-3 border-b border-sidebar-border">
           <div className="flex justify-center">
-            <Logo size="lg" className="text-sidebar-foreground" />
+            {/* Show logo on desktop (lg and above) */}
+            <div className="hidden lg:block">
+              <Logo size="lg" className="text-sidebar-foreground" />
+            </div>
+            {/* Show Navigation text on mobile/tablet */}
+            <div className="lg:hidden text-lg font-semibold text-sidebar-foreground">Navigation</div>
           </div>
         </div>
 

@@ -17,8 +17,7 @@ import { useMutation } from "@tanstack/react-query";
 import type { User as UserType } from "@shared/schema";
 import { HabitsScreen } from "@/components/HabitsScreen";
 import { Landing } from "./Landing";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { User } from "lucide-react";
+import { UniformHeader } from "@/components/ui/UniformHeader";
 
 const Index = () => {
   const { user, isLoading, isAuthenticated, shouldShowAuthButton } = useAuth();
@@ -153,36 +152,28 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-blue-50">
-      {/* Top-right profile bubble - always visible when authenticated */}
-      <div className="absolute right-6 top-6 z-40">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="rounded-full w-12 h-12 p-0 border-2 border-black bg-white shadow-sm">
-              <span className="w-11 h-11 rounded-full flex items-center justify-center text-base font-bold tracking-wide text-black">
-                {`${(typedUser?.firstName?.[0] || 'U').toUpperCase()}${(typedUser?.lastName?.[0] || '').toUpperCase()}`}
-              </span>
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56">
-            <div className="px-2 py-2">
-              <div className="text-sm font-semibold">{typedUser?.firstName || ''} {typedUser?.lastName || ''}</div>
-              <div className="text-xs text-gray-500">{typedUser?.email}</div>
-            </div>
-            <DropdownMenuItem onClick={() => setCurrentScreen("profile")}>Your account</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => {
-              // Set localStorage to force onboarding mode
-              localStorage.setItem('onboardingCompleted', 'false');
-              localStorage.removeItem('bypassOnboarding');
-              
-              // Force the user query to refetch
-              queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
-              
-              // Refresh the page to trigger onboarding flow
-              window.location.reload();
-            }}>Return to Onboarding</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => { localStorage.removeItem('user'); localStorage.removeItem('token'); window.location.reload(); }}>Log Out</DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+      {/* Uniform Header - always visible when authenticated */}
+      <div className="relative">
+        <UniformHeader 
+          user={typedUser}
+          onNavigate={setCurrentScreen}
+          onReturnToOnboarding={() => {
+            // Set localStorage to force onboarding mode
+            localStorage.setItem('onboardingCompleted', 'false');
+            localStorage.removeItem('bypassOnboarding');
+            
+            // Force the user query to refetch
+            queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
+            
+            // Refresh the page to trigger onboarding flow
+            window.location.reload();
+          }}
+          onLogout={() => { 
+            localStorage.removeItem('user'); 
+            localStorage.removeItem('token'); 
+            window.location.reload(); 
+          }}
+        />
       </div>
 
       {/* Conditionally show sidebar and navigation based on onboarding status */}
