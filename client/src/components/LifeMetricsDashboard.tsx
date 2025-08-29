@@ -329,7 +329,7 @@ export const LifeMetricsDashboard = ({
     return (
       <div className="relative w-10 h-10 sm:w-12 sm:h-12 lg:w-16 lg:h-16">
         <svg className="w-10 h-10 sm:w-12 sm:h-12 lg:w-16 lg:h-16 transform -rotate-90" viewBox="0 0 64 64">
-          {/* Background circle - always use the metric color, not grey */}
+          {/* Background circle - use grey for unfilled part */}
           <circle
             cx="32"
             cy="32"
@@ -337,8 +337,7 @@ export const LifeMetricsDashboard = ({
             stroke="currentColor"
             strokeWidth="4"
             fill="transparent"
-            className={color}
-            style={{ opacity: 0.3 }} // Light version of the color for background
+            className="text-gray-300"
           />
           {/* Progress circle - use the same color */}
           <circle
@@ -402,7 +401,7 @@ export const LifeMetricsDashboard = ({
           {metrics.map((metric) => (
             <div 
               key={metric.category} 
-              className="flex flex-col items-center justify-center space-y-1 lg:space-y-2 cursor-pointer hover:bg-gray-50 p-1 lg:p-2 rounded-lg transition-colors min-h-[90px] sm:min-h-[110px] lg:min-h-[130px]"
+              className="flex flex-col items-center justify-center space-y-1 lg:space-y-2 cursor-pointer hover:bg-gray-50 p-1 lg:p-2 rounded-lg transition-colors h-[100px] sm:h-[120px] lg:h-[140px]"
               onClick={() => {
                 console.log('🔍 Life metric clicked:', metric.category);
                 console.log('🔍 Token status before navigation:');
