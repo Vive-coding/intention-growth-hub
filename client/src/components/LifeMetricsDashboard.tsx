@@ -354,7 +354,7 @@ export const LifeMetricsDashboard = ({
           />
         </svg>
         <div className="absolute inset-0 flex items-center justify-center">
-          <span className={`text-xs font-bold ${color}`}>
+          <span className={`text-[10px] sm:text-xs font-bold ${color}`}>
             {hasGoals ? `${progress}%` : '0%'}
           </span>
         </div>
