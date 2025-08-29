@@ -20,6 +20,14 @@ import {
 } from "../shared/schema";
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  console.log('=== STARTING ROUTE REGISTRATION ===');
+  
+  // Add a simple test route immediately
+  app.get('/api/debug-test', (req, res) => {
+    console.log('Debug test endpoint hit!');
+    res.json({ message: "Debug test working", timestamp: new Date().toISOString() });
+  });
+  
   // Auth middleware based on environment
   const isDev = process.env.NODE_ENV === "development";
   if (isDev) {
