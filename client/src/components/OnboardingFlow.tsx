@@ -14,10 +14,7 @@ export const OnboardingFlow = ({ onComplete }: OnboardingFlowProps) => {
 
   const steps = [
     {
-      icon: <div className="flex flex-col items-center space-y-4">
-        <Logo size="lg" className="text-purple-600" />
-        <Heart className="w-12 h-12 text-green-500" />
-      </div>,
+      icon: <Heart className="w-16 h-16 text-green-500 mx-auto" />,
       title: "Welcome",
       subtitle: "Your personal companion for reflection and growth",
       description: "This app is the home for all the insights you discover with your AI companion. Together, we'll help you understand patterns, achieve goals, and celebrate your journey.",
@@ -53,7 +50,7 @@ export const OnboardingFlow = ({ onComplete }: OnboardingFlowProps) => {
   const currentStepData = steps[currentStep];
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-6">
+    <div className="min-h-screen flex items-start justify-center pt-20 p-6">
       <Card className="w-full max-w-md mx-auto shadow-xl border-0 bg-white/80 backdrop-blur-sm min-h-[500px]">
         <CardContent className="p-8 text-center">
           {/* Icon section - fixed height */}
