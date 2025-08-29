@@ -23,21 +23,13 @@ export const Landing = () => {
             <div className="flex items-center space-x-2">
               <Logo size="lg" className="text-gray-900" />
             </div>
-            <div className="flex space-x-3">
-              <Button
-                variant="outline"
-                onClick={() => handleAuthClick('signin')}
-                className="text-gray-700 hover:text-gray-900"
-              >
-                Sign In
-              </Button>
-              <Button
-                onClick={() => handleAuthClick('signup')}
-                className="bg-purple-600 hover:bg-purple-700 text-white"
-              >
-                Get Started
-              </Button>
-            </div>
+            <Button
+              variant="outline"
+              onClick={() => handleAuthClick('signin')}
+              className="text-gray-700 hover:text-gray-900"
+            >
+              Sign In
+            </Button>
           </div>
         </div>
       </header>
@@ -79,6 +71,7 @@ export const Landing = () => {
             Everything you need to grow intentionally
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {/* Top Row - Mobile First */}
             <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm">
               <CardHeader>
                 <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mb-4">
@@ -89,20 +82,6 @@ export const Landing = () => {
               <CardContent>
                 <p className="text-gray-600">
                   Write your thoughts and get AI-powered insights that help you understand your patterns and growth areas.
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm">
-              <CardHeader>
-                <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mb-4">
-                  <Target className="w-6 h-6 text-green-600" />
-                </div>
-                <CardTitle className="text-xl">Goal Tracking</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-gray-600">
-                  Set meaningful goals across all life areas and track your progress with visual metrics and insights.
                 </p>
               </CardContent>
             </Card>
@@ -123,18 +102,19 @@ export const Landing = () => {
 
             <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm">
               <CardHeader>
-                <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center mb-4">
-                  <Zap className="w-6 h-6 text-orange-600" />
+                <div className="w-12 h-12 bg-indigo-100 rounded-lg flex items-center justify-center mb-4">
+                  <Zap className="w-6 h-6 text-indigo-600" />
                 </div>
-                <CardTitle className="text-xl">Habit Building</CardTitle>
+                <CardTitle className="text-xl">Smart Suggestions</CardTitle>
               </CardHeader>
               <CardContent>
                 <p className="text-gray-600">
-                  Build positive habits and track your streaks to create lasting change in your life.
+                  Receive intelligent suggestions for goals and habits based on your unique patterns and aspirations.
                 </p>
               </CardContent>
             </Card>
 
+            {/* Bottom Row - Mobile Second */}
             <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm">
               <CardHeader>
                 <div className="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center mb-4">
@@ -151,14 +131,28 @@ export const Landing = () => {
 
             <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm">
               <CardHeader>
-                <div className="w-12 h-12 bg-indigo-100 rounded-lg flex items-center justify-center mb-4">
-                  <Logo size="md" className="text-indigo-600" />
+                <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mb-4">
+                  <Target className="w-6 h-6 text-green-600" />
                 </div>
-                <CardTitle className="text-xl">Smart Suggestions</CardTitle>
+                <CardTitle className="text-xl">Goal Tracking</CardTitle>
               </CardHeader>
               <CardContent>
                 <p className="text-gray-600">
-                  Receive intelligent suggestions for goals and habits based on your unique patterns and aspirations.
+                  Set meaningful goals across all life areas and track your progress with visual metrics and insights.
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm">
+              <CardHeader>
+                <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center mb-4">
+                  <Zap className="w-6 h-6 text-orange-600" />
+                </div>
+                <CardTitle className="text-xl">Habit Building</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-gray-600">
+                  Build positive habits and track your streaks to create lasting change in your life.
                 </p>
               </CardContent>
             </Card>
