@@ -83,45 +83,11 @@ const Index = () => {
   }
 
   const renderScreen = () => {
-    // Check for bypass flag
-    const bypassOnboarding = localStorage.getItem("bypassOnboarding") === "true";
-    
-    // Show onboarding if user hasn't completed it and no bypass flag
-    if (!hasCompletedOnboarding && !bypassOnboarding) {
+    // Show onboarding if user hasn't completed it
+    if (!hasCompletedOnboarding) {
       return (
         <div>
           <OnboardingFlow onComplete={handleOnboardingComplete} />
-          <div style={{position: 'fixed', top: '10px', right: '10px', zIndex: 1000}}>
-            <Button 
-              onClick={() => {
-                console.log('Debug: Force complete onboarding');
-                completeOnboardingMutation.mutate();
-              }}
-              className="bg-red-500 text-white"
-            >
-              Debug: Skip Onboarding
-            </Button>
-            <Button 
-              onClick={() => {
-                console.log('Debug: Force show dashboard');
-                setCurrentScreen("home");
-              }}
-              className="bg-blue-500 text-white ml-2"
-            >
-              Debug: Show Dashboard
-            </Button>
-            <Button 
-              onClick={() => {
-                console.log('Debug: Force bypass all checks');
-                setCurrentScreen("home");
-                // Force bypass by setting a flag in localStorage
-                localStorage.setItem("bypassOnboarding", "true");
-              }}
-              className="bg-green-500 text-white ml-2"
-            >
-              Debug: Force Bypass
-            </Button>
-          </div>
         </div>
       );
     }
@@ -165,53 +131,80 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-blue-50">
-      <ResponsiveSidebar 
-        currentScreen={currentScreen} 
-        onNavigate={setCurrentScreen}
-        isInDetailedView={isInDetailedView}
-        onNavigateHome={() => {
-          console.log('Index: Home navigation triggered, clearing detailed view');
-          setCurrentScreen("home");
-          setIsInDetailedView(false);
-          setDashboardKey(prev => prev + 1); // Force Dashboard re-render
-        }}
-      />
-      
-      <div className="lg:ml-64 relative">
-        {/* Top-right profile bubble inline with page header area */}
-        <div className="absolute right-6 top-6 z-40">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="rounded-full w-12 h-12 p-0 border-2 border-black bg-white shadow-sm">
-                <span className="w-11 h-11 rounded-full flex items-center justify-center text-base font-bold tracking-wide text-black">
-                  {`${(typedUser?.firstName?.[0] || 'U').toUpperCase()}${(typedUser?.lastName?.[0] || '').toUpperCase()}`}
-                </span>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              <div className="px-2 py-2">
-                <div className="text-sm font-semibold">{typedUser?.firstName || ''} {typedUser?.lastName || ''}</div>
-                <div className="text-xs text-gray-500">{typedUser?.email}</div>
-              </div>
-              <DropdownMenuItem onClick={() => setCurrentScreen("profile")}>Your account</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => { localStorage.removeItem('user'); localStorage.removeItem('token'); window.location.reload(); }}>Log Out</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-        {renderScreen()}
-      </div>
-      
-      <NavigationBar 
-        currentScreen={currentScreen} 
-        onNavigate={setCurrentScreen}
-        isInDetailedView={isInDetailedView}
-        onNavigateHome={() => {
-          console.log('Index: Mobile Home navigation triggered, clearing detailed view');
-          setCurrentScreen("home");
-          setIsInDetailedView(false);
-          setDashboardKey(prev => prev + 1); // Force Dashboard re-render
-        }}
-      />
+      {/* Only show sidebar and navigation when not in onboarding */}
+      {hasCompletedOnboarding ? (
+        <>
+          <ResponsiveSidebar 
+            currentScreen={currentScreen} 
+            onNavigate={setCurrentScreen}
+            isInDetailedView={isInDetailedView}
+            onNavigateHome={() => {
+              console.log('Index: Home navigation triggered, clearing detailed view');
+              setCurrentScreen("home");
+              setIsInDetailedView(false);
+              setDashboardKey(prev => prev + 1); // Force Dashboard re-render
+            }}
+          />
+          
+          <div className="lg:ml-64 relative">
+            {/* Top-right profile bubble inline with page header area */}
+            <div className="absolute right-6 top-6 z-40">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" className="rounded-full w-12 h-12 p-0 border-2 border-black bg-white shadow-sm">
+                    <span className="w-11 h-11 rounded-full flex items-center justify-center text-base font-bold tracking-wide text-black">
+                      {`${(typedUser?.firstName?.[0] || 'U').toUpperCase()}${(typedUser?.lastName?.[0] || '').toUpperCase()}`}
+                    </span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  <div className="px-2 py-2">
+                    <div className="text-sm font-semibold">{typedUser?.firstName || ''} {typedUser?.lastName || ''}</div>
+                    <div className="text-xs text-gray-500">{typedUser?.email}</div>
+                  </div>
+                  <DropdownMenuItem onClick={() => setCurrentScreen("profile")}>Your account</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => {
+                    // Reset onboarding completion in the database
+                    fetch('/api/users/reset-onboarding', {
+                      method: 'POST',
+                      headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                        'Content-Type': 'application/json'
+                      }
+                    }).then(() => {
+                      // Invalidate user query to refetch updated data
+                      queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
+                      // Force a small delay to ensure the query refetches
+                      setTimeout(() => {
+                        window.location.reload();
+                      }, 100);
+                    }).catch(error => {
+                      console.error('Failed to reset onboarding:', error);
+                    });
+                  }}>Return to Onboarding</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => { localStorage.removeItem('user'); localStorage.removeItem('token'); window.location.reload(); }}>Log Out</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+            {renderScreen()}
+          </div>
+          
+          <NavigationBar 
+            currentScreen={currentScreen} 
+            onNavigate={setCurrentScreen}
+            isInDetailedView={isInDetailedView}
+            onNavigateHome={() => {
+              console.log('Index: Mobile Home navigation triggered, clearing detailed view');
+              setCurrentScreen("home");
+              setIsInDetailedView(false);
+              setDashboardKey(prev => prev + 1); // Force Dashboard re-render
+            }}
+          />
+        </>
+      ) : (
+        // Show onboarding without sidebar/navigation
+        renderScreen()
+      )}
       
       <GPTModal 
         isOpen={showGPTModal} 

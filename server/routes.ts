@@ -315,6 +315,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Reset onboarding
+  app.post('/api/users/reset-onboarding', authMiddleware, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      await storage.resetOnboarding(userId);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error resetting onboarding:", error);
+      res.status(500).json({ message: "Failed to reset onboarding" });
+    }
+  });
+
   // Life metrics routes
   app.get('/api/life-metrics', authMiddleware, async (req: any, res) => {
     try {
