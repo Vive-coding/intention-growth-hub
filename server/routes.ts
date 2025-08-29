@@ -329,8 +329,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Test endpoint to verify server is working
   app.get('/api/test', (req, res) => {
+    console.log('Test endpoint hit');
     res.json({ message: "Server is working", timestamp: new Date().toISOString() });
   });
+
+  // Public test endpoint (no auth required)
+  app.get('/api/public-test', (req, res) => {
+    console.log('Public test endpoint hit');
+    res.json({ message: "Public endpoint working", timestamp: new Date().toISOString() });
+  });
+
+  console.log('=== REGISTERING TEST ENDPOINTS ===');
 
   // Life metrics routes
   app.get('/api/life-metrics', authMiddleware, async (req: any, res) => {

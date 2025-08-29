@@ -166,36 +166,22 @@ const Index = () => {
                                 <DropdownMenuItem onClick={async () => {
                 try {
                   console.log('Attempting to reset onboarding...');
-                  const token = localStorage.getItem('token');
-                  console.log('Token available:', !!token);
                   
-                  // Reset onboarding completion in the database
-                  const response = await fetch('/api/users/reset-onboarding', {
-                    method: 'POST',
-                    headers: {
-                      'Authorization': `Bearer ${token}`,
-                      'Content-Type': 'application/json'
-                    }
-                  });
+                  // TEMPORARY WORKAROUND: Since the server endpoint isn't deployed yet,
+                  // we'll manually reset the onboarding state in localStorage
+                  console.log('Using temporary workaround - resetting localStorage state');
                   
-                  console.log('Response status:', response.status);
+                  // Clear any onboarding completion flags
+                  localStorage.removeItem('onboardingCompleted');
+                  localStorage.removeItem('bypassOnboarding');
                   
-                  if (!response.ok) {
-                    const errorText = await response.text();
-                    console.error('Server error:', response.status, errorText);
-                    throw new Error(`Server error: ${response.status} - ${errorText}`);
-                  }
-                  
-                  const result = await response.json();
-                  console.log('Reset onboarding successful:', result);
-                  
-                  // Invalidate user query to refetch updated data
+                  // Force the user query to refetch
                   queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
                   
-                  // Show success message before refresh
+                  // Show success message
                   alert('Onboarding reset successfully! Refreshing page...');
                   
-                  // Force a small delay to ensure the query refetches
+                  // Refresh the page to trigger onboarding flow
                   setTimeout(() => {
                     window.location.reload();
                   }, 500);
