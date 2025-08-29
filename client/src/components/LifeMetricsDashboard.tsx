@@ -22,7 +22,7 @@ interface LifeMetric {
 const getMetricColors = (name: string) => {
   if (name.includes('Health & Fitness')) return { text: 'text-green-600', bg: 'bg-green-100', hex: '#16a34a' };
   if (name.includes('Career Growth')) return { text: 'text-blue-600', bg: 'bg-blue-100', hex: '#2563eb' };
-  if (name.includes('Personal Development')) return { text: 'text-purple-600', bg: 'bg-purple-100', hex: '#9333ea' };
+  if (name.includes('Personal Development') || name.includes('Personal')) return { text: 'text-purple-600', bg: 'bg-purple-100', hex: '#9333ea' };
   if (name.includes('Relationships')) return { text: 'text-orange-600', bg: 'bg-orange-100', hex: '#ea580c' };
   if (name.includes('Finance')) return { text: 'text-red-600', bg: 'bg-red-100', hex: '#dc2626' };
   if (name.includes('Mental Health')) return { text: 'text-teal-600', bg: 'bg-teal-100', hex: '#0d9488' };
@@ -33,7 +33,7 @@ const getMetricColors = (name: string) => {
 const getPillBackgroundColor = (metricName: string) => {
   if (metricName.includes('Health & Fitness')) return '#dcfce7'; // Light green
   if (metricName.includes('Career Growth')) return '#dbeafe'; // Light blue
-  if (metricName.includes('Personal Development')) return '#f3e8ff'; // Light purple
+  if (metricName.includes('Personal Development') || metricName.includes('Personal')) return '#f3e8ff'; // Light purple
   if (metricName.includes('Relationships')) return '#fed7aa'; // Light orange
   if (metricName.includes('Finance')) return '#fecaca'; // Light red
   if (metricName.includes('Mental Health')) return '#ccfbf1'; // Light teal
@@ -43,7 +43,7 @@ const getPillBackgroundColor = (metricName: string) => {
 const getPillTextColor = (metricName: string) => {
   if (metricName.includes('Health & Fitness')) return '#166534'; // Dark green
   if (metricName.includes('Career Growth')) return '#1e40af'; // Dark blue
-  if (metricName.includes('Personal Development')) return '#7c3aed'; // Dark purple
+  if (metricName.includes('Personal Development') || metricName.includes('Personal')) return '#7c3aed'; // Dark purple
   if (metricName.includes('Relationships')) return '#ea580c'; // Dark orange
   if (metricName.includes('Finance')) return '#dc2626'; // Dark red
   if (metricName.includes('Mental Health')) return '#0f766e'; // Dark teal
@@ -300,7 +300,7 @@ export const LifeMetricsDashboard = ({
                 </div>
               </div>
               <div 
-                className="inline-flex items-center justify-center px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-full text-[10px] sm:text-xs font-medium text-center leading-tight max-w-full"
+                className="inline-flex items-center justify-center px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-full text-[9px] sm:text-[10px] lg:text-xs font-medium text-center leading-tight max-w-full break-words"
                 style={{ 
                   backgroundColor: getPillBackgroundColor(metric.category),
                   color: getPillTextColor(metric.category)
@@ -402,7 +402,7 @@ export const LifeMetricsDashboard = ({
           {metrics.map((metric) => (
             <div 
               key={metric.category} 
-              className="flex flex-col items-center justify-center space-y-1 lg:space-y-2 cursor-pointer hover:bg-gray-50 p-1 lg:p-2 rounded-lg transition-colors min-h-[80px] sm:min-h-[100px] lg:min-h-[120px]"
+              className="flex flex-col items-center justify-center space-y-1 lg:space-y-2 cursor-pointer hover:bg-gray-50 p-1 lg:p-2 rounded-lg transition-colors min-h-[90px] sm:min-h-[110px] lg:min-h-[130px]"
               onClick={() => {
                 console.log('🔍 Life metric clicked:', metric.category);
                 console.log('🔍 Token status before navigation:');
@@ -418,7 +418,7 @@ export const LifeMetricsDashboard = ({
                 hasGoals={metric.hasGoals}
               />
               <div 
-                className="inline-flex items-center justify-center px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-full text-[10px] sm:text-xs font-medium text-center leading-tight max-w-full"
+                className="inline-flex items-center justify-center px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-full text-[9px] sm:text-xs font-medium text-center leading-tight max-w-full break-words"
                 style={{ 
                   backgroundColor: getPillBackgroundColor(metric.category),
                   color: getPillTextColor(metric.category)
