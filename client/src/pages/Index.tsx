@@ -163,25 +163,48 @@ const Index = () => {
                     <div className="text-xs text-gray-500">{typedUser?.email}</div>
                   </div>
                   <DropdownMenuItem onClick={() => setCurrentScreen("profile")}>Your account</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => {
-                    // Reset onboarding completion in the database
-                    fetch('/api/users/reset-onboarding', {
-                      method: 'POST',
-                      headers: {
-                        'Authorization': `Bearer ${localStorage.getItem('token')}`,
-                        'Content-Type': 'application/json'
-                      }
-                    }).then(() => {
-                      // Invalidate user query to refetch updated data
-                      queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
-                      // Force a small delay to ensure the query refetches
-                      setTimeout(() => {
-                        window.location.reload();
-                      }, 100);
-                    }).catch(error => {
-                      console.error('Failed to reset onboarding:', error);
-                    });
-                  }}>Return to Onboarding</DropdownMenuItem>
+                                <DropdownMenuItem onClick={async () => {
+                try {
+                  console.log('Attempting to reset onboarding...');
+                  const token = localStorage.getItem('token');
+                  console.log('Token available:', !!token);
+                  
+                  // Reset onboarding completion in the database
+                  const response = await fetch('/api/users/reset-onboarding', {
+                    method: 'POST',
+                    headers: {
+                      'Authorization': `Bearer ${token}`,
+                      'Content-Type': 'application/json'
+                    }
+                  });
+                  
+                  console.log('Response status:', response.status);
+                  
+                  if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('Server error:', response.status, errorText);
+                    throw new Error(`Server error: ${response.status} - ${errorText}`);
+                  }
+                  
+                  const result = await response.json();
+                  console.log('Reset onboarding successful:', result);
+                  
+                  // Invalidate user query to refetch updated data
+                  queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
+                  
+                  // Show success message before refresh
+                  alert('Onboarding reset successfully! Refreshing page...');
+                  
+                  // Force a small delay to ensure the query refetches
+                  setTimeout(() => {
+                    window.location.reload();
+                  }, 500);
+                  
+                } catch (error) {
+                  console.error('Failed to reset onboarding:', error);
+                  alert(`Failed to reset onboarding: ${error.message}`);
+                }
+              }}>Return to Onboarding</DropdownMenuItem>
                   <DropdownMenuItem onClick={() => { localStorage.removeItem('user'); localStorage.removeItem('token'); window.location.reload(); }}>Log Out</DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>

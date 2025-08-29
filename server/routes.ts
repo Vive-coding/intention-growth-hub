@@ -318,7 +318,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Reset onboarding
   app.post('/api/users/reset-onboarding', authMiddleware, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user.id || req.user.claims.sub;
       await storage.resetOnboarding(userId);
       res.json({ success: true });
     } catch (error) {
