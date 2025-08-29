@@ -318,13 +318,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Reset onboarding
   app.post('/api/users/reset-onboarding', authMiddleware, async (req: any, res) => {
     try {
-      const userId = req.user.id || req.user.claims.sub;
+      const userId = req.user.claims.sub;
       await storage.resetOnboarding(userId);
       res.json({ success: true });
     } catch (error) {
       console.error("Error resetting onboarding:", error);
       res.status(500).json({ message: "Failed to reset onboarding" });
     }
+  });
+
+  // Test endpoint to verify server is working
+  app.get('/api/test', (req, res) => {
+    res.json({ message: "Server is working", timestamp: new Date().toISOString() });
   });
 
   // Life metrics routes
