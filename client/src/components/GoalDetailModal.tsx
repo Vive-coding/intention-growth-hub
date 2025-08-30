@@ -600,7 +600,15 @@ export const GoalDetailModal = ({
         // Call the parent's onAddHabit function
         const selectedHabit = existingHabits.find((h: any) => h.id === selectedHabitId);
         if (selectedHabit) {
-          onAddHabit(goalData.id, selectedHabit);
+          onAddHabit(goalData.id, {
+            habitDefinitionId: selectedHabit.id,
+            targetValue: targetValue,
+            frequencySettings: {
+              frequency: existingHabitFrequency,
+              perPeriodTarget: existingHabitPerPeriod,
+              periodsCount: existingHabitPeriods,
+            },
+          });
         }
         
         // Refresh the goal data to show the new habit
@@ -660,7 +668,15 @@ export const GoalDetailModal = ({
         // Invalidate queries to refresh data
         queryClient.invalidateQueries({ queryKey: ['/api/goals'] });
         
-        onAddHabit(goalData.id, createResponse);
+        onAddHabit(goalData.id, {
+          habitDefinitionId: createResponse.id,
+          targetValue: targetValue,
+          frequencySettings: {
+            frequency: newHabitFrequency,
+            perPeriodTarget: newHabitTargetCompletions,
+            periodsCount: newHabitPeriods,
+          },
+        });
       }
       
       // Reset form and close panel
