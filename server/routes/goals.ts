@@ -1778,6 +1778,58 @@ router.post("/:goalId/habits", async (req: Request, res: Response) => {
   }
 });
 
+// Update habit-goal association
+router.patch("/:goalId/habits/:habitDefinitionId", async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user?.id;
+    
+    if (!userId) {
+      return res.status(401).json({ message: "User not authenticated" });
+    }
+    
+    const goalInstanceId = req.params.goalId;
+    const habitDefinitionId = req.params.habitDefinitionId;
+    const { targetValue, frequency, perPeriodTarget, periodsCount } = req.body;
+
+    // Check if goal exists and belongs to user
+    const goal = await db
+      .select()
+      .from(goalInstances)
+      .where(and(eq(goalInstances.id, goalInstanceId), eq(goalInstances.userId, userId)))
+      .limit(1);
+
+    if (!goal[0]) {
+      return res.status(404).json({ error: "Goal not found" });
+    }
+
+    // Find and update the habit instance
+    const [updatedHabit] = await db
+      .update(habitInstances)
+      .set({
+        targetValue: targetValue || 1,
+        frequencySettings: {
+          frequency: frequency || 'daily',
+          perPeriodTarget: perPeriodTarget || 1,
+          periodsCount: periodsCount || 1
+        }
+      })
+      .where(and(
+        eq(habitInstances.habitDefinitionId, habitDefinitionId),
+        eq(habitInstances.goalInstanceId, goalInstanceId)
+      ))
+      .returning();
+
+    if (!updatedHabit) {
+      return res.status(404).json({ error: "Habit instance not found" });
+    }
+
+    res.json(updatedHabit);
+  } catch (error) {
+    console.error("Error updating habit-goal association:", error);
+    res.status(500).json({ error: "Failed to update habit-goal association" });
+  }
+});
+
 // Remove habit from goal
 router.delete("/:goalId/habits/:habitId", async (req: Request, res: Response) => {
   try {

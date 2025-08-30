@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useAuth } from "@/hooks/useAuth";
+import { apiRequest } from "@/lib/queryClient";
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -39,22 +40,13 @@ export const AuthModal = ({ isOpen, onClose, initialMode = 'signup' }: AuthModal
         ? { email, password, firstName, lastName }
         : { email, password };
 
-      // Get the API base URL from environment variable
-      const apiBaseUrl = import.meta.env.VITE_API_URL || '';
-      const fullUrl = `${apiBaseUrl}${endpoint}`;
-
-      const response = await fetch(fullUrl, {
+      const data = await apiRequest(endpoint, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
         body: JSON.stringify(body),
       });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || "Authentication failed");
+      if (!data || data.error) {
+        throw new Error(data?.message || data?.error || "Authentication failed");
       }
 
       // Store token and user data

@@ -380,8 +380,13 @@ export const GoalsScreen = () => {
 
   const handleAddHabitToGoal = async (goalId: string, habitData: any) => {
     try {
-      const goalResponse = await apiRequest(`/api/goals/${selectedGoalDetails!.id}`, { credentials: 'include' });
-      setSelectedGoalDetails(goalResponse);
+      console.log('🟣 GoalsScreen - Adding habit to goal:', { goalId, habitData, selectedGoalDetailsId: selectedGoalDetails?.id });
+      
+      // Only fetch goal details if we have them
+      if (selectedGoalDetails?.id) {
+        const goalResponse = await apiRequest(`/api/goals/${selectedGoalDetails.id}`);
+        setSelectedGoalDetails(goalResponse);
+      }
       
       const response = await apiRequest(`/api/goals/${goalId}/habits`, {
         method: 'POST',
@@ -403,8 +408,13 @@ export const GoalsScreen = () => {
 
   const handleRemoveHabitFromGoal = async (goalId: string, habitId: string) => {
     try {
-      const goalResponse = await apiRequest(`/api/goals/${selectedGoalDetails!.id}`, { credentials: 'include' });
-      setSelectedGoalDetails(goalResponse);
+      console.log('🟣 GoalsScreen - Removing habit from goal:', { goalId, habitId, selectedGoalDetailsId: selectedGoalDetails?.id });
+      
+      // Only fetch goal details if we have them
+      if (selectedGoalDetails?.id) {
+        const goalResponse = await apiRequest(`/api/goals/${selectedGoalDetails.id}`);
+        setSelectedGoalDetails(goalResponse);
+      }
       
       const response = await apiRequest(`/api/goals/${goalId}/habits/${habitId}`, {
         method: 'DELETE',
@@ -624,6 +634,22 @@ export const GoalsScreen = () => {
           isOpen={showAddHabitModal}
           onClose={() => setShowAddHabitModal(false)}
           onHabitAdded={fetchGoals}
+          onHabitAddedWithSelections={async (data) => {
+            console.log('🟣 GoalsScreen - Habit added with selections:', data);
+            // Refresh goals to show the new habit
+            await fetchGoals();
+            // If we have specific goal IDs, refresh those goal details
+            if (data.associatedGoalIds && data.associatedGoalIds.length > 0) {
+              for (const goalId of data.associatedGoalIds) {
+                try {
+                  const goalResponse = await apiRequest(`/api/goals/${goalId}`);
+                  console.log('🟣 GoalsScreen - Refreshed goal details:', goalResponse);
+                } catch (error) {
+                  console.warn('🟣 GoalsScreen - Failed to refresh goal details for:', goalId, error);
+                }
+              }
+            }
+          }}
         />
 
         {/* GoalProgressUpdate component removed due to type mismatches */}

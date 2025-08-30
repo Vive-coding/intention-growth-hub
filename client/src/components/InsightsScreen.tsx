@@ -52,29 +52,24 @@ export const InsightsScreen = () => {
       if (data && data.length > 0) {
         const ids = data.map((i:any)=> i.id).join(',');
         console.log('[InsightsScreen] Fetching feedback status for ids', ids);
-        const apiBaseUrl = import.meta.env.VITE_API_URL || '';
-        let resp = await fetch(`${apiBaseUrl}/api/feedback/status?type=insight&ids=${ids}&t=${Date.now()}`,
-          {
+          let resp = await apiRequest(`/api/feedback/status?type=insight&ids=${ids}&t=${Date.now()}`, {
             headers: {
               'Authorization': `Bearer ${localStorage.getItem('token')}`,
               'Cache-Control': 'no-cache, no-store, must-revalidate',
               'Pragma': 'no-cache'
             },
             cache: 'reload'
-          }
-        );
+          });
         if (resp.status === 304) {
           // Retry once with a fresh cache-buster if an intermediary still returns 304
-          resp = await fetch(`${apiBaseUrl}/api/feedback/status?type=insight&ids=${ids}&t=${Date.now()}_${Math.random()}`,
-            {
-              headers: {
-                'Authorization': `Bearer ${localStorage.getItem('token')}`,
-                'Cache-Control': 'no-cache, no-store, must-revalidate',
-                'Pragma': 'no-cache'
-              },
-              cache: 'reload'
-            }
-          );
+          resp = await apiRequest(`/api/feedback/status?type=insight&ids=${ids}&t=${Date.now()}_${Math.random()}`, {
+            headers: {
+              'Authorization': `Bearer ${localStorage.getItem('token')}`,
+              'Cache-Control': 'no-cache, no-store, must-revalidate',
+              'Pragma': 'no-cache'
+            },
+            cache: 'reload'
+          });
         }
         if (resp.ok) {
           const json = await resp.json();
@@ -109,7 +104,7 @@ export const InsightsScreen = () => {
       setLastActionMap(prev => ({ ...prev, [insightId]: isUpvote ? 'upvote' : 'downvote' }));
       // Revalidate this id from server to ensure cross-session persistence
       try {
-        const resp = await fetch(`${apiBaseUrl}/api/feedback/status?type=insight&ids=${insightId}&t=${Date.now()}`, {
+        const resp = await apiRequest(`/api/feedback/status?type=insight&ids=${insightId}&t=${Date.now()}`, {
           headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
           cache: 'no-store'
         });

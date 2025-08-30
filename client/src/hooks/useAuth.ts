@@ -1,5 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, useEffect } from "react";
+import { apiRequest } from "@/lib/queryClient";
 
 // Global function to check token status (can be called from browser console)
 if (typeof window !== 'undefined') {
@@ -58,8 +59,7 @@ export function useAuth() {
     try {
       const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
       if (!tz) return;
-      const apiBaseUrl = import.meta.env.VITE_API_URL || '';
-      fetch(`${apiBaseUrl}/api/users/timezone`, {
+        apiRequest('/api/users/timezone', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('token')}` },
         body: JSON.stringify({ timezone: tz })

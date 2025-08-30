@@ -25,7 +25,22 @@ const app = express();
 
 // CORS middleware to allow requests from Vercel frontend
 app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', 'https://goodhabit.ai');
+  // Allow multiple origins for development and different environments
+  const allowedOrigins = [
+    'https://goodhabit.ai',
+    'https://intention-growth-hub.vercel.app',
+    'http://localhost:5173', // Vite dev server
+    'http://localhost:3000'  // Local development
+  ];
+  
+  const origin = req.headers.origin;
+  if (origin && allowedOrigins.includes(origin)) {
+    res.header('Access-Control-Allow-Origin', origin);
+  } else if (process.env.NODE_ENV === 'development') {
+    // In development, allow any origin
+    res.header('Access-Control-Allow-Origin', origin || '*');
+  }
+  
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
   res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control, Pragma');
   res.header('Access-Control-Allow-Credentials', 'true');

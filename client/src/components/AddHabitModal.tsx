@@ -132,6 +132,7 @@ export const AddHabitModal = ({ isOpen, onClose, goalId, onHabitAdded, onHabitAs
   // Prefill form data when modal opens
   useEffect(() => {
     if (isOpen && prefillData) {
+      console.log('🟣 AddHabitModal - Prefill data received:', prefillData);
       if (prefillData.title) {
         setTitle(prefillData.title);
       }
@@ -242,8 +243,15 @@ export const AddHabitModal = ({ isOpen, onClose, goalId, onHabitAdded, onHabitAs
           }
         }
         if (prefillData?.recommendedGoalIds) {
+          console.log('🟣 Setting recommended goal IDs:', prefillData.recommendedGoalIds);
+          console.log('🟣 Available goals structure:', availableGoals.map(g => ({ 
+            id: g.id, 
+            goalInstanceId: g.goalInstance?.id, 
+            title: g.title || g.goalDefinition?.title 
+          })));
           setRecommendedActiveIds(prefillData.recommendedGoalIds);
           setSelectedGoalIds(prefillData.recommendedGoalIds);
+          console.log('🟣 Selected goal IDs set to:', prefillData.recommendedGoalIds);
         }
         if (prefillData?.recommendedSuggestedGoalIds) {
           setRecommendedSuggestedIds(prefillData.recommendedSuggestedGoalIds);
@@ -272,8 +280,19 @@ export const AddHabitModal = ({ isOpen, onClose, goalId, onHabitAdded, onHabitAs
     
     // Add selected active goals
     for (const goalId of selectedGoalIds) {
-      const goal = availableGoals.find((g: any) => (g.goalInstance?.id || g.id) === goalId);
+      console.log('🟣 Looking for goal with ID:', goalId);
+      const goal = availableGoals.find((g: any) => {
+        const match = (g.goalInstance?.id || g.id) === goalId;
+        console.log('🟣 Goal match check:', { 
+          goalId, 
+          gId: g.id, 
+          gGoalInstanceId: g.goalInstance?.id, 
+          match 
+        });
+        return match;
+      });
       if (goal) {
+        console.log('🟣 Found goal:', goal);
         newRows.push({
           goalId,
           goalTitle: goal.goalDefinition?.title || goal.title,
@@ -282,6 +301,9 @@ export const AddHabitModal = ({ isOpen, onClose, goalId, onHabitAdded, onHabitAs
           perPeriodTarget: 1,
           periodsCount: computePeriodsCount('daily', goal.goalInstance?.targetDate || goal.targetDate),
         });
+      } else {
+        console.error('🟣 Goal not found for ID:', goalId);
+        console.error('🟣 Available goal IDs:', availableGoals.map(g => g.goalInstance?.id || g.id));
       }
     }
     
@@ -315,7 +337,6 @@ export const AddHabitModal = ({ isOpen, onClose, goalId, onHabitAdded, onHabitAs
         name: title.trim(),
         description: description.trim() || null,
         category: lifeMetricId || null,
-        userId: 'dev-user-123', // This should come from auth context
       };
 
       const habitResponse = await apiRequest('/api/habits', {

@@ -1,5 +1,6 @@
 import { ThumbsUp, ThumbsDown, ChevronDown, ChevronUp, Trash } from "lucide-react";
 import { useState, useEffect } from "react";
+import { apiRequest } from "@/lib/queryClient";
 import {
   Card,
   CardHeader,
@@ -111,10 +112,8 @@ export function InsightCard({
     try {
       console.log('[InsightCard] sendOptionalFeedback', { id, feedbackType, selectedReasons, notes });
       if (!id || !feedbackType) { setFeedbackOpen(false); return; }
-      const apiBaseUrl = import.meta.env.VITE_API_URL || '';
-      await fetch(`${apiBaseUrl}/api/feedback`, {
+      await apiRequest('/api/feedback', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('token')}` },
         body: JSON.stringify({
           type: 'insight',
           itemId: id,
@@ -222,10 +221,8 @@ export function InsightCard({
               onVote?.(true);
               // Fire-and-forget feedback event
               try {
-                const apiBaseUrl = import.meta.env.VITE_API_URL || '';
-                await fetch(`${apiBaseUrl}/api/feedback`, {
+                await apiRequest('/api/feedback', {
                   method: 'POST',
-                  headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('token')}` },
                   body: JSON.stringify({ type: 'insight', itemId: id, action: 'upvote', context: feedbackContext || {} })
                 });
                 // Note: On homepage, insight will be dismissed after feedback
@@ -250,10 +247,8 @@ export function InsightCard({
             onClick={async () => {
               onVote?.(false);
               try {
-                const apiBaseUrl = import.meta.env.VITE_API_URL || '';
-                await fetch(`${apiBaseUrl}/api/feedback`, {
+                await apiRequest('/api/feedback', {
                   method: 'POST',
-                  headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('token')}` },
                   body: JSON.stringify({ type: 'insight', itemId: id, action: 'downvote', context: feedbackContext || {} })
                 });
                 // Note: On homepage, insight will be dismissed after feedback

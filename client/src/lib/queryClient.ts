@@ -5,7 +5,11 @@ async function fetchWithCredentials(url: string, config?: RequestInit) {
   const token = localStorage.getItem("token");
   
   // Get the API base URL from environment variable
-  const apiBaseUrl = import.meta.env.VITE_API_URL || '';
+  const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+  
+  // Debug: Log the environment variable
+  console.log('🔍 VITE_API_URL:', import.meta.env.VITE_API_URL);
+  console.log('🔍 apiBaseUrl:', apiBaseUrl);
   
   // If it's a relative URL, prepend the API base URL
   const fullUrl = url.startsWith('/') ? `${apiBaseUrl}${url}` : url;

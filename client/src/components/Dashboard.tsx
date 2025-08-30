@@ -255,6 +255,19 @@ export const Dashboard = ({ onOpenGPT, onDetailedViewChange, onClearDetailedView
     });
   }, [todaysHabits, completedHabits, selectedHabitIds]);
 
+  // Debug logging for goals data
+  useEffect(() => {
+    console.log('Dashboard goals data:', {
+      goalsCount: goals.length,
+      goalsStructure: goals.map((g: any) => ({ 
+        id: g.id, 
+        goalInstanceId: g.goalInstance?.id, 
+        status: g.status,
+        title: g.title || g.goalDefinition?.title
+      }))
+    });
+  }, [goals]);
+
   const toggleHabitSelection = (habitId: string) => {
     console.log('Dashboard: toggleHabitSelection called for:', habitId, 'current selectedHabitIds:', selectedHabitIds);
     setSelectedHabitIds((prev) => {
@@ -887,6 +900,21 @@ export const Dashboard = ({ onOpenGPT, onDetailedViewChange, onClearDetailedView
                               const activeGoalsSameMetric = (goals || [])
                                 .filter((g: any) => (g.status === 'active' || !g.status) && (metricId ? (g.lifeMetricId === metricId || g.lifeMetric?.id === metricId || (g.lifeMetric?.name && g.lifeMetric?.name === habit.lifeMetric?.name)) : true))
                                 .map((g:any) => String(g.goalInstance?.id || g.id));
+                              
+                              console.log('🟣 Dashboard - Suggested habit clicked:', {
+                                habitTitle: habit.title,
+                                metricId,
+                                goalsCount: goals?.length,
+                                activeGoalsSameMetric,
+                                goalsStructure: goals?.map((g: any) => ({ 
+                                  id: g.id, 
+                                  goalInstanceId: g.goalInstance?.id, 
+                                  status: g.status,
+                                  lifeMetricId: g.lifeMetricId,
+                                  lifeMetricName: g.lifeMetric?.name
+                                }))
+                              });
+                              
                               const prefill = {
                                 title: habit.title,
                                 description: habit.description,

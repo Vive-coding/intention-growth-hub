@@ -885,85 +885,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get specific habit-goal association
-  app.get('/api/goals/:goalId/habits/:habitDefinitionId', authMiddleware, async (req: any, res) => {
-    try {
-      const { goalId, habitDefinitionId } = req.params;
-      const userId = req.user.id || req.user.claims.sub;
 
-      // Find the habit instance that links this habit definition to this goal
-      const habitInstance = await db
-        .select({
-          id: habitInstances.id,
-          targetValue: habitInstances.targetValue,
-          goalId: goalInstances.id,
-          frequencySettings: habitInstances.frequencySettings,
-        })
-        .from(habitInstances)
-        .innerJoin(goalInstances, eq(habitInstances.goalInstanceId, goalInstances.id))
-        .where(and(
-          eq(habitInstances.habitDefinitionId, habitDefinitionId), // Use habitDefinitionId instead
-          eq(goalInstances.id, goalId),
-          eq(goalInstances.userId, userId)
-        ))
-        .limit(1);
 
-      if (!habitInstance[0]) {
-        return res.status(404).json({ message: "Habit instance not found" });
-      }
 
-      res.json(habitInstance[0]);
-    } catch (error) {
-      console.error("Error fetching habit instance:", error);
-      res.status(500).json({ message: "Failed to fetch habit instance" });
-    }
-  });
-
-  // Update habit association with goal
-  app.patch('/api/goals/:goalId/habits/:habitDefinitionId', authMiddleware, async (req: any, res) => {
-    try {
-      const { goalId, habitDefinitionId } = req.params;
-      const userId = req.user.id || req.user.claims.sub;
-      const { targetValue, frequency, perPeriodTarget, periodsCount } = req.body;
-
-      // Verify the goal belongs to the user
-      const goal = await db
-        .select()
-        .from(goalInstances)
-        .where(and(eq(goalInstances.id, goalId), eq(goalInstances.userId, userId)))
-        .limit(1);
-
-      if (!goal[0]) {
-        return res.status(404).json({ message: "Goal not found" });
-      }
-
-      // Find and update the habit instance that links this habit definition to this goal
-      const [updatedHabit] = await db
-        .update(habitInstances)
-        .set({
-          targetValue: targetValue || 1,
-          frequencySettings: {
-            frequency: frequency || 'daily',
-            perPeriodTarget: perPeriodTarget || 1,
-            periodsCount: periodsCount || 1
-          }
-        })
-        .where(and(
-          eq(habitInstances.habitDefinitionId, habitDefinitionId),
-          eq(habitInstances.goalInstanceId, goalId)
-        ))
-        .returning();
-
-      if (!updatedHabit) {
-        return res.status(404).json({ message: "Habit instance not found" });
-      }
-
-      res.json(updatedHabit);
-    } catch (error) {
-      console.error("Error updating habit association:", error);
-      res.status(500).json({ message: "Failed to update habit association" });
-    }
-  });
 
   // Journal routes with security middleware
   app.get('/api/journals', authMiddleware, securityMiddleware, async (req: any, res) => {
