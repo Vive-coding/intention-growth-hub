@@ -486,21 +486,7 @@ export const GoalDetailModal = ({
     }
   };
 
-  // Function to refresh goal data
-  const refreshGoalData = async () => {
-    try {
-        const response = await apiRequest(`/api/goals/${goalData.id}`);
-      if (response.ok) {
-        const updatedGoal = await response.json();
-        // Update the goal data in the parent component
-        // This will trigger a re-render with updated data
-        // Note: In a production app, you'd use proper state management here
-        console.log('Goal data refreshed:', updatedGoal);
-      }
-    } catch (error) {
-      console.error('Error refreshing goal data:', error);
-    }
-  };
+
 
   // Track habit completion state to prevent double clicks
   const [completingHabits, setCompletingHabits] = useState<Set<string>>(new Set());
