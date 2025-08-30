@@ -2008,6 +2008,9 @@ router.get("/:id", async (req: Request, res: Response) => {
         targetValue: hi.habitInstance.targetValue,
         currentValue: hi.habitInstance.currentValue,
         goalSpecificStreak: hi.habitInstance.goalSpecificStreak,
+        frequencySettings: hi.habitInstance.frequencySettings,
+        habitDefinitionId: hi.habitInstance.habitDefinitionId,
+        goalId: hi.habitInstance.goalInstanceId,
       })),
     };
 

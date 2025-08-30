@@ -636,6 +636,7 @@ export const GoalsScreen = () => {
           onHabitAdded={fetchGoals}
           onHabitAddedWithSelections={async (data) => {
             console.log('🟣 GoalsScreen - Habit added with selections:', data);
+            console.log('🟣 GoalsScreen - Current selectedGoalDetails:', selectedGoalDetails);
             // Refresh goals to show the new habit
             await fetchGoals();
             // If we have specific goal IDs, refresh those goal details
@@ -646,9 +647,17 @@ export const GoalsScreen = () => {
                   console.log('🟣 GoalsScreen - Refreshed goal details:', goalResponse);
                   
                   // Update the selectedGoalDetails if this is the currently selected goal
+                  console.log('🟣 GoalsScreen - Comparing IDs:', {
+                    selectedGoalDetailsId: selectedGoalDetails?.id,
+                    goalId,
+                    match: selectedGoalDetails?.id === goalId
+                  });
+                  
                   if (selectedGoalDetails && selectedGoalDetails.id === goalId) {
                     setSelectedGoalDetails(goalResponse);
                     console.log('🟣 GoalsScreen - Updated selectedGoalDetails with new habit data');
+                  } else {
+                    console.log('🟣 GoalsScreen - ID mismatch, not updating selectedGoalDetails');
                   }
                 } catch (error) {
                   console.warn('🟣 GoalsScreen - Failed to refresh goal details for:', goalId, error);
