@@ -67,18 +67,38 @@ export const GoalDetailModal = ({
   const { toast } = useToast();
   const queryClient = useQueryClient();
   
+  // State to hold the current goal data (can be updated independently of props)
+  const [currentGoalData, setCurrentGoalData] = useState(goal);
+  
+  // Function to refresh goal data
+  const refreshGoalData = async () => {
+    try {
+      console.log('🟣 GoalDetailModal - Refreshing goal data for ID:', goalData.id);
+      const refreshedGoal = await apiRequest(`/api/goals/${goalData.id}`);
+      setCurrentGoalData(refreshedGoal);
+      console.log('🟣 GoalDetailModal - Goal data refreshed:', refreshedGoal);
+    } catch (error) {
+      console.error('🟣 GoalDetailModal - Failed to refresh goal data:', error);
+    }
+  };
+  
+  // Update currentGoalData when goal prop changes
+  useEffect(() => {
+    setCurrentGoalData(goal);
+  }, [goal]);
+  
   // Handle the actual API response structure
-  const goalData = goal.goalInstance ? {
-    id: goal.goalInstance.id,
-    title: goal.goalDefinition?.title || "Untitled Goal",
-    description: goal.goalDefinition?.description || "",
-    progress: goal.goalInstance.currentValue || 0, // currentValue is now stored as percentage
-    currentValue: goal.goalInstance.currentValue,
-    targetValue: goal.goalInstance.targetValue,
-    targetDate: goal.goalInstance.targetDate, // Include target date
-    lifeMetric: goal.lifeMetric || { name: goal.goalDefinition?.category || "General", color: "#6B7280" },
-    habits: goal.habits || [],
-  } : goal;
+  const goalData = currentGoalData.goalInstance ? {
+    id: currentGoalData.goalInstance.id,
+    title: currentGoalData.goalDefinition?.title || "Untitled Goal",
+    description: currentGoalData.goalDefinition?.description || "",
+    progress: currentGoalData.goalInstance.currentValue || 0, // currentValue is now stored as percentage
+    currentValue: currentGoalData.goalInstance.currentValue,
+    targetValue: currentGoalData.goalInstance.targetValue,
+    targetDate: currentGoalData.goalInstance.targetDate, // Include target date
+    lifeMetric: currentGoalData.lifeMetric || { name: currentGoalData.goalDefinition?.category || "General", color: "#6B7280" },
+    habits: currentGoalData.habits || [],
+  } : currentGoalData;
 
   console.log('Goal data:', goalData);
   console.log('Associated habits:', goalData.habits);
@@ -609,15 +629,18 @@ export const GoalDetailModal = ({
             calculatedTargetValue,
             frequency: existingHabitFrequency
           });
-          onAddHabit(goalData.id, {
-            habitDefinitionId: selectedHabit.id,
-            targetValue: calculatedTargetValue,
-            frequencySettings: {
-              frequency: existingHabitFrequency,
-              perPeriodTarget: existingHabitPerPeriod,
-              periodsCount: existingHabitPeriods,
-            },
-          });
+                  onAddHabit(goalData.id, {
+          habitDefinitionId: selectedHabit.id,
+          targetValue: calculatedTargetValue,
+          frequencySettings: {
+            frequency: existingHabitFrequency,
+            perPeriodTarget: existingHabitPerPeriod,
+            periodsCount: existingHabitPeriods,
+          },
+        });
+        
+        // Refresh the goal data to show the new habit immediately
+        await refreshGoalData();
         }
         
       } else if (activeTab === "create") {
@@ -660,6 +683,9 @@ export const GoalDetailModal = ({
             periodsCount: newHabitPeriods,
           },
         });
+        
+        // Refresh the goal data to show the new habit immediately
+        await refreshGoalData();
         
         toast({
           title: 'Habit added successfully!',
@@ -847,12 +873,22 @@ export const GoalDetailModal = ({
                           goalId: goalData.id,
                           habitDefinitionId: habit.id, // This is the habit definition ID
                         }}
-                        onComplete={() => handleHabitComplete(habit.id)}
-                        onRemove={() => onRemoveHabit(goalData.id, habit.id)}
+                        onComplete={async () => {
+                          await handleHabitComplete(habit.id);
+                          // Refresh goal data to show updated progress immediately
+                          await refreshGoalData();
+                        }}
+                        onRemove={async () => {
+                          await onRemoveHabit(goalData.id, habit.id);
+                          // Refresh goal data to show updated habit list immediately
+                          await refreshGoalData();
+                        }}
                         onHabitUpdated={() => {
                           // Refresh goal data to show updated habit targets
                           queryClient.invalidateQueries({ queryKey: ['/api/goals'] });
                           queryClient.invalidateQueries({ queryKey: ['/api/goals', goalData.id] });
+                          // Also refresh local goal data immediately
+                          refreshGoalData();
                         }}
                         />
                       );
