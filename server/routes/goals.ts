@@ -1707,6 +1707,14 @@ router.post("/:goalId/habits", async (req: Request, res: Response) => {
     }
     const goalInstanceId = req.params.goalId;
     const { habitDefinitionId, targetValue } = req.body;
+    
+    console.log('🟣 Adding habit to goal - Request data:', {
+      goalInstanceId,
+      habitDefinitionId,
+      targetValue,
+      body: req.body,
+      userId
+    });
 
     // Check if goal exists
     const goal = await db
@@ -1745,17 +1753,25 @@ router.post("/:goalId/habits", async (req: Request, res: Response) => {
     }
 
     // Create habit instance
+    const insertData = {
+      habitDefinitionId,
+      goalInstanceId,
+      userId,
+      targetValue: targetValue || 1,
+      currentValue: 0,
+      goalSpecificStreak: 0,
+      frequencySettings: req.body.frequencySettings || {
+        frequency: 'daily',
+        perPeriodTarget: 1,
+        periodsCount: 1
+      },
+    };
+    
+    console.log('🟣 Inserting habit instance with data:', insertData);
+    
     const [habitInstance] = await db
       .insert(habitInstances)
-      .values({
-        habitDefinitionId,
-        goalInstanceId,
-        userId,
-        targetValue: targetValue || 1,
-        currentValue: 0,
-        goalSpecificStreak: 0,
-        frequencySettings: req.body.frequencySettings || null,
-      })
+      .values(insertData)
       .returning();
 
     // Snapshot all life metrics once after adding a habit to a goal
