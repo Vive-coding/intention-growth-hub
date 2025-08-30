@@ -334,10 +334,12 @@ export const AddHabitModal = ({ isOpen, onClose, goalId, onHabitAdded, onHabitAs
     try {
       // Create the habit definition first
       const habitData = {
-        name: title.trim(),
+        title: title.trim(),
         description: description.trim() || null,
         category: lifeMetricId || null,
       };
+
+      console.log('🟣 Creating habit definition with data:', habitData);
 
       const habitResponse = await apiRequest('/api/goals/habits', {
         method: 'POST',
