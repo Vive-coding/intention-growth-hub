@@ -374,9 +374,23 @@ export const AddHabitModal = ({ isOpen, onClose, goalId, onHabitAdded, onHabitAs
               }
             }
           }
+          // Find the row data for this goal to get frequency settings
+          const rowData = rows.find(r => r.goalId === r.goalId || r.goalId === `suggested:${finalGoalId}`);
+          const frequency = rowData?.frequency || 'daily';
+          const perPeriodTarget = rowData?.perPeriodTarget || 1;
+          const periodsCount = rowData?.periodsCount || 1;
+          
           await apiRequest(`/api/goals/${finalGoalId}/habits`, {
             method: 'POST',
-            body: JSON.stringify({ habitDefinitionId: habitId, targetValue: totalTarget }),
+            body: JSON.stringify({ 
+              habitDefinitionId: habitId, 
+              targetValue: totalTarget,
+              frequencySettings: {
+                frequency,
+                perPeriodTarget,
+                periodsCount
+              }
+            }),
           });
         }
         
