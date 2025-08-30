@@ -10,6 +10,7 @@ import { Button as UIButton } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Target, ChevronRight, ChevronLeft, CheckCircle } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
+import { useQueryClient } from "@tanstack/react-query";
 
 interface AddHabitModalProps {
   isOpen: boolean;
@@ -37,6 +38,7 @@ interface LifeMetric {
 }
 
 export const AddHabitModal = ({ isOpen, onClose, goalId, onHabitAdded, onHabitAssociatedWithGoal, onHabitAddedWithSelections, prefillData }: AddHabitModalProps) => {
+  const queryClient = useQueryClient();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [lifeMetricId, setLifeMetricId] = useState("");
@@ -406,13 +408,17 @@ export const AddHabitModal = ({ isOpen, onClose, goalId, onHabitAdded, onHabitAs
               body: JSON.stringify({
                 type: 'suggested_habit',
                 itemId: prefillData.suggestedHabitId,
-                action: 'implemented', // Mark as implemented instead of dismissed
+                action: 'dismiss', // Use 'dismiss' to match existing filtering logic
                 context: { 
-                  implementedAt: new Date().toISOString()
+                  dismissedAt: new Date().toISOString(),
+                  reason: 'implemented'
                 }
               })
             });
             console.log('🟣 Successfully dismissed suggested habit');
+            
+            // Invalidate feedback status queries to refresh the UI
+            queryClient.invalidateQueries({ queryKey: ['/api/feedback/status'] });
           } catch (error) {
             console.warn('🟣 Failed to dismiss suggested habit:', error);
           }

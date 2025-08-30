@@ -359,6 +359,20 @@ export const Dashboard = ({ onOpenGPT, onDetailedViewChange, onClearDetailedView
     enabled: isAuthenticated, // Only fetch when authenticated
   });
 
+  // Fetch feedback status for suggested habits
+  const { data: habitFeedbackStatus = { voted: {}, lastAction: {} } } = useQuery({
+    queryKey: ['/api/feedback/status', suggestedHabits],
+    queryFn: async () => {
+      if (!suggestedHabits || suggestedHabits.length === 0) {
+        return { voted: {}, lastAction: {} };
+      }
+      const ids = suggestedHabits.map((h: any) => h.id).join(',');
+      const response = await apiRequest(`/api/feedback/status?type=suggested_habit&ids=${ids}`);
+      return response;
+    },
+    enabled: isAuthenticated && suggestedHabits.length > 0,
+  });
+
   // Get recent insights (last 3) with local dismissal - insights dismiss after voting on homepage
   const [dismissedInsightIds, setDismissedInsightIds] = useState<string[]>(() => {
     // Load dismissed insights from localStorage on component mount
@@ -1346,7 +1360,17 @@ export const Dashboard = ({ onOpenGPT, onDetailedViewChange, onClearDetailedView
                         <h4 className="font-medium text-gray-700 mb-3">Suggested Habits</h4>
                         <div className="space-y-3">
                           {recentSuggestedHabits
-                            .filter((habit:any)=> !(habit?.kind === 'existing' && dismissedReinforcements.includes(`habit:${habit?.existingId || 'na'}:${habit?.sourceInsightId || 'na'}`)))
+                            .filter((habit:any)=> {
+                              // Filter out existing habits that are dismissed
+                              if (habit?.kind === 'existing') {
+                                return !dismissedReinforcements.includes(`habit:${habit?.existingId || 'na'}:${habit?.sourceInsightId || 'na'}`);
+                              }
+                              // For new suggested habits, check if they've been dismissed via feedback
+                              if (habit?.kind !== 'existing') {
+                                return !habitFeedbackStatus?.voted?.[habit.id];
+                              }
+                              return true;
+                            })
                             .slice(0, 3)
                             .map((habit: any) => {
                             const isExistingH = habit?.kind === 'existing';
