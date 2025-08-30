@@ -600,27 +600,24 @@ export const GoalDetailModal = ({
         // Call the parent's onAddHabit function
         const selectedHabit = existingHabits.find((h: any) => h.id === selectedHabitId);
         if (selectedHabit) {
+          const calculatedTargetValue = existingHabitPerPeriod * existingHabitPeriods;
+          console.log('🟣 Adding existing habit with calculated values:', {
+            habitId: selectedHabit.id,
+            habitTitle: selectedHabit.title,
+            perPeriodTarget: existingHabitPerPeriod,
+            periodsCount: existingHabitPeriods,
+            calculatedTargetValue,
+            frequency: existingHabitFrequency
+          });
           onAddHabit(goalData.id, {
             habitDefinitionId: selectedHabit.id,
-            targetValue: targetValue,
+            targetValue: calculatedTargetValue,
             frequencySettings: {
               frequency: existingHabitFrequency,
               perPeriodTarget: existingHabitPerPeriod,
               periodsCount: existingHabitPeriods,
             },
           });
-        }
-        
-        // Refresh the goal data to show the new habit
-        try {
-          const goalResponse = await apiRequest(`/api/goals/${goalData.id}`);
-          if (goalResponse.ok) {
-            const updatedGoal = await goalResponse.json();
-            // Update the goal data in the parent component
-            console.log('Goal data refreshed after adding habit:', updatedGoal);
-          }
-        } catch (refreshError) {
-          console.error('Error refreshing goal data:', refreshError);
         }
         
       } else if (activeTab === "create") {
@@ -644,38 +641,29 @@ export const GoalDetailModal = ({
         
         console.log('Created new habit:', createResponse);
         
-        // Then add it to the goal
-        const addResponse = await apiRequest(`/api/goals/${goalData.id}/habits`, {
-          method: 'POST',
-          body: JSON.stringify({
-            habitDefinitionId: createResponse.id,
-            targetValue: targetValue,
-            frequencySettings: {
-              frequency: newHabitFrequency,
-              perPeriodTarget: newHabitTargetCompletions,
-              periodsCount: newHabitPeriods,
-            },
-          }),
+        // Add it to the goal through the callback (no duplicate API call)
+        const calculatedTargetValue = newHabitTargetCompletions * newHabitPeriods;
+        console.log('🟣 Adding new habit with calculated values:', {
+          habitId: createResponse.id,
+          habitTitle: newHabitTitle,
+          perPeriodTarget: newHabitTargetCompletions,
+          periodsCount: newHabitPeriods,
+          calculatedTargetValue,
+          frequency: newHabitFrequency
         });
-        
-        console.log('Added habit to goal:', addResponse);
-        
-        toast({
-          title: 'Habit added successfully!',
-          description: 'The habit has been added to your goal.',
-        });
-        
-        // Invalidate queries to refresh data
-        queryClient.invalidateQueries({ queryKey: ['/api/goals'] });
-        
         onAddHabit(goalData.id, {
           habitDefinitionId: createResponse.id,
-          targetValue: targetValue,
+          targetValue: calculatedTargetValue,
           frequencySettings: {
             frequency: newHabitFrequency,
             perPeriodTarget: newHabitTargetCompletions,
             periodsCount: newHabitPeriods,
           },
+        });
+        
+        toast({
+          title: 'Habit added successfully!',
+          description: 'The habit has been added to your goal.',
         });
       }
       
