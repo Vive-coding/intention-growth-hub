@@ -339,7 +339,7 @@ export const AddHabitModal = ({ isOpen, onClose, goalId, onHabitAdded, onHabitAs
         category: lifeMetricId || null,
       };
 
-      const habitResponse = await apiRequest('/api/habits', {
+      const habitResponse = await apiRequest('/api/goals/habits', {
         method: 'POST',
         body: JSON.stringify(habitData),
       });
