@@ -396,6 +396,28 @@ export const AddHabitModal = ({ isOpen, onClose, goalId, onHabitAdded, onHabitAs
           });
         }
         
+        // Dismiss the suggested habit if it was one
+        if (prefillData?.suggestedHabitId) {
+          try {
+            console.log('🟣 Dismissing suggested habit:', prefillData.suggestedHabitId);
+            await apiRequest('/api/feedback', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                type: 'suggested_habit',
+                itemId: prefillData.suggestedHabitId,
+                action: 'implemented', // Mark as implemented instead of dismissed
+                context: { 
+                  implementedAt: new Date().toISOString()
+                }
+              })
+            });
+            console.log('🟣 Successfully dismissed suggested habit');
+          } catch (error) {
+            console.warn('🟣 Failed to dismiss suggested habit:', error);
+          }
+        }
+        
         onHabitAddedWithSelections && onHabitAddedWithSelections({ 
           habitId: habitId, 
           associatedGoalIds: goalId ? [goalId] : selectedGoalIds, 
