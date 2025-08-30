@@ -625,8 +625,10 @@ export const GoalDetailModal = ({
           },
         });
         
-        // Refresh the goal data to show the new habit immediately
-        await refreshGoalData();
+        // Wait a moment for the parent to process, then refresh the goal data
+        setTimeout(async () => {
+          await refreshGoalData();
+        }, 100);
         }
         
       } else if (activeTab === "create") {
@@ -670,8 +672,10 @@ export const GoalDetailModal = ({
           },
         });
         
-        // Refresh the goal data to show the new habit immediately
-        await refreshGoalData();
+        // Wait a moment for the parent to process, then refresh the goal data
+        setTimeout(async () => {
+          await refreshGoalData();
+        }, 100);
         
         toast({
           title: 'Habit added successfully!',
