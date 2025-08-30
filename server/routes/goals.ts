@@ -1922,6 +1922,15 @@ router.get("/:id", async (req: Request, res: Response) => {
       .innerJoin(habitDefinitions, eq(habitInstances.habitDefinitionId, habitDefinitions.id))
       .where(eq(habitInstances.goalInstanceId, goalId));
 
+    // Debug: Log the raw habit data from database
+    console.log('🟣 Raw habit data from database:', associatedHabits.map(hi => ({
+      habitId: hi.habitDefinition.id,
+      habitName: hi.habitDefinition.name,
+      targetValue: hi.habitInstance.targetValue,
+      frequencySettings: hi.habitInstance.frequencySettings,
+      hasFrequencySettings: !!hi.habitInstance.frequencySettings
+    })));
+
     // Calculate goal progress based on associated habits
     let calculatedProgress = 0;
     let habitBasedProgress = 0;
@@ -1990,6 +1999,28 @@ router.get("/:id", async (req: Request, res: Response) => {
       lifeMetric = lifeMetricResults.length > 0 ? lifeMetricResults[0] : null;
     }
 
+    const mappedHabits = associatedHabits.map(hi => ({
+      id: hi.habitDefinition.id,
+      title: hi.habitDefinition.name,
+      description: hi.habitDefinition.description,
+      category: hi.habitDefinition.category,
+      targetValue: hi.habitInstance.targetValue,
+      currentValue: hi.habitInstance.currentValue,
+      goalSpecificStreak: hi.habitInstance.goalSpecificStreak,
+      frequencySettings: hi.habitInstance.frequencySettings || null,
+      habitDefinitionId: hi.habitInstance.habitDefinitionId,
+      goalId: hi.habitInstance.goalInstanceId,
+    }));
+
+    // Debug: Log the mapped habits being sent in response
+    console.log('🟣 Mapped habits for response:', mappedHabits.map(h => ({
+      id: h.id,
+      title: h.title,
+      targetValue: h.targetValue,
+      frequencySettings: h.frequencySettings,
+      hasFrequencySettings: !!h.frequencySettings
+    })));
+
     const goalWithHabits = {
       ...goal,
       lifeMetric,
@@ -2000,18 +2031,7 @@ router.get("/:id", async (req: Request, res: Response) => {
         completedAt: finalCompletedAt,
         targetDate: goal.goalInstance.targetDate, // Preserve original target date
       },
-      habits: associatedHabits.map(hi => ({
-        id: hi.habitDefinition.id,
-        title: hi.habitDefinition.name,
-        description: hi.habitDefinition.description,
-        category: hi.habitDefinition.category,
-        targetValue: hi.habitInstance.targetValue,
-        currentValue: hi.habitInstance.currentValue,
-        goalSpecificStreak: hi.habitInstance.goalSpecificStreak,
-        frequencySettings: hi.habitInstance.frequencySettings,
-        habitDefinitionId: hi.habitInstance.habitDefinitionId,
-        goalId: hi.habitInstance.goalInstanceId,
-      })),
+      habits: mappedHabits,
     };
 
     res.json(goalWithHabits);
