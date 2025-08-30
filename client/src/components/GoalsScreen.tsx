@@ -644,6 +644,12 @@ export const GoalsScreen = () => {
                 try {
                   const goalResponse = await apiRequest(`/api/goals/${goalId}`);
                   console.log('🟣 GoalsScreen - Refreshed goal details:', goalResponse);
+                  
+                  // Update the selectedGoalDetails if this is the currently selected goal
+                  if (selectedGoalDetails && selectedGoalDetails.id === goalId) {
+                    setSelectedGoalDetails(goalResponse);
+                    console.log('🟣 GoalsScreen - Updated selectedGoalDetails with new habit data');
+                  }
                 } catch (error) {
                   console.warn('🟣 GoalsScreen - Failed to refresh goal details for:', goalId, error);
                 }

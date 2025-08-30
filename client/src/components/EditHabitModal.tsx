@@ -51,20 +51,20 @@ export const EditHabitModal = ({
     try {
       console.log('Using current target value:', currentTargetValue);
       
-      // Try to fetch the current habit settings from the backend
-      const response = await apiRequest(`/api/goals/${goalId}/habits/${habitDefinitionId}`);
+      // Since we don't have a direct API endpoint for habit details,
+      // we need to infer the frequency settings from the target value
+      // This is a temporary solution until we add a proper endpoint
       
-      if (response && response.frequencySettings) {
-        // Use the stored frequency settings
-        setFrequency(response.frequencySettings.frequency || "daily");
-        setPerPeriodTarget(response.frequencySettings.perPeriodTarget || 1);
-        setPeriodsCount(response.frequencySettings.periodsCount || 1);
-      } else {
-        // Fallback to inferring from target value (for backward compatibility)
-        setFrequency("daily");
-        setPerPeriodTarget(1);
-        setPeriodsCount(currentTargetValue);
-      }
+      // For now, set reasonable defaults and let the user adjust
+      setFrequency("daily");
+      setPerPeriodTarget(1);
+      setPeriodsCount(currentTargetValue);
+      
+      console.log('🟣 EditHabitModal - Set default values:', {
+        frequency: "daily",
+        perPeriodTarget: 1,
+        periodsCount: currentTargetValue
+      });
       
     } catch (error) {
       console.error('Error loading current habit settings:', error);
