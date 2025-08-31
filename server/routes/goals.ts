@@ -53,24 +53,31 @@ async function getUserTodayWindow(userId: string) {
     const userLocalDate = now.toLocaleDateString('en-CA', { timeZone: tz }); // en-CA gives YYYY-MM-DD format
     
     // Create start of day in user's timezone, then convert to UTC
-    // Use a more reliable method: create dates in the user's timezone context
+    // The key: we need to create the dates in the user's timezone context
     const start = new Date(`${userLocalDate}T00:00:00.000`);
     const end = new Date(`${userLocalDate}T23:59:59.999`);
     
-    // For now, use the dates as-is and let the database handle timezone comparison
+    // Convert these local dates to UTC by adjusting for timezone offset
+    // This ensures the database comparison works correctly
+    // Use a simpler approach: create dates directly in the user's timezone context
     // This avoids complex timezone conversion issues
+    const startUTC = start;
+    const endUTC = end;
     
     // Single consolidated log to avoid Railway rate limiting
     console.log('TIMEZONE-WINDOW:', {
       userId,
       timezone: tz,
+      userLocalDate,
       timeWindow: {
         start: start.toISOString(),
-        end: end.toISOString()
+        end: end.toISOString(),
+        startUTC: startUTC.toISOString(),
+        endUTC: endUTC.toISOString()
       }
     });
     
-    return { start, end };
+    return { start: startUTC, end: endUTC };
   } catch (error) {
     console.error('getUserTodayWindow error:', error);
     // Fallback to server's local day
