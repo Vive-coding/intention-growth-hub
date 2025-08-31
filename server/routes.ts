@@ -328,12 +328,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
           lastName: user.lastName,
           onboardingCompleted: user.onboardingCompleted,
           createdAt: user.createdAt,
-          updatedAt: user.updatedAt
+          updatedAt: user.updatedAt,
+          timezone: user.timezone || 'Not set'
         }))
       });
     } catch (error) {
       console.error("Error getting all users:", error);
       res.status(500).json({ message: "Failed to get users" });
+    }
+  });
+
+  // Check specific user's timezone (for debugging)
+  app.get('/api/users/:userId/timezone', async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const { users } = await import('../shared/schema');
+      const userRows = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+      
+      if (userRows.length === 0) {
+        return res.status(404).json({ message: 'User not found' });
+      }
+      
+      const user = userRows[0];
+      res.json({
+        userId: user.id,
+        timezone: user.timezone || 'Not set',
+        email: user.email,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt
+      });
+    } catch (error) {
+      console.error("Error getting user timezone:", error);
+      res.status(500).json({ message: "Failed to get user timezone" });
     }
   });
 
@@ -902,7 +928,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/api/journals/:id', authMiddleware, securityMiddleware, async (req: any, res) => {
+
+   app.get('/api/journals/:id', authMiddleware, securityMiddleware, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const { id } = req.params;

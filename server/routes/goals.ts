@@ -1315,7 +1315,7 @@ router.get("/habits/timezone-test", async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user?.id;
     if (!userId) {
-      return res.status(401).json({ message: "User not authenticated" });
+        return res.status(401).json({ message: "User not authenticated" });
     }
 
     const { start, end } = await getUserTodayWindow(userId);
