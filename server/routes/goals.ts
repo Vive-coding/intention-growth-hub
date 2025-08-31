@@ -1269,7 +1269,13 @@ router.get("/habits/today", async (req: Request, res: Response) => {
       // Debug: Log the result of the completion check
       console.log(`HABIT-SHOW-RESULT: habitId=${row.habitDefinition.id}, habitName=${row.habitDefinition.name}, shouldShowHabit=${shouldShowHabit}, hasFrequencySettings=${!!row.habitInstance.frequencySettings}`);
       
-      if (!shouldShowHabit) continue;
+      // Debug: Log the continue logic
+      console.log(`HABIT-CONTINUE-CHECK: habitId=${row.habitDefinition.id}, shouldShowHabit=${shouldShowHabit}, !shouldShowHabit=${!shouldShowHabit}, willContinue=${!shouldShowHabit}`);
+      
+      if (!shouldShowHabit) {
+        console.log(`HABIT-SKIPPED: habitId=${row.habitDefinition.id}, habitName=${row.habitDefinition.name} - skipping due to shouldShowHabit=false`);
+        continue;
+      }
 
       const goalIds = rows.map(r => r.goalInstance.id);
       // Compute streak and totals for this habit for the user
