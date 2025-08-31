@@ -1185,6 +1185,21 @@ router.get("/habits/today", async (req: Request, res: Response) => {
 
       const { frequency, perPeriodTarget, periodsCount } = frequencySettings;
       const totalTarget = perPeriodTarget * periodsCount;
+      
+      // Debug: Log the frequency settings being checked
+      console.log('FREQUENCY-SETTINGS-CHECK:', {
+        habitId: habitDefinitionId,
+        hasFrequencySettings: !!frequencySettings,
+        frequencySettings: frequencySettings,
+        frequency,
+        perPeriodTarget,
+        periodsCount,
+        totalTarget,
+        habitInstance: {
+          id: habitInstance.id,
+          targetValue: habitInstance.targetValue
+        }
+      });
 
       // Calculate the start of the current period based on frequency
       let periodStart: Date;
@@ -1236,6 +1251,19 @@ router.get("/habits/today", async (req: Request, res: Response) => {
           lte(habitCompletions.completedAt, periodEnd)
         ));
 
+      // Debug: Log the completion check
+      console.log('HABIT-COMPLETION-CHECK:', {
+        habitId: habitDefinitionId,
+        frequency,
+        perPeriodTarget,
+        periodsCount,
+        totalTarget,
+        periodStart: periodStart.toISOString(),
+        periodEnd: periodEnd.toISOString(),
+        completionsInPeriod: completionsInPeriod.length,
+        shouldShow: completionsInPeriod.length < totalTarget
+      });
+
       // Show habit if not completed enough times for the current period
       return completionsInPeriod.length < totalTarget;
     };
@@ -1259,6 +1287,17 @@ router.get("/habits/today", async (req: Request, res: Response) => {
         userId, 
         today
       );
+      
+      // Debug: Log the result of the completion check
+      console.log('HABIT-SHOW-RESULT:', {
+        habitId: row.habitDefinition.id,
+        habitName: row.habitDefinition.name,
+        shouldShowHabit,
+        habitInstance: {
+          id: row.habitInstance.id,
+          frequencySettings: row.habitInstance.frequencySettings
+        }
+      });
       
       if (!shouldShowHabit) continue;
 
