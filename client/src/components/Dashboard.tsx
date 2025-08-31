@@ -286,10 +286,12 @@ export const Dashboard = ({ onOpenGPT, onDetailedViewChange, onClearDetailedView
       
       // Call once per habit. Backend already fans-out progress updates to all associated goals.
       const results = await Promise.all(selectedHabits.map(async (habit: any) => {
+        // Send the first goalId to help backend update specific goal progress
+        const goalId = habit.goalId || (habit.goalIds && habit.goalIds[0]);
         const result = await apiRequest(`/api/goals/habits/${habit.id}/complete`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({}),
+          body: JSON.stringify({ goalId }),
         });
         console.log(`Habit ${habit.name} completion result:`, result);
         return result;
