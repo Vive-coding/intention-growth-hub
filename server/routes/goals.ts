@@ -38,6 +38,24 @@ interface AuthenticatedRequest extends Request {
 
 const router = Router();
 
+// Helper to calculate timezone offset in minutes
+function getTimezoneOffsetMinutes(timezone: string): number {
+  // Common timezone offsets (in minutes from UTC)
+  const timezoneOffsets: { [key: string]: number } = {
+    'UTC': 0,
+    'America/New_York': -240, // EDT (UTC-4)
+    'America/Chicago': -300,  // CDT (UTC-5)
+    'America/Denver': -360,   // MDT (UTC-6)
+    'America/Los_Angeles': -420, // PDT (UTC-7)
+    'Europe/London': 0,       // BST (UTC+0) or GMT (UTC+0)
+    'Europe/Paris': 120,      // CEST (UTC+2)
+    'Asia/Tokyo': 540,        // JST (UTC+9)
+    'Australia/Sydney': 600,  // AEST (UTC+10)
+  };
+  
+  return timezoneOffsets[timezone] || 0;
+}
+
 // Helper to compute a user's start/end of "today" in UTC based on their timezone
 async function getUserTodayWindow(userId: string) {
   try {
@@ -54,15 +72,20 @@ async function getUserTodayWindow(userId: string) {
     
     // Create start of day in user's timezone, then convert to UTC
     // The key: we need to create the dates in the user's timezone context
+    // Create dates in the user's timezone context
+    // Use a more reliable method: create the date in the user's timezone
     const start = new Date(`${userLocalDate}T00:00:00.000`);
     const end = new Date(`${userLocalDate}T23:59:59.999`);
     
-    // Convert these local dates to UTC by adjusting for timezone offset
-    // This ensures the database comparison works correctly
-    // Use a simpler approach: create dates directly in the user's timezone context
-    // This avoids complex timezone conversion issues
-    const startUTC = start;
-    const endUTC = end;
+    // The issue: JavaScript treats these as local time and converts to UTC
+    // We need to create them in the user's timezone context
+    // For now, let's use a different approach: create dates relative to the user's timezone
+    // Calculate timezone offset manually using our helper function
+    const timezoneOffsetMinutes = getTimezoneOffsetMinutes(tz);
+    
+    // Adjust the dates by the timezone offset to get proper UTC times
+    const startUTC = new Date(start.getTime() - (timezoneOffsetMinutes * 60000));
+    const endUTC = new Date(end.getTime() - (timezoneOffsetMinutes * 60000));
     
     // Single consolidated log to avoid Railway rate limiting
     console.log('TIMEZONE-WINDOW:', {
