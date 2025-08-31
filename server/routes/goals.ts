@@ -100,6 +100,15 @@ async function getUserTodayWindow(userId: string) {
       }
     });
     
+    // Add separate logs to make them more visible in Railway
+    console.log(`TIMEZONE-DEBUG: User ${userId} timezone: ${tz}`);
+    console.log(`TIMEZONE-DEBUG: User local date: ${userLocalDate}`);
+    console.log(`TIMEZONE-DEBUG: Start (local): ${start.toISOString()}`);
+    console.log(`TIMEZONE-DEBUG: End (local): ${end.toISOString()}`);
+    console.log(`TIMEZONE-DEBUG: Start (UTC): ${startUTC.toISOString()}`);
+    console.log(`TIMEZONE-DEBUG: End (UTC): ${endUTC.toISOString()}`);
+    console.log(`TIMEZONE-DEBUG: Offset minutes: ${timezoneOffsetMinutes}`);
+    
     return { start: startUTC, end: endUTC };
   } catch (error) {
     console.error('getUserTodayWindow error:', error);
@@ -1312,8 +1321,14 @@ router.get("/habits/timezone-test", async (req: Request, res: Response) => {
     const { start, end } = await getUserTodayWindow(userId);
     const now = new Date();
     
+    // Get user's actual timezone from database
+    const { users } = await import('../../shared/schema');
+    const userRows = await db.select().from(users).where(eq(users.id as any, userId as any)).limit(1);
+    const userTimezone = userRows[0]?.timezone || 'UTC';
+    
     res.json({
       userId,
+      userTimezone,
       serverTime: now.toISOString(),
       timezoneWindow: {
         start: start.toISOString(),
