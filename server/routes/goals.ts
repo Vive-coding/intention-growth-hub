@@ -45,8 +45,6 @@ async function getUserTodayWindow(userId: string) {
     const rows = await db.select().from(users).where(eq(users.id as any, userId as any)).limit(1);
     const tz = (rows[0] as any)?.timezone || process.env.DEFAULT_TZ || 'UTC';
     
-    console.log('getUserTodayWindow: starting with timezone:', tz);
-    
     // Get the user's current local date in their timezone
     const now = new Date();
     
@@ -62,15 +60,14 @@ async function getUserTodayWindow(userId: string) {
     // For now, use the dates as-is and let the database handle timezone comparison
     // This avoids complex timezone conversion issues
     
-    console.log('getUserTodayWindow: using timezone-aware window:', {
+    // Single consolidated log to avoid Railway rate limiting
+    console.log('TIMEZONE-WINDOW:', {
       userId,
       timezone: tz,
-      userLocalDate,
-      serverNow: now.toISOString(),
-      start: start.toISOString(),
-      end: end.toISOString(),
-      startLocal: start.toLocaleString('en-US', { timeZone: tz }),
-      endLocal: end.toLocaleString('en-US', { timeZone: tz })
+      timeWindow: {
+        start: start.toISOString(),
+        end: end.toISOString()
+      }
     });
     
     return { start, end };
@@ -1274,36 +1271,57 @@ router.get("/habits/today", async (req: Request, res: Response) => {
   }
 });
 
-// Get habits completed today
-router.get("/habits/completed-today", async (req: Request, res: Response) => {
-  console.log('=== COMPLETED-TODAY ENDPOINT CALLED ===');
-  console.log('Request URL:', req.url);
-  console.log('Request method:', req.method);
+// Test endpoint to check timezone calculation (for debugging)
+router.get("/habits/timezone-test", async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user?.id;
-    
     if (!userId) {
       return res.status(401).json({ message: "User not authenticated" });
     }
 
-    console.log('GET /habits/completed-today called for user:', userId);
-
-    // Today window (user timezone aware)
-    const { start: today, end: tomorrow } = await getUserTodayWindow(userId);
+    const { start, end } = await getUserTodayWindow(userId);
+    const now = new Date();
     
-    console.log('Completed-today query using time window:', {
-      start: today.toISOString(),
-      end: tomorrow.toISOString()
-    });
-
-    // Get completed habits for today with full details
-    console.log('Executing completed-today query with conditions:', {
+    res.json({
       userId,
-      start: today.toISOString(),
-      end: tomorrow.toISOString(),
-      startLocal: today.toLocaleString('en-US', { timeZone: 'America/Toronto' }),
-      endLocal: tomorrow.toLocaleString('en-US', { timeZone: 'America/Toronto' })
+      serverTime: now.toISOString(),
+      timezoneWindow: {
+        start: start.toISOString(),
+        end: end.toISOString()
+      },
+      testHabitCompletion: {
+        habitId: '8aef91af-456e-4cd5-a41e-22cf0cafe2ea',
+        completedAt: '2025-08-31T02:24:52.034Z',
+        isInWindow: start <= new Date('2025-08-31T02:24:52.034Z') && new Date('2025-08-31T02:24:52.034Z') < end
+      }
     });
+  } catch (error) {
+    console.error("Timezone test error:", error);
+    res.status(500).json({ error: "Timezone test failed" });
+  }
+});
+
+// Get habits completed today
+router.get("/habits/completed-today", async (req: Request, res: Response) => {
+      // Reduced logging to avoid Railway rate limiting
+    try {
+      const userId = (req as any).user?.id;
+      
+      if (!userId) {
+        return res.status(401).json({ message: "User not authenticated" });
+      }
+
+      // Today window (user timezone aware)
+      const { start: today, end: tomorrow } = await getUserTodayWindow(userId);
+      
+      // Single consolidated log for time window
+      console.log('COMPLETED-TODAY:', {
+        userId,
+        timeWindow: {
+          start: today.toISOString(),
+          end: tomorrow.toISOString()
+        }
+      });
     
     const completedHabits = await db
       .select({
@@ -1342,18 +1360,19 @@ router.get("/habits/completed-today", async (req: Request, res: Response) => {
     const specificHabitInResults = completedHabits.filter(row => 
       row.habitDefinition.id === specificHabitId
     );
-    console.log('Debug: Looking for specific habit:', specificHabitId);
-    console.log('Debug: Found in raw results:', specificHabitInResults.length);
-    if (specificHabitInResults.length > 0) {
-      console.log('Debug: Specific habit details:', {
-        habitId: specificHabitInResults[0].habitDefinition.id,
-        habitName: specificHabitInResults[0].habitDefinition.name,
+    
+    // Single consolidated debug log
+    console.log('HABIT-DEBUG:', {
+      lookingFor: specificHabitId,
+      foundInResults: specificHabitInResults.length,
+      totalResults: completedHabits.length,
+      hasAssociations: specificHabitInResults.length > 0 ? {
         hasHabitInstance: !!specificHabitInResults[0].goalInstance,
         hasGoalInstance: !!specificHabitInResults[0].goalInstance,
         hasGoalDefinition: !!specificHabitInResults[0].goalDefinition,
         hasLifeMetric: !!specificHabitInResults[0].lifeMetric
-      });
-    }
+      } : null
+    });
 
     // Group by habit definition and get the best metric association
     const habitIdToData: Record<string, any> = {};
