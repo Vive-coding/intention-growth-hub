@@ -1336,6 +1336,24 @@ router.get("/habits/completed-today", async (req: Request, res: Response) => {
         habitName: completedHabits[0].habitDefinition.name
       });
     }
+    
+    // Debug: Check if our specific habit is in the raw results
+    const specificHabitId = '8aef91af-456e-4cd5-a41e-22cf0cafe2ea';
+    const specificHabitInResults = completedHabits.filter(row => 
+      row.habitDefinition.id === specificHabitId
+    );
+    console.log('Debug: Looking for specific habit:', specificHabitId);
+    console.log('Debug: Found in raw results:', specificHabitInResults.length);
+    if (specificHabitInResults.length > 0) {
+      console.log('Debug: Specific habit details:', {
+        habitId: specificHabitInResults[0].habitDefinition.id,
+        habitName: specificHabitInResults[0].habitDefinition.name,
+        hasHabitInstance: !!specificHabitInResults[0].goalInstance,
+        hasGoalInstance: !!specificHabitInResults[0].goalInstance,
+        hasGoalDefinition: !!specificHabitInResults[0].goalDefinition,
+        hasLifeMetric: !!specificHabitInResults[0].lifeMetric
+      });
+    }
 
     // Group by habit definition and get the best metric association
     const habitIdToData: Record<string, any> = {};
