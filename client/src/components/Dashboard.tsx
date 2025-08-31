@@ -300,6 +300,12 @@ export const Dashboard = ({ onOpenGPT, onDetailedViewChange, onClearDetailedView
       console.log('All completion results:', results);
       setSelectedHabitIds([]);
       
+      // Show success message
+      toast.success(`Successfully completed ${results.length} habit${results.length > 1 ? 's' : ''}`);
+      
+      // Immediately update local state to show completion
+      console.log('🟣 Habit completion successful, updating UI...');
+      
       // Refresh today + completed counts so the right panel numbers update immediately
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['/api/goals/habits/today'] }),
@@ -308,7 +314,10 @@ export const Dashboard = ({ onOpenGPT, onDetailedViewChange, onClearDetailedView
       
       // Force an immediate refetch to avoid intermediary 304s
       const refetchResult = await queryClient.refetchQueries({ queryKey: ['/api/goals/habits/completed-today'], type: 'active' });
-      console.log('Refetch result:', refetchResult);
+      console.log('🟣 Refetch result:', refetchResult);
+      
+      // Also refresh the specific goal data to show updated progress
+      await queryClient.invalidateQueries({ queryKey: ['/api/goals'] });
       
       // Proactively upsert today's snapshots for all metrics so charts match ring values immediately
       try {
