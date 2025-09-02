@@ -63,51 +63,30 @@ async function getUserTodayWindow(userId: string) {
     const rows = await db.select().from(users).where(eq(users.id as any, userId as any)).limit(1);
     const tz = (rows[0] as any)?.timezone || process.env.DEFAULT_TZ || 'UTC';
     
-    // Get the user's current local date in their timezone
+    // Get current time in user's timezone
     const now = new Date();
     
-    // Convert to user's timezone and get start/end of their current day
-    // Format: YYYY-MM-DD in user's timezone
-    const userLocalDate = now.toLocaleDateString('en-CA', { timeZone: tz }); // en-CA gives YYYY-MM-DD format
+    // Create a date formatter for the user's timezone
+    const userDate = new Date(now.toLocaleString("en-US", { timeZone: tz }));
     
-    // Create start of day in user's timezone, then convert to UTC
-    // The key: we need to create the dates in the user's timezone context
-    // Create dates in the user's timezone context
-    // Use a more reliable method: create the date in the user's timezone
-    const start = new Date(`${userLocalDate}T00:00:00.000`);
-    const end = new Date(`${userLocalDate}T23:59:59.999`);
+    // Get start and end of day in user's timezone, then convert to UTC
+    const startOfDay = new Date(userDate.getFullYear(), userDate.getMonth(), userDate.getDate(), 0, 0, 0, 0);
+    const endOfDay = new Date(userDate.getFullYear(), userDate.getMonth(), userDate.getDate(), 23, 59, 59, 999);
     
-    // The issue: JavaScript treats these as local time and converts to UTC
-    // We need to create them in the user's timezone context
-    // For now, let's use a different approach: create dates relative to the user's timezone
-    // Calculate timezone offset manually using our helper function
-    const timezoneOffsetMinutes = getTimezoneOffsetMinutes(tz);
+    // Convert to UTC by adjusting for timezone offset
+    const timezoneOffset = now.getTimezoneOffset() - (userDate.getTimezoneOffset());
+    const startUTC = new Date(startOfDay.getTime() - (timezoneOffset * 60000));
+    const endUTC = new Date(endOfDay.getTime() - (timezoneOffset * 60000));
     
-    // Adjust the dates by the timezone offset to get proper UTC times
-    const startUTC = new Date(start.getTime() - (timezoneOffsetMinutes * 60000));
-    const endUTC = new Date(end.getTime() - (timezoneOffsetMinutes * 60000));
-    
-    // Single consolidated log to avoid Railway rate limiting
     console.log('TIMEZONE-WINDOW:', {
       userId,
       timezone: tz,
-      userLocalDate,
+      userLocalDate: userDate.toISOString().split('T')[0],
       timeWindow: {
-        start: start.toISOString(),
-        end: end.toISOString(),
         startUTC: startUTC.toISOString(),
         endUTC: endUTC.toISOString()
       }
     });
-    
-    // Add separate logs to make them more visible in Railway
-    console.log(`TIMEZONE-DEBUG: User ${userId} timezone: ${tz}`);
-    console.log(`TIMEZONE-DEBUG: User local date: ${userLocalDate}`);
-    console.log(`TIMEZONE-DEBUG: Start (local): ${start.toISOString()}`);
-    console.log(`TIMEZONE-DEBUG: End (local): ${end.toISOString()}`);
-    console.log(`TIMEZONE-DEBUG: Start (UTC): ${startUTC.toISOString()}`);
-    console.log(`TIMEZONE-DEBUG: End (UTC): ${endUTC.toISOString()}`);
-    console.log(`TIMEZONE-DEBUG: Offset minutes: ${timezoneOffsetMinutes}`);
     
     return { start: startUTC, end: endUTC };
   } catch (error) {
@@ -1138,12 +1117,19 @@ router.get("/habits/today", async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user?.id;
     
+    console.log('=== HABITS/TODAY ENDPOINT CALLED ===');
+    console.log('User ID:', userId);
+    
     if (!userId) {
       return res.status(401).json({ message: "User not authenticated" });
     }
 
     // Today window (user timezone aware)
     const { start: today, end: tomorrow } = await getUserTodayWindow(userId);
+    
+    console.log('=== TIMEZONE WINDOW ===');
+    console.log('Today start:', today.toISOString());
+    console.log('Today end:', tomorrow.toISOString());
 
     // Habit instances connected to active goals for this user
     const activeHabitRows = await db
@@ -1162,9 +1148,17 @@ router.get("/habits/today", async (req: Request, res: Response) => {
       ))
       .limit(200);
 
+    console.log('=== ACTIVE HABIT ROWS ===');
+    console.log('Number of active habit rows:', activeHabitRows.length);
+    console.log('Sample row:', activeHabitRows[0] ? {
+      habitDefinitionId: activeHabitRows[0].habitDefinition.id,
+      habitName: activeHabitRows[0].habitDefinition.name,
+      frequencySettings: activeHabitRows[0].habitInstance.frequencySettings
+    } : 'No rows');
+
     // Group by habit definition to avoid duplicates (same habit across multiple goals)
     // Helper function to determine if a habit should be shown for completion
-    const shouldShowHabitForCompletion = async (habitDefinitionId: string, habitInstance: any, userId: string, today: Date) => {
+    const shouldShowHabitForCompletion = async (habitDefinitionId: string, habitInstance: any, userId: string, todayStart: Date, todayEnd: Date) => {
       // Get the habit's frequency settings
       const frequencySettings = habitInstance.frequencySettings;
       
@@ -1176,8 +1170,8 @@ router.get("/habits/today", async (req: Request, res: Response) => {
           .where(and(
             eq(habitCompletions.habitDefinitionId, habitDefinitionId),
             eq(habitCompletions.userId, userId),
-            gte(habitCompletions.completedAt, today),
-            lt(habitCompletions.completedAt, new Date(today.getTime() + 24 * 60 * 60 * 1000))
+            gte(habitCompletions.completedAt, todayStart),
+            lt(habitCompletions.completedAt, todayEnd)
           ))
           .limit(1);
         return alreadyToday.length === 0;
@@ -1187,27 +1181,29 @@ router.get("/habits/today", async (req: Request, res: Response) => {
       const totalTarget = perPeriodTarget * periodsCount;
       
       // Debug: Log the frequency settings being checked
-      console.log(`FREQUENCY-SETTINGS-CHECK: habitId=${habitDefinitionId}, hasSettings=${!!frequencySettings}, frequency=${frequency}, perPeriodTarget=${perPeriodTarget}, periodsCount=${periodsCount}, totalTarget=${totalTarget}`);
+      console.log(`FREQUENCY-SETTINGS-CHECK: habitId=${habitDefinitionId}, hasSettings=${!!frequencySettings}, frequencySettings=${JSON.stringify(frequencySettings)}, frequency=${frequency}, perPeriodTarget=${perPeriodTarget}, periodsCount=${periodsCount}, totalTarget=${totalTarget}`);
 
       // Calculate the start of the current period based on frequency
       let periodStart: Date;
       let periodEnd: Date;
       
+      // Use the timezone-aware today window for all calculations
+      const today = new Date(todayStart.getTime() + (todayEnd.getTime() - todayStart.getTime()) / 2); // Middle of the day
+      
       switch (frequency) {
         case 'daily':
-          // Daily: check if completed today
-          periodStart = new Date(today);
-          periodStart.setHours(0, 0, 0, 0);
-          periodEnd = new Date(today);
-          periodEnd.setHours(23, 59, 59, 999);
+          // Daily: use the timezone-aware today window
+          periodStart = todayStart;
+          periodEnd = todayEnd;
           break;
           
         case 'weekly':
-          // Weekly: check if completed this week (Monday to Sunday)
-          const dayOfWeek = today.getDay();
+          // Weekly: check if completed this week (Monday to Sunday) in user's timezone
+          // Use the timezone-aware todayStart to get the correct day of week
+          const dayOfWeek = todayStart.getDay();
           const daysFromMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // Sunday = 0, Monday = 1
-          periodStart = new Date(today);
-          periodStart.setDate(today.getDate() - daysFromMonday);
+          periodStart = new Date(todayStart);
+          periodStart.setDate(todayStart.getDate() - daysFromMonday);
           periodStart.setHours(0, 0, 0, 0);
           periodEnd = new Date(periodStart);
           periodEnd.setDate(periodStart.getDate() + 6);
@@ -1215,17 +1211,15 @@ router.get("/habits/today", async (req: Request, res: Response) => {
           break;
           
         case 'monthly':
-          // Monthly: check if completed this month
-          periodStart = new Date(today.getFullYear(), today.getMonth(), 1);
-          periodEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0, 23, 59, 59, 999);
+          // Monthly: check if completed this month in user's timezone
+          periodStart = new Date(todayStart.getFullYear(), todayStart.getMonth(), 1);
+          periodEnd = new Date(todayStart.getFullYear(), todayStart.getMonth() + 1, 0, 23, 59, 59, 999);
           break;
           
         default:
-          // Fallback to daily
-          periodStart = new Date(today);
-          periodStart.setHours(0, 0, 0, 0);
-          periodEnd = new Date(today);
-          periodEnd.setHours(23, 59, 59, 999);
+          // Fallback to daily using timezone-aware window
+          periodStart = todayStart;
+          periodEnd = todayEnd;
       }
 
       // Count completions in the current period
@@ -1240,10 +1234,11 @@ router.get("/habits/today", async (req: Request, res: Response) => {
         ));
 
       // Debug: Log the completion check
-      console.log(`HABIT-COMPLETION-CHECK: habitId=${habitDefinitionId}, frequency=${frequency}, perPeriodTarget=${perPeriodTarget}, periodsCount=${periodsCount}, totalTarget=${totalTarget}, periodStart=${periodStart.toISOString()}, periodEnd=${periodEnd.toISOString()}, completionsInPeriod=${completionsInPeriod.length}, shouldShow=${completionsInPeriod.length < totalTarget}`);
+      console.log(`HABIT-COMPLETION-CHECK: habitId=${habitDefinitionId}, frequency=${frequency}, perPeriodTarget=${perPeriodTarget}, periodsCount=${periodsCount}, totalTarget=${totalTarget}, periodStart=${periodStart.toISOString()}, periodEnd=${periodEnd.toISOString()}, completionsInPeriod=${completionsInPeriod.length}, shouldShow=${completionsInPeriod.length < perPeriodTarget}`);
+      console.log(`HABIT-COMPLETION-DETAILS: completions=${JSON.stringify(completionsInPeriod.map(c => ({ id: c.id, completedAt: c.completedAt })))}`);
 
       // Show habit if not completed enough times for the current period
-      return completionsInPeriod.length < totalTarget;
+      return completionsInPeriod.length < perPeriodTarget;
     };
 
     // Group rows by habit definition, keeping all goal associations
@@ -1263,11 +1258,12 @@ router.get("/habits/today", async (req: Request, res: Response) => {
         row.habitDefinition.id, 
         row.habitInstance, 
         userId, 
-        today
+        today,
+        tomorrow
       );
       
       // Debug: Log the result of the completion check
-      console.log(`HABIT-SHOW-RESULT: habitId=${row.habitDefinition.id}, habitName=${row.habitDefinition.name}, shouldShowHabit=${shouldShowHabit}, hasFrequencySettings=${!!row.habitInstance.frequencySettings}`);
+      console.log(`HABIT-SHOW-RESULT: habitId=${row.habitDefinition.id}, habitName=${row.habitDefinition.name}, shouldShowHabit=${shouldShowHabit}, hasFrequencySettings=${!!row.habitInstance.frequencySettings}, frequencySettings=${JSON.stringify(row.habitInstance.frequencySettings)}`);
       
       // Debug: Log the continue logic
       console.log(`HABIT-CONTINUE-CHECK: habitId=${row.habitDefinition.id}, shouldShowHabit=${shouldShowHabit}, !shouldShowHabit=${!shouldShowHabit}, willContinue=${!shouldShowHabit}`);
@@ -1315,9 +1311,12 @@ router.get("/habits/today", async (req: Request, res: Response) => {
         currentStreak,
         longestStreak,
         totalCompletions: allCompletions.length,
+        frequencySettings: row.habitInstance.frequencySettings,
       });
     }
 
+    console.log(`HABITS/TODAY: Returning ${result.length} habits for user ${userId}`);
+    console.log(`HABITS/TODAY: Result details:`, result.map(r => ({ id: r.id, name: r.name, frequencySettings: r.frequencySettings })));
     res.json(result);
   } catch (error) {
     console.error("Error fetching today's habits:", error);
@@ -1525,10 +1524,10 @@ router.post("/habits/:id/complete", async (req: Request, res: Response) => {
       return res.status(404).json({ error: "Habit not found" });
     }
 
-    // Check for existing completion today to prevent duplicates
+    // Check for frequency-aware completion limits
     const { start: today, end: tomorrow } = await getUserTodayWindow(userId);
     
-    console.log('Duplicate check for habit:', habitId, 'user:', userId, 'timezone window:', { 
+    console.log('Frequency-aware duplicate check for habit:', habitId, 'user:', userId, 'timezone window:', { 
       start: today, 
       end: tomorrow,
       startISO: today.toISOString(),
@@ -1536,32 +1535,89 @@ router.post("/habits/:id/complete", async (req: Request, res: Response) => {
       serverNow: new Date().toISOString()
     });
 
-    const existingTodayCompletion = await db
-      .select()
-      .from(habitCompletions)
-      .where(and(
-        eq(habitCompletions.habitDefinitionId, habitId),
-        eq(habitCompletions.userId, userId),
-        gte(habitCompletions.completedAt, today),
-        lt(habitCompletions.completedAt, tomorrow)
-      ))
+    // Get the habit's frequency settings from the first associated goal
+    const habitInstance = await db
+      .select({ frequencySettings: habitInstances.frequencySettings })
+      .from(habitInstances)
+      .where(eq(habitInstances.habitDefinitionId, habitId))
       .limit(1);
 
-    console.log('Existing completions found:', existingTodayCompletion.length, 'for habit:', habitId);
-    if (existingTodayCompletion.length > 0) {
-      console.log('Existing completion details:', {
-        id: existingTodayCompletion[0].id,
-        completedAt: existingTodayCompletion[0].completedAt,
-        completedAtISO: existingTodayCompletion[0].completedAt?.toISOString()
-      });
-    }
+    if (habitInstance.length > 0 && habitInstance[0].frequencySettings) {
+      const { frequency, perPeriodTarget } = habitInstance[0].frequencySettings as { frequency: string; perPeriodTarget: number; periodsCount: number };
+      
+      // Calculate the current period based on frequency
+      let periodStart: Date;
+      let periodEnd: Date;
+      
+      switch (frequency) {
+        case 'daily':
+          periodStart = today;
+          periodEnd = tomorrow;
+          break;
+        case 'weekly':
+          const dayOfWeek = today.getDay();
+          const daysFromMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+          periodStart = new Date(today);
+          periodStart.setDate(today.getDate() - daysFromMonday);
+          periodStart.setHours(0, 0, 0, 0);
+          periodEnd = new Date(periodStart);
+          periodEnd.setDate(periodStart.getDate() + 6);
+          periodEnd.setHours(23, 59, 59, 999);
+          break;
+        case 'monthly':
+          periodStart = new Date(today.getFullYear(), today.getMonth(), 1);
+          periodEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0, 23, 59, 59, 999);
+          break;
+        default:
+          // Fallback to daily
+          periodStart = today;
+          periodEnd = tomorrow;
+      }
 
-    if (existingTodayCompletion.length > 0) {
-      console.log('Habit already completed today, skipping duplicate completion');
-      return res.status(409).json({ 
-        error: "Habit already completed today",
-        completion: existingTodayCompletion[0]
-      });
+      // Check completions in the current period
+      const completionsInPeriod = await db
+        .select()
+        .from(habitCompletions)
+        .where(and(
+          eq(habitCompletions.habitDefinitionId, habitId),
+          eq(habitCompletions.userId, userId),
+          gte(habitCompletions.completedAt, periodStart),
+          lte(habitCompletions.completedAt, periodEnd)
+        ));
+
+      console.log(`Frequency check: habit=${habitId}, frequency=${frequency}, perPeriodTarget=${perPeriodTarget}, completionsInPeriod=${completionsInPeriod.length}, periodStart=${periodStart.toISOString()}, periodEnd=${periodEnd.toISOString()}`);
+
+      // If already completed enough times for this period, prevent further completions
+      if (completionsInPeriod.length >= perPeriodTarget) {
+        console.log(`Habit already completed ${completionsInPeriod.length}/${perPeriodTarget} times for this ${frequency} period, skipping duplicate completion`);
+        return res.status(409).json({ 
+          error: `Habit already completed ${perPeriodTarget} times for this ${frequency} period`,
+          completion: completionsInPeriod[0],
+          frequency,
+          perPeriodTarget,
+          completionsInPeriod: completionsInPeriod.length
+        });
+      }
+    } else {
+      // Fallback: if no frequency settings, use daily check
+      const existingTodayCompletion = await db
+        .select()
+        .from(habitCompletions)
+        .where(and(
+          eq(habitCompletions.habitDefinitionId, habitId),
+          eq(habitCompletions.userId, userId),
+          gte(habitCompletions.completedAt, today),
+          lt(habitCompletions.completedAt, tomorrow)
+        ))
+        .limit(1);
+
+      if (existingTodayCompletion.length > 0) {
+        console.log('Habit already completed today (no frequency settings), skipping duplicate completion');
+        return res.status(409).json({ 
+          error: "Habit already completed today",
+          completion: existingTodayCompletion[0]
+        });
+      }
     }
 
     // Create completion record

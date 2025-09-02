@@ -82,16 +82,33 @@ export const useMetricProgress = (metricName: string, selectedPeriod: string) =>
         });
         const daysThisMonth = dailySnapshots as any[];
 
-        // Compute latest progress for ring from last snapshot (or 0)
+        // Compute latest progress for ring from last snapshot
         const latest = daysThisMonth && daysThisMonth.length > 0
           ? daysThisMonth[daysThisMonth.length - 1]
-          : { progressPercentage: 0, goalsCompleted: 0, totalGoals: 0 };
+          : null;
+
+        // If no snapshots exist, fall back to current progress from goals
+        if (!latest || latest.progressPercentage === 0) {
+          console.log('useMetricProgress - No snapshots found, fetching current progress');
+          const currentProgressUrl = `/api/life-metrics/progress`;
+          const currentProgress = await apiRequest(currentProgressUrl);
+          const metricProgress = currentProgress.find((m: any) => m.name === metricName);
+          
+          if (metricProgress) {
+            return {
+              progress: metricProgress.progress || 0,
+              totalGoals: metricProgress.totalGoals || 0,
+              completedGoals: metricProgress.completedGoals || 0,
+              progressSnapshots: daysThisMonth || [],
+            };
+          }
+        }
 
         return {
-          progress: latest.progressPercentage || 0,
-          totalGoals: latest.totalGoals,
-          completedGoals: latest.goalsCompleted,
-          progressSnapshots: daysThisMonth,
+          progress: latest?.progressPercentage || 0,
+          totalGoals: latest?.totalGoals || 0,
+          completedGoals: latest?.goalsCompleted || 0,
+          progressSnapshots: daysThisMonth || [],
         };
         
         // Fallback

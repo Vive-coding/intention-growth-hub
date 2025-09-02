@@ -852,15 +852,28 @@ export class DatabaseStorage implements IStorage {
 
   async upsertTodayProgressSnapshot(userId: string, lifeMetricName: string): Promise<void> {
     console.log('[snapshot] upsertTodayProgressSnapshot called', { userId, lifeMetricName });
-    const startOfDay = new Date();
-    startOfDay.setHours(0, 0, 0, 0);
-    const endOfDay = new Date(startOfDay);
-    endOfDay.setDate(endOfDay.getDate() + 1);
+    
+    // Get user's timezone for proper date calculation
+    const user = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+    const userTimezone = user[0]?.timezone || 'UTC';
+    
+    // Get current time in user's timezone
+    const now = new Date();
+    const userDate = new Date(now.toLocaleString("en-US", { timeZone: userTimezone }));
+    
+    // Calculate start and end of day in user's timezone
+    const startOfDay = new Date(userDate.getFullYear(), userDate.getMonth(), userDate.getDate(), 0, 0, 0, 0);
+    const endOfDay = new Date(userDate.getFullYear(), userDate.getMonth(), userDate.getDate(), 23, 59, 59, 999);
+    
+    // Convert to UTC for database storage
+    const timezoneOffset = now.getTimezoneOffset() - (userDate.getTimezoneOffset());
+    const startOfDayUTC = new Date(startOfDay.getTime() - (timezoneOffset * 60000));
+    const endOfDayUTC = new Date(endOfDay.getTime() - (timezoneOffset * 60000));
 
     // Compute current progress numbers using existing helper
     const current = await this.getCurrentMonthProgress(userId, lifeMetricName);
     console.log('[snapshot] currentMonthProgress', current);
-    const monthYear = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
+    const monthYear = `${userDate.getFullYear()}-${String(userDate.getMonth() + 1).padStart(2, '0')}`;
 
     // Check if a snapshot exists for today
     const existing = await db
@@ -869,8 +882,8 @@ export class DatabaseStorage implements IStorage {
       .where(and(
         eq(progressSnapshots.userId, userId),
         eq(progressSnapshots.lifeMetricName, lifeMetricName),
-        gte(progressSnapshots.snapshotDate, startOfDay),
-        lt(progressSnapshots.snapshotDate, endOfDay)
+        gte(progressSnapshots.snapshotDate, startOfDayUTC),
+        lt(progressSnapshots.snapshotDate, endOfDayUTC)
       ))
       .limit(1);
 
@@ -881,6 +894,9 @@ export class DatabaseStorage implements IStorage {
       progress: current.progress,
       goalsCompleted: current.goalsCompleted,
       totalGoals: current.totalGoals,
+      userTimezone,
+      startOfDayUTC: startOfDayUTC.toISOString(),
+      endOfDayUTC: endOfDayUTC.toISOString(),
     });
 
     if (existing.length > 0) {
@@ -892,7 +908,7 @@ export class DatabaseStorage implements IStorage {
           goalsCompleted: current.goalsCompleted,
           totalGoals: current.totalGoals,
           monthYear,
-          snapshotDate: new Date(),
+          snapshotDate: startOfDayUTC, // Use timezone-aware date
         })
         .where(eq(progressSnapshots.id, existing[0].id));
     } else {
@@ -904,7 +920,7 @@ export class DatabaseStorage implements IStorage {
         progressPercentage: current.progress,
         goalsCompleted: current.goalsCompleted,
         totalGoals: current.totalGoals,
-        snapshotDate: new Date(),
+        snapshotDate: startOfDayUTC, // Use timezone-aware date
       });
     }
 
@@ -998,8 +1014,12 @@ export class DatabaseStorage implements IStorage {
     const lifeMetricId = lifeMetric[0].id;
 
     // Get current month's goals for this metric using lifeMetricId
-    const currentMonth = new Date();
-    const monthYear = `${currentMonth.getFullYear()}-${String(currentMonth.getMonth() + 1).padStart(2, '0')}`;
+    // Use user's timezone for month calculation
+    const user = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+    const userTimezone = user[0]?.timezone || 'UTC';
+    const now = new Date();
+    const userDate = new Date(now.toLocaleString("en-US", { timeZone: userTimezone }));
+    const monthYear = `${userDate.getFullYear()}-${String(userDate.getMonth() + 1).padStart(2, '0')}`;
 
     const goals = await db
       .select({

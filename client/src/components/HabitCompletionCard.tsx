@@ -67,6 +67,8 @@ export function HabitCompletionCard({ habit }: HabitCompletionCardProps) {
       // Refetch habits data and smart suggestions
       queryClient.invalidateQueries({ queryKey: ["habits"] });
       queryClient.invalidateQueries({ queryKey: ["/api/goals"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/goals/habits/today"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/goals/habits/completed-today"] });
       queryClient.invalidateQueries({ queryKey: ["/api/life-metrics/progress"] });
       queryClient.invalidateQueries({ queryKey: ["metric-progress"] });
       queryClient.invalidateQueries({ queryKey: ["/api/smart-suggestions"] });

@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Calendar, BookOpen, Plus, Search, ChevronRight, Clock } from "lucide-react";
 import { format, parseISO, startOfMonth, endOfMonth } from "date-fns";
 import { Logo } from "@/components/ui/Logo";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { JournalEntryDetail } from "./JournalEntryDetail";
 import { CreateJournalEntry } from "./CreateJournalEntry";
 import type { JournalEntry } from "@shared/schema";
@@ -121,64 +122,28 @@ export const JournalsScreen = () => {
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-cyan-50 p-4">
       <div className="max-w-4xl mx-auto space-y-6">
         {/* Header */}
-        <Card className="shadow-md border-0 bg-white/80 backdrop-blur-sm">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="flex items-center gap-3 text-lg sm:text-xl">
-                  <BookOpen className="w-5 h-5 sm:w-6 sm:h-6 text-indigo-600" />
-                  Your Journal
-                </CardTitle>
-                <p className="text-gray-600 mt-1 text-sm sm:text-base">
-                  Capture your thoughts, reflections, and daily insights
-                </p>
-              </div>
-              <Button 
-                onClick={() => setShowCreateForm(true)}
-                className="bg-indigo-600 hover:bg-indigo-700 text-sm sm:text-base px-3 sm:px-4 py-2"
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                <span className="hidden sm:inline">New Entry</span>
-                <span className="sm:hidden">+</span>
-              </Button>
-            </div>
-          </CardHeader>
-        </Card>
+        <PageHeader
+          title="Your Journal"
+          description="Capture your thoughts, reflections, and daily insights"
+          icon={<BookOpen className="w-5 h-5 sm:w-6 sm:h-6 text-indigo-600" />}
+          showAddButton={true}
+          addButtonText="New Entry"
+          addButtonIcon={<Plus className="w-4 h-4" />}
+          onAddClick={() => setShowCreateForm(true)}
+          filters={[
+            {
+              label: "View",
+              value: viewMode,
+              options: [
+                { value: "all", label: "All Entries" },
+                { value: "month", label: "This Month" }
+              ],
+              onChange: (value) => setViewMode(value as "all" | "month")
+            }
+          ]}
+        />
 
-        {/* Filter Controls */}
-        <Card className="shadow-md border-0 bg-white/80 backdrop-blur-sm">
-          <CardContent className="p-3 sm:p-4">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0">
-              <div className="flex items-center gap-2 sm:gap-4">
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant={viewMode === "all" ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setViewMode("all")}
-                    className="text-xs sm:text-sm px-2 sm:px-3"
-                  >
-                    All Entries
-                  </Button>
-                  <Button
-                    variant={viewMode === "month" ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setViewMode("month")}
-                    className="text-xs sm:text-sm px-2 sm:px-3"
-                  >
-                    <Calendar className="w-3 h-3 sm:w-4 sm:h-4 mr-1" />
-                    <span className="hidden sm:inline">This Month</span>
-                    <span className="sm:hidden">Month</span>
-                  </Button>
-                </div>
-              </div>
-              
-              <div className="flex items-center gap-2 text-xs sm:text-sm text-gray-600">
-                <Clock className="w-3 h-3 sm:w-4 sm:h-4" />
-                {filteredEntries.length} entries
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+
 
         {/* Journal Entries */}
         <div className="space-y-4">

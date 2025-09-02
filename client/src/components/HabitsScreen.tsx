@@ -8,6 +8,7 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@
 import { Flame, Calendar, CheckCircle } from "lucide-react";
 import { useLocation } from "wouter";
 import { Logo } from "@/components/ui/Logo";
+import { PageHeader } from "@/components/ui/PageHeader";
 
 export function HabitsScreen() {
   // Get metric filter from URL
@@ -106,14 +107,34 @@ export function HabitsScreen() {
 
   return (
     <div className="container mx-auto p-6">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-800">
-          {metricFilter ? `${metricFilter} Habits` : "Habits"}
-        </h1>
-      </div>
+      {/* Header */}
+      <PageHeader
+        title={metricFilter ? `${metricFilter} Habits` : "Habits"}
+        description="Track and manage your daily habits"
+        icon={<Flame className="w-5 h-5 sm:w-6 sm:h-6 text-orange-600" />}
+        showAddButton={false}
+        filters={[
+          {
+            label: "Status",
+            value: statusFilter,
+            options: [
+              { value: "active", label: "Active" },
+              { value: "archived", label: "Archived" },
+              { value: "all", label: "All" }
+            ],
+            onChange: (value) => setStatusFilter(value as 'active' | 'archived' | 'all')
+          },
+          {
+            label: "Life Metric",
+            value: lifeMetricFilter,
+            options: lifeMetricOptions.map(opt => ({ value: opt, label: opt })),
+            onChange: (value) => setLifeMetricFilter(value)
+          }
+        ]}
+      />
       
       {/* Summary Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6 mt-6">
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center space-x-2">
@@ -147,37 +168,6 @@ export function HabitsScreen() {
             </p>
           </CardContent>
         </Card>
-      </div>
-
-      {/* Filters */}
-      <div className="flex flex-wrap items-center gap-3 mb-4">
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-muted-foreground">Status</span>
-          <Select value={statusFilter} onValueChange={(v: any)=> setStatusFilter(v)}>
-            <SelectTrigger className="w-40">
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="active">Active</SelectItem>
-              <SelectItem value="archived">Archived</SelectItem>
-              <SelectItem value="all">All</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-muted-foreground">Life Metric</span>
-          <Select value={lifeMetricFilter} onValueChange={(v: any)=> setLifeMetricFilter(v)}>
-            <SelectTrigger className="w-56">
-              <SelectValue placeholder="Life Metric" />
-            </SelectTrigger>
-            <SelectContent>
-              {lifeMetricOptions.map((opt)=> (
-                <SelectItem key={opt} value={opt}>{opt}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <span className="text-sm text-muted-foreground">{filteredHabits.length} habit{filteredHabits.length!==1?'s':''}</span>
       </div>
 
       {/* Grid */}

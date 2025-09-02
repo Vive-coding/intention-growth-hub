@@ -523,6 +523,8 @@ export const GoalDetailModal = ({
         // Invalidate all goal-related queries to refresh data and update UI immediately
         queryClient.invalidateQueries({ queryKey: ['/api/goals'] });
         queryClient.invalidateQueries({ queryKey: ['/api/goal-instances'] });
+        queryClient.invalidateQueries({ queryKey: ['/api/goals/habits/today'] });
+        queryClient.invalidateQueries({ queryKey: ['/api/goals/habits/completed-today'] });
         queryClient.invalidateQueries({ queryKey: ['/api/life-metrics/progress'] });
         queryClient.invalidateQueries({ queryKey: ['metric-progress'] });
         queryClient.invalidateQueries({ queryKey: ['habits'] });
