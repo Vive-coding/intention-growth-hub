@@ -35,7 +35,7 @@ import {
   type InsertProgressSnapshot,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, sql, desc, asc, gte, lte, lt, isNotNull } from "drizzle-orm";
+import { eq, and, sql, desc, asc, gte, lte, lt, isNotNull, inArray } from "drizzle-orm";
 
 // Interface for storage operations
 export interface IStorage {
@@ -416,6 +416,7 @@ export class DatabaseStorage implements IStorage {
       totalGoals: Number(metric.totalGoals),
       completedGoals: Number(metric.completedGoals),
       averageProgress: Number(metric.averageProgress),
+      timeAvailability: metric.timeAvailability || "some", // Add missing field
     }));
   }
 
@@ -562,6 +563,7 @@ export class DatabaseStorage implements IStorage {
         monthYear: goalInstances.monthYear,
         completedAt: goalInstances.completedAt,
         createdAt: goalInstances.createdAt,
+        archived: goalInstances.archived, // Add missing field
         // Include goal definition data
         goalTitle: goalDefinitions.title,
         goalCategory: goalDefinitions.category,
@@ -1021,7 +1023,8 @@ export class DatabaseStorage implements IStorage {
     const userDate = new Date(now.toLocaleString("en-US", { timeZone: userTimezone }));
     const monthYear = `${userDate.getFullYear()}-${String(userDate.getMonth() + 1).padStart(2, '0')}`;
 
-    const goals = await db
+    // Get all goals for this metric, then filter by current month and completion status
+    const allGoals = await db
       .select({
         gi: goalInstances,
         gd: goalDefinitions,
@@ -1030,20 +1033,39 @@ export class DatabaseStorage implements IStorage {
       .innerJoin(goalDefinitions, eq(goalInstances.goalDefinitionId, goalDefinitions.id))
       .where(and(
         eq(goalInstances.userId, userId),
-        eq(goalDefinitions.lifeMetricId, lifeMetricId),
-        eq(goalInstances.monthYear, monthYear)
+        eq(goalDefinitions.lifeMetricId, lifeMetricId)
       ));
 
-    if (goals.length === 0) {
+    // Filter goals for current month progress calculation:
+    // 1. Active goals (not completed) - these are ongoing
+    // 2. Goals completed in current month (completedAt is in current month)
+    // 3. Goals created in current month (monthYear matches) - but only if not completed in previous months
+    const currentMonthStart = new Date(userDate.getFullYear(), userDate.getMonth(), 1);
+    const currentMonthEnd = new Date(userDate.getFullYear(), userDate.getMonth() + 1, 0, 23, 59, 59, 999);
+    
+    const currentMonthGoals = allGoals.filter(g => {
+      const goal = g.gi;
+      const isActiveGoal = goal.status === 'active';
+      const isCompletedThisMonth = goal.status === 'completed' && 
+        goal.completedAt && 
+        goal.completedAt >= currentMonthStart && 
+        goal.completedAt <= currentMonthEnd;
+      const isCreatedThisMonth = goal.monthYear === monthYear;
+      
+      // Include: active goals OR goals completed this month OR goals created this month (but not completed in previous months)
+      return isActiveGoal || isCompletedThisMonth || (isCreatedThisMonth && !goal.completedAt);
+    });
+
+    if (currentMonthGoals.length === 0) {
       return { progress: 0, goalsCompleted: 0, totalGoals: 0 };
     }
 
-    const totalGoals = goals.length;
-    const goalsCompleted = goals.filter(g => g.gi.status === 'completed').length;
+    const totalGoals = currentMonthGoals.length;
+    const goalsCompleted = currentMonthGoals.filter(g => g.gi.status === 'completed').length;
 
     // Compute per-goal progress consistent with ring: habit avg (<=90) + manual offset
     let summedProgress = 0;
-    for (const g of goals) {
+    for (const g of currentMonthGoals) {
       const goalInstanceId = g.gi.id;
       const manualOffset = g.gi.currentValue ?? 0; // stores manual adjustment
       // Load associated habit instances for this goal

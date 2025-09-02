@@ -441,100 +441,45 @@ export const DetailedLifeOverview = ({
     }));
     
     if (selectedPeriod === "This Month") {
-      // Build daily series from the start of the current week → today, filling gaps with 0s
-      const dailyAll = (normalizedSnapshots || []).map((s: any) => ({
+      // For "This Month", show daily snapshots for the current month
+      const dailySnapshots = (normalizedSnapshots || []).map((s: any) => ({
         date: new Date(s.snapshotDate || s.createdAt || Date.now()),
         progress: s.progressPercentage,
         completions: s.goalsCompleted,
       })).sort((a,b) => a.date.getTime() - b.date.getTime());
 
-      const today = new Date();
-      today.setHours(0,0,0,0);
-      const weekdayMon0 = (today.getDay() + 6) % 7; // Mon=0..Sun=6
-      const weekStart = new Date(today);
-      weekStart.setDate(today.getDate() - weekdayMon0);
+      // If no snapshots exist, show current progress as today's point
+      if (dailySnapshots.length === 0) {
+        const currentProgress = goals && goals.length > 0
+          ? Math.round(goals.reduce((sum: number, goal: Goal) => sum + (goal.progress || 0), 0) / goals.length)
+          : 0;
+        
+        const currentCompletions = goals ? goals.filter((g: Goal) => g.status === 'completed').length : 0;
+        
+        return [{
+          period: 'Today',
+          progressValue: currentProgress,
+          completionValue: currentCompletions,
+          isCurrent: true,
+          isFuture: false,
+          isHistorical: false,
+        }];
+      }
 
-      const isSameDay = (a: Date, b: Date) => {
-        return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
-      };
-
-      const latestRingLike = goals && goals.length > 0
-        ? Math.round(goals.reduce((sum: number, goal: Goal) => sum + (goal.progress || 0), 0) / goals.length)
-        : (metricData?.periodProgress?.progress || 0);
-
-      const filledDaily: Array<{period:string;progressValue:number;completionValue:number;isCurrent:boolean;isFuture:boolean;isHistorical:boolean;}> = [];
-      // Use today's ring only for today when there is no snapshot; do not backfill prior days
-      const todayLocal = new Date();
-      todayLocal.setHours(0,0,0,0);
-      const dayCursor = new Date(weekStart);
-      while (dayCursor.getTime() <= todayLocal.getTime()) {
-        const found = dailyAll.find(d => isSameDay(d.date, dayCursor));
-        const isToday = isSameDay(dayCursor, todayLocal);
-        // For historical days: only show snapshot value; for today: show snapshot or ring
-        let progressVal = 0;
-        if (found) progressVal = found.progress;
-        else if (isToday) progressVal = latestRingLike;
-        const completionVal = found ? (found.completions || 0) : 0;
-        filledDaily.push({
-          period: dayCursor.toLocaleDateString('en-US', { weekday: 'short' }),
-          progressValue: progressVal,
-          completionValue: completionVal,
+      // Show daily snapshots for the current month
+      return dailySnapshots.map((snapshot: any, index: number) => {
+        const isToday = index === dailySnapshots.length - 1;
+        return {
+          period: snapshot.date.toLocaleDateString('en-US', { weekday: 'short' }),
+          progressValue: snapshot.progress,
+          completionValue: snapshot.completions,
           isCurrent: isToday,
           isFuture: false,
           isHistorical: !isToday,
-        });
-        dayCursor.setDate(dayCursor.getDate() + 1);
-      }
-
-      // Build weekly aggregation for prior weeks (keep current week as daily)
-      const weekKey = (d: Date) => {
-        const tmp = new Date(d);
-        const day = (tmp.getDay() + 6) % 7; // Mon=0..Sun=6
-        tmp.setDate(tmp.getDate() - day);
-        return `${tmp.getFullYear()}-${tmp.getMonth()+1}-${tmp.getDate()}`;
-      };
-      const byWeek = new Map<string, {sum:number,count:number,maxDate:Date,completions:number}>();
-      dailyAll.forEach(d => {
-        const key = weekKey(d.date);
-        const cur = byWeek.get(key) || {sum:0,count:0,maxDate:d.date,completions:0};
-        cur.sum += d.progress; cur.count += 1;
-        if (d.date > cur.maxDate) cur.maxDate = d.date;
-        cur.completions = Math.max(cur.completions, d.completions || 0);
-        byWeek.set(key, cur);
+        };
       });
-      const sortedWeeks = Array.from(byWeek.entries()).sort((a,b)=> new Date(a[0]).getTime() - new Date(b[0]).getTime());
-      const weeklyExceptCurrent = sortedWeeks.slice(0, Math.max(0, sortedWeeks.length - 1)).map(([key, v]) => ({
-        period: `W${new Date(key).getDate() <=7 ? 1 : new Date(key).getDate()<=14 ? 2 : new Date(key).getDate()<=21 ? 3 : 4}`,
-        progressValue: Math.round(v.sum / v.count),
-        completionValue: v.completions,
-        isCurrent: false,
-        isFuture:false,
-        isHistorical: true,
-      }));
-
-      // If there are no prior weeks or no snapshots at all, just show the current week daily series
-      if (weeklyExceptCurrent.length === 0) {
-        return filledDaily;
-      }
-
-      // There are prior weeks: show weekly for history and a projected point for the current week
-      const lastWeekKey = sortedWeeks[sortedWeeks.length - 1][0];
-      const isSameWeek = (d: Date) => weekKey(d) === lastWeekKey;
-      const currentWeekDays = dailyAll.filter(d => isSameWeek(d.date));
-      const maxCompletionsWeek = currentWeekDays.reduce((acc, d) => Math.max(acc, d.completions || 0), 0);
-      // Current week should reflect the live value (ring), not an average
-      const projectedCurrentWeek = latestRingLike;
-      const currentWeekPoint = {
-        period: 'This Week',
-        progressValue: projectedCurrentWeek,
-        completionValue: maxCompletionsWeek,
-        isCurrent: true,
-        isFuture: false,
-        isHistorical: false,
-      };
-      return [...weeklyExceptCurrent, currentWeekPoint];
     } else {
-      // For historical periods, use progress snapshots - same logic as dashboard
+      // For historical periods, use actual snapshot data
       let relevantSnapshots;
       switch (selectedPeriod) {
         case "Last 3 Months":
@@ -568,7 +513,7 @@ export const DetailedLifeOverview = ({
           completionValue: snapshot.goalsCompleted,
           isCurrent: index === uniqueSnapshots.length - 1,
           isFuture: false,
-          isHistorical: false
+          isHistorical: true
         };
       });
     }
@@ -576,59 +521,15 @@ export const DetailedLifeOverview = ({
 
   // Calculate circular progress value based on goal progress for the selected time period
   const getCircularProgressValue = () => {
-    if (selectedPeriod === "This Month") {
-      // For current month, calculate average of current goal progress
-      if (!goals || goals.length === 0) return 0;
-      
-      const totalProgress = goals.reduce((sum: number, goal: Goal) => {
-        return sum + (goal.progress || 0);
-      }, 0);
-      
-      return Math.round(totalProgress / goals.length);
-    } else {
-      // For historical periods, use progress snapshots
-      const snapshots = metricData?.progressSnapshots || [];
-      
-      if (snapshots.length === 0) return 0;
-      
-      // Normalize snapshot names for consistent processing
-      const normalizedSnapshots = snapshots.map((s: any) => ({
-        ...s,
-        normalizedName: normalizeName(s.lifeMetricName || s.name || ''),
-        originalName: s.lifeMetricName || s.name || ''
-      }));
-      
-      let relevantSnapshots;
-      switch (selectedPeriod) {
-        case "Last 3 Months":
-          relevantSnapshots = normalizedSnapshots.slice(-3);
-          break;
-        case "Last 6 Months":
-          relevantSnapshots = normalizedSnapshots.slice(-6);
-          break;
-        case "This Year":
-          const currentYear = new Date().getFullYear();
-          relevantSnapshots = normalizedSnapshots.filter((snapshot: any) => {
-            const snapshotYear = parseInt(snapshot.monthYear.split('-')[0]);
-            return snapshotYear === currentYear;
-          });
-          break;
-        case "All Time":
-          relevantSnapshots = normalizedSnapshots;
-          break;
-        default:
-          relevantSnapshots = normalizedSnapshots.slice(-6);
-      }
-      
-      if (relevantSnapshots.length === 0) return 0;
-      
-      // Calculate average of progress percentages from snapshots
-      const totalProgress = relevantSnapshots.reduce((sum: number, snapshot: any) => {
-        return sum + (snapshot.progressPercentage || 0);
-      }, 0);
-      
-      return Math.round(totalProgress / relevantSnapshots.length);
-    }
+    // Always use current goal progress for the ring - it represents aggregate progress
+    // The ring should show the current state of all goals, not historical averages
+    if (!goals || goals.length === 0) return 0;
+    
+    const totalProgress = goals.reduce((sum: number, goal: Goal) => {
+      return sum + (goal.progress || 0);
+    }, 0);
+    
+    return Math.round(totalProgress / goals.length);
   };
 
   const graphData = getGraphData();
