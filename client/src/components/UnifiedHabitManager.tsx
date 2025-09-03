@@ -383,9 +383,9 @@ function HabitCompletionModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg w-full max-w-2xl max-h-[85vh] overflow-hidden">
-        <div className="p-6 border-b border-gray-200">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-2 sm:p-4">
+      <div className="bg-white rounded-lg w-full max-w-2xl max-h-[95vh] sm:max-h-[90vh] flex flex-col overflow-hidden">
+        <div className="p-6 border-b border-gray-200 flex-shrink-0">
           <div className="flex items-center space-x-3">
             <CheckCircle className="w-6 h-6 text-orange-600" />
             <h2 className="text-lg font-semibold">Complete Today's Habits</h2>
@@ -395,7 +395,7 @@ function HabitCompletionModal({
           </p>
         </div>
         {/* Grouped, priority-sorted lists */}
-        <div className="p-6 space-y-6 max-h-[65vh] overflow-y-auto">
+        <div className="p-6 space-y-6 flex-1 overflow-y-auto min-h-0">
           {/* Needle Moving */}
           {(() => {
             const top = habits.filter(h => (h as any).priorityScore ? (h as any).priorityScore >= 80 : false);
@@ -454,14 +454,14 @@ function HabitCompletionModal({
           })()}
         </div>
         
-        <div className="p-6 border-t border-gray-200 flex justify-end space-x-3">
-          <Button variant="outline" onClick={onClose}>
+        <div className="p-4 sm:p-6 border-t border-gray-200 flex flex-col sm:flex-row justify-end gap-3 flex-shrink-0 bg-white">
+          <Button variant="outline" onClick={onClose} className="w-full sm:w-auto">
             Cancel
           </Button>
           <Button 
             onClick={handleComplete}
             disabled={selectedHabitIds.length === 0}
-            className="bg-orange-600 hover:bg-orange-700"
+            className="bg-orange-600 hover:bg-orange-700 w-full sm:w-auto"
           >
             Complete Selected ({selectedHabitIds.length})
           </Button>
