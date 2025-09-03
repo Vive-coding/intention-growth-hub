@@ -904,12 +904,28 @@ export const Dashboard = ({ onOpenGPT, onDetailedViewChange, onClearDetailedView
                 )})}
                 
                 {/* Suggested Habits */}
-                {recentSuggestedHabits.map((habit: any) => {
+                {recentSuggestedHabits
+                  .filter((habit:any)=> {
+                    // Filter out existing habits that are dismissed
+                    if (habit?.kind === 'existing') {
+                      const isDismissed = dismissedReinforcements.includes(`habit:${habit?.existingId || 'na'}:${habit?.sourceInsightId || 'na'}`);
+                      console.log('🟣 Mobile - Existing habit filter:', { habitId: habit.id, isDismissed });
+                      return !isDismissed;
+                    }
+                    // For new suggested habits, check if they've been dismissed via feedback
+                    if (habit?.kind !== 'existing') {
+                      const isVoted = habitFeedbackStatus?.voted?.[habit.id];
+                      console.log('🟣 Mobile - New habit filter:', { habitId: habit.id, isVoted, feedbackStatus: habitFeedbackStatus });
+                      return !isVoted;
+                    }
+                    return true;
+                  })
+                  .map((habit: any) => {
                   const isExistingH = habit?.kind === 'existing';
                   const displayTitleH = habit?.title || habit?.existingTitle || '';
                   const keyH = isExistingH ? `habit-existing-${habit?.existingId || 'na'}-${habit?.sourceInsightId || 'na'}` : `habit-${habit?.id}`;
                   return (
-                  <div key={keyH} className="p-3 bg-orange-50 rounded-lg border border-orange-100">
+                  <div key={keyH} className="p-3 bg-green-50 rounded-lg border border-green-100">
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-2">
                         <div 
@@ -936,7 +952,7 @@ export const Dashboard = ({ onOpenGPT, onDetailedViewChange, onClearDetailedView
                           <Button 
                             variant="outline" 
                             size="sm" 
-                            className="text-xs border-orange-200 text-orange-700 hover:bg-orange-50"
+                            className="text-xs border-green-200 text-green-700 hover:bg-green-50"
                             onClick={() => {
                               const metricId = habit.lifeMetric?.id;
                               const activeGoalsSameMetric = (goals || [])
