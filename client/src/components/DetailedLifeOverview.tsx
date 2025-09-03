@@ -634,18 +634,32 @@ export const DetailedLifeOverview = ({
         };
       });
       
-      // For "Last 3 Months", if the current month is included, update it with live data
+      // For "Last 3 Months", if the current month is included, update it with smart live data
       if (selectedPeriod === "Last 3 Months") {
         const currentMonth = new Date().getFullYear() + '-' + String(new Date().getMonth() + 1).padStart(2, '0');
         const currentMonthIndex = chartData.findIndex((item: any) => item.isCurrent);
         
         if (currentMonthIndex !== -1) {
-          // Update current month with live data from filtered goals (same as ring calculation)
-          const currentProgress = filteredGoals && filteredGoals.length > 0
-            ? Math.round(filteredGoals.reduce((sum: number, goal: Goal) => sum + (goal.progress || 0), 0) / filteredGoals.length)
+          // Calculate progress only for goals relevant to the current month
+          const currentMonthGoals = filteredGoals.filter(goal => {
+            const goalCreated = new Date(goal.createdAt);
+            const goalCompleted = goal.completedAt ? new Date(goal.completedAt) : null;
+            const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+            const monthEnd = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0, 23, 59, 59, 999);
+            
+            // Include if: created this month, completed this month, or active throughout this month
+            const wasCreatedThisMonth = goalCreated >= monthStart && goalCreated <= monthEnd;
+            const wasCompletedThisMonth = goalCompleted && goalCompleted >= monthStart && goalCompleted <= monthEnd;
+            const isActiveThroughoutMonth = goal.status === 'active' && goalCreated < monthStart;
+            
+            return wasCreatedThisMonth || wasCompletedThisMonth || isActiveThroughoutMonth;
+          });
+          
+          const currentProgress = currentMonthGoals.length > 0
+            ? Math.round(currentMonthGoals.reduce((sum: number, goal: Goal) => sum + (goal.progress || 0), 0) / currentMonthGoals.length)
             : 0;
           
-          const currentCompletions = filteredGoals ? filteredGoals.filter((g: Goal) => g.status === 'completed').length : 0;
+          const currentCompletions = currentMonthGoals.filter((g: Goal) => g.status === 'completed').length;
           
           chartData[currentMonthIndex] = {
             ...chartData[currentMonthIndex],
