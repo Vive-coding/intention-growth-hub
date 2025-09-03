@@ -384,6 +384,20 @@ export const Dashboard = ({ onOpenGPT, onDetailedViewChange, onClearDetailedView
     enabled: isAuthenticated && suggestedHabits.length > 0,
   });
 
+  // Fetch feedback status for suggested goals
+  const { data: goalFeedbackStatus = { voted: {}, lastAction: {} } } = useQuery({
+    queryKey: ['/api/feedback/status', suggestedGoals],
+    queryFn: async () => {
+      if (!suggestedGoals || suggestedGoals.length === 0) {
+        return { voted: {}, lastAction: {} };
+      }
+      const ids = suggestedGoals.map((g: any) => g.id).join(',');
+      const response = await apiRequest(`/api/feedback/status?type=suggested_goal&ids=${ids}`);
+      return response;
+    },
+    enabled: isAuthenticated && suggestedGoals.length > 0,
+  });
+
   // Get recent insights (last 3) with local dismissal - insights dismiss after voting on homepage
   const [dismissedInsightIds, setDismissedInsightIds] = useState<string[]>(() => {
     // Load dismissed insights from localStorage on component mount
@@ -1260,7 +1274,17 @@ export const Dashboard = ({ onOpenGPT, onDetailedViewChange, onClearDetailedView
                         <h4 className="font-medium text-gray-700 mb-3">Suggested Goals</h4>
                         <div className="space-y-3">
                           {recentSuggestedGoals
-                            .filter((goal:any)=> !(goal?.kind === 'existing' && dismissedReinforcements.includes(`goal:${goal?.existingId || 'na'}:${goal?.sourceInsightId || 'na'}`)))
+                            .filter((goal:any)=> {
+                              // Filter out existing goals that are dismissed
+                              if (goal?.kind === 'existing') {
+                                return !dismissedReinforcements.includes(`goal:${goal?.existingId || 'na'}:${goal?.sourceInsightId || 'na'}`);
+                              }
+                              // For new suggested goals, check if they've been dismissed via feedback
+                              if (goal?.kind !== 'existing') {
+                                return !goalFeedbackStatus?.voted?.[goal.id];
+                              }
+                              return true;
+                            })
                             .slice(0, 3)
                             .map((goal: any) => {
                             const isExisting = goal?.kind === 'existing';

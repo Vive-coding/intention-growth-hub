@@ -196,9 +196,33 @@ export const CreateGoalModal = ({
       try {
         if (prefillData?.suggestedGoalId) {
           await apiRequest(`/api/insights/goals/${prefillData.suggestedGoalId}/archive`, { method: 'POST' });
+          
+          // Also dismiss via feedback system to ensure it's hidden from home screen
+          await apiRequest('/api/feedback', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              type: 'suggested_goal',
+              itemId: prefillData.suggestedGoalId,
+              action: 'dismiss',
+              context: { 
+                dismissedAt: new Date().toISOString(),
+                reason: 'implemented'
+              }
+            })
+          });
+          
+          // Invalidate feedback status queries to refresh the UI
+          queryClient.invalidateQueries({ queryKey: ['/api/feedback/status'] });
+          // Also invalidate the specific query with suggestedGoals dependency
+          queryClient.invalidateQueries({ 
+            predicate: (query) => 
+              Array.isArray(query.queryKey) && 
+              query.queryKey[0] === '/api/feedback/status'
+          });
         }
       } catch (e) {
-        console.warn('Could not archive suggested goal after creation:', e);
+        console.warn('Could not archive/dismiss suggested goal after creation:', e);
       }
       onGoalCreated();
       onClose();
