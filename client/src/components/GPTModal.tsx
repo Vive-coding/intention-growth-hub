@@ -11,40 +11,33 @@ interface GPTModalProps {
 export const GPTModal = ({ isOpen, onClose }: GPTModalProps) => {
   if (!isOpen) return null;
 
-  const handleContinueToGPT = () => {
-    // In a real app, this would open the custom GPT
-    console.log("Opening custom GPT...");
-    onClose();
-  };
-
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-6 z-50">
       <Card className="w-full max-w-sm mx-auto shadow-2xl border-0 bg-white">
         <CardContent className="p-6 text-center">
-          <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <MessageCircle className="w-8 h-8 text-green-600" />
+          <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <MessageCircle className="w-8 h-8 text-blue-600" />
           </div>
           
           <h2 className="text-xl font-bold text-gray-800 mb-3">
-            Heading to Your Secure Chat
+            Chat with Life Coach - Coming Soon!
           </h2>
           
           <p className="text-gray-600 mb-2">
-            You're about to enter your private space to reflect on your day with your AI companion.
+            We're working hard to bring you an AI-powered life coach that will help you reflect, grow, and achieve your goals.
           </p>
 
           <div className="flex items-center justify-center space-x-2 text-sm text-gray-500 mb-6">
             <Lock className="w-4 h-4" />
-            <span>End-to-end encrypted</span>
+            <span>End-to-end encrypted when available</span>
           </div>
 
           <div className="space-y-3">
             <Button 
-              onClick={handleContinueToGPT}
-              className="w-full bg-green-500 hover:bg-green-600 text-white py-3 rounded-full"
+              onClick={onClose}
+              className="w-full bg-blue-500 hover:bg-blue-600 text-white py-3 rounded-full"
             >
-              <ExternalLink className="w-4 h-4 mr-2" />
-              Continue to GPT
+              Got it, thanks!
             </Button>
             
             <Button 
@@ -52,7 +45,7 @@ export const GPTModal = ({ isOpen, onClose }: GPTModalProps) => {
               variant="outline"
               className="w-full py-3 rounded-full"
             >
-              Stay in App
+              Close
             </Button>
           </div>
         </CardContent>
