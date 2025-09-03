@@ -64,25 +64,39 @@ async function getUserTodayWindow(userId: string) {
     const rows = await db.select().from(users).where(eq(users.id as any, userId as any)).limit(1);
     const tz = (rows[0] as any)?.timezone || process.env.DEFAULT_TZ || 'UTC';
     
-    // Get current time in user's timezone
     const now = new Date();
+    console.log('TIMEZONE-WINDOW-DEBUG:', {
+      userId,
+      timezone: tz,
+      serverTime: now.toISOString()
+    });
     
-    // Create a date formatter for the user's timezone
-    const userDate = new Date(now.toLocaleString("en-US", { timeZone: tz }));
+    // Get the current date in the user's timezone
+    const userLocalDate = new Date(now.toLocaleString("en-CA", { timeZone: tz }));
+    const year = userLocalDate.getFullYear();
+    const month = userLocalDate.getMonth();
+    const day = userLocalDate.getDate();
     
-    // Get start and end of day in user's timezone, then convert to UTC
-    const startOfDay = new Date(userDate.getFullYear(), userDate.getMonth(), userDate.getDate(), 0, 0, 0, 0);
-    const endOfDay = new Date(userDate.getFullYear(), userDate.getMonth(), userDate.getDate(), 23, 59, 59, 999);
+    console.log('User local date:', { year, month: month + 1, day });
     
-    // Convert to UTC by adjusting for timezone offset
-    const timezoneOffset = now.getTimezoneOffset() - (userDate.getTimezoneOffset());
-    const startUTC = new Date(startOfDay.getTime() - (timezoneOffset * 60000));
-    const endUTC = new Date(endOfDay.getTime() - (timezoneOffset * 60000));
+    // Create start and end of day in user's timezone
+    const startOfDayLocal = new Date(year, month, day, 0, 0, 0, 0);
+    const endOfDayLocal = new Date(year, month, day, 23, 59, 59, 999);
+    
+    console.log('Start/End of day (user local):', {
+      start: startOfDayLocal.toISOString(),
+      end: endOfDayLocal.toISOString()
+    });
+    
+    // Convert to UTC using a more reliable method
+    // Create the same date/time in UTC and calculate the difference
+    const startUTC = new Date(startOfDayLocal.toLocaleString("en-CA", { timeZone: "UTC" }));
+    const endUTC = new Date(endOfDayLocal.toLocaleString("en-CA", { timeZone: "UTC" }));
     
     console.log('TIMEZONE-WINDOW:', {
       userId,
       timezone: tz,
-      userLocalDate: userDate.toISOString().split('T')[0],
+      userLocalDate: `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`,
       timeWindow: {
         startUTC: startUTC.toISOString(),
         endUTC: endUTC.toISOString()

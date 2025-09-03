@@ -861,21 +861,20 @@ export class DatabaseStorage implements IStorage {
     
     // Get current time in user's timezone
     const now = new Date();
-    const userDate = new Date(now.toLocaleString("en-US", { timeZone: userTimezone }));
+    const userDate = new Date(now.toLocaleString("en-CA", { timeZone: userTimezone }));
     
     // Calculate start and end of day in user's timezone
     const startOfDay = new Date(userDate.getFullYear(), userDate.getMonth(), userDate.getDate(), 0, 0, 0, 0);
     const endOfDay = new Date(userDate.getFullYear(), userDate.getMonth(), userDate.getDate(), 23, 59, 59, 999);
     
-    // Convert to UTC for database storage
-    const timezoneOffset = now.getTimezoneOffset() - (userDate.getTimezoneOffset());
-    const startOfDayUTC = new Date(startOfDay.getTime() - (timezoneOffset * 60000));
-    const endOfDayUTC = new Date(endOfDay.getTime() - (timezoneOffset * 60000));
+    // Convert to UTC for database storage using proper timezone conversion
+    const startOfDayUTC = new Date(startOfDay.toLocaleString("en-CA", { timeZone: "UTC" }));
+    const endOfDayUTC = new Date(endOfDay.toLocaleString("en-CA", { timeZone: "UTC" }));
 
-    // Compute progress for the specific month being snapshotted
+    // Compute current progress numbers using existing helper
+    const current = await this.getCurrentMonthProgress(userId, lifeMetricName);
+    console.log('[snapshot] currentMonthProgress', current);
     const monthYear = `${userDate.getFullYear()}-${String(userDate.getMonth() + 1).padStart(2, '0')}`;
-    const current = await this.getMonthProgress(userId, lifeMetricName, monthYear);
-    console.log('[snapshot] monthProgress', { monthYear, progress: current });
 
     // Check if a snapshot exists for today
     const existing = await db
@@ -998,7 +997,7 @@ export class DatabaseStorage implements IStorage {
       .orderBy(asc(progressSnapshots.snapshotDate));
   }
 
-  async getMonthProgress(userId: string, lifeMetricName: string, monthYear: string): Promise<{ progress: number; goalsCompleted: number; totalGoals: number }> {
+  async getCurrentMonthProgress(userId: string, lifeMetricName: string): Promise<{ progress: number; goalsCompleted: number; totalGoals: number }> {
     // Get the life metric by name to get its UUID
     const lifeMetric = await db
       .select()
@@ -1015,12 +1014,15 @@ export class DatabaseStorage implements IStorage {
 
     const lifeMetricId = lifeMetric[0].id;
 
-    // Parse the monthYear (e.g., "2025-08") to get the specific month
-    const [year, month] = monthYear.split('-').map(Number);
-    const targetMonthStart = new Date(year, month - 1, 1); // month is 0-indexed
-    const targetMonthEnd = new Date(year, month, 0, 23, 59, 59, 999); // Last day of the month
+    // Get current month's goals for this metric using lifeMetricId
+    // Use user's timezone for month calculation
+    const user = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+    const userTimezone = user[0]?.timezone || 'UTC';
+    const now = new Date();
+    const userDate = new Date(now.toLocaleString("en-US", { timeZone: userTimezone }));
+    const monthYear = `${userDate.getFullYear()}-${String(userDate.getMonth() + 1).padStart(2, '0')}`;
 
-    // Get all goals for this metric
+    // Get all goals for this metric, then filter by current month and completion status
     const allGoals = await db
       .select({
         gi: goalInstances,
@@ -1033,35 +1035,36 @@ export class DatabaseStorage implements IStorage {
         eq(goalDefinitions.lifeMetricId, lifeMetricId)
       ));
 
-    // Filter goals for the specific month:
-    // 1. Active goals (regardless of when created)
-    // 2. Goals completed in this month
-    // 3. Goals created in this month
-    const monthGoals = allGoals.filter(g => {
+    // Filter goals for current month progress calculation:
+    // 1. Active goals (not completed) - these are ongoing
+    // 2. Goals completed in current month (completedAt is in current month)
+    // 3. Goals created in current month (monthYear matches) - but only if not completed in previous months
+    const currentMonthStart = new Date(userDate.getFullYear(), userDate.getMonth(), 1);
+    const currentMonthEnd = new Date(userDate.getFullYear(), userDate.getMonth() + 1, 0, 23, 59, 59, 999);
+    
+    const currentMonthGoals = allGoals.filter(g => {
       const goal = g.gi;
       const isActiveGoal = goal.status === 'active';
       const isCompletedThisMonth = goal.status === 'completed' && 
         goal.completedAt && 
-        new Date(goal.completedAt) >= targetMonthStart && 
-        new Date(goal.completedAt) <= targetMonthEnd;
-      const isCreatedThisMonth = goal.createdAt && 
-        new Date(goal.createdAt) >= targetMonthStart && 
-        new Date(goal.createdAt) <= targetMonthEnd;
+        goal.completedAt >= currentMonthStart && 
+        goal.completedAt <= currentMonthEnd;
+      const isCreatedThisMonth = goal.monthYear === monthYear;
       
-      // Include: active goals OR goals completed this month OR goals created this month
-      return isActiveGoal || isCompletedThisMonth || isCreatedThisMonth;
+      // Include: active goals OR goals completed this month OR goals created this month (but not completed in previous months)
+      return isActiveGoal || isCompletedThisMonth || (isCreatedThisMonth && !goal.completedAt);
     });
 
-    if (monthGoals.length === 0) {
+    if (currentMonthGoals.length === 0) {
       return { progress: 0, goalsCompleted: 0, totalGoals: 0 };
     }
 
-    const totalGoals = monthGoals.length;
-    const goalsCompleted = monthGoals.filter(g => g.gi.status === 'completed').length;
+    const totalGoals = currentMonthGoals.length;
+    const goalsCompleted = currentMonthGoals.filter(g => g.gi.status === 'completed').length;
 
     // Compute per-goal progress consistent with ring: habit avg (<=90) + manual offset
     let summedProgress = 0;
-    for (const g of monthGoals) {
+    for (const g of currentMonthGoals) {
       const goalInstanceId = g.gi.id;
       const manualOffset = g.gi.currentValue ?? 0; // stores manual adjustment
       // Load associated habit instances for this goal
@@ -1093,22 +1096,8 @@ export class DatabaseStorage implements IStorage {
     return {
       progress: Math.round(averageProgress),
       goalsCompleted,
-      totalGoals
+      totalGoals,
     };
-  }
-
-
-
-  async getCurrentMonthProgress(userId: string, lifeMetricName: string): Promise<{ progress: number; goalsCompleted: number; totalGoals: number }> {
-    // Use user's timezone for month calculation
-    const user = await db.select().from(users).where(eq(users.id, userId)).limit(1);
-    const userTimezone = user[0]?.timezone || 'UTC';
-    const now = new Date();
-    const userDate = new Date(now.toLocaleString("en-US", { timeZone: userTimezone }));
-    const monthYear = `${userDate.getFullYear()}-${String(userDate.getMonth() + 1).padStart(2, '0')}`;
-    
-    // Use the new getMonthProgress function for the current month
-    return await this.getMonthProgress(userId, lifeMetricName, monthYear);
   }
 
     async getWeeklyProgress(userId: string, lifeMetricName: string): Promise<{ week: string; progress: number }[]> {
