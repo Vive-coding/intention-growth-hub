@@ -57,7 +57,6 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
               >
                 {addButtonIcon}
                 <span className="hidden sm:inline ml-2">{addButtonText}</span>
-                <span className="sm:hidden ml-2">+</span>
               </Button>
             )}
           </div>
