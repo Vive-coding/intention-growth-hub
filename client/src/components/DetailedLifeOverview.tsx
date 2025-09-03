@@ -569,10 +569,19 @@ export const DetailedLifeOverview = ({
 
       // Combine daily snapshots with today's live value
       const chartData = [];
+      const today = new Date();
+      const todayDateStr = today.toISOString().split('T')[0]; // YYYY-MM-DD format
       
-      // Add daily snapshots for this month with unique labels
+      // Add daily snapshots for this month with unique labels (excluding today)
       dailySnapshots.forEach((snapshot: any, index: number) => {
         const date = snapshot.date;
+        const snapshotDateStr = date.toISOString().split('T')[0];
+        
+        // Skip today's snapshots - we'll use live data instead
+        if (snapshotDateStr === todayDateStr) {
+          return;
+        }
+        
         const dayOfMonth = date.getDate();
         const weekday = date.toLocaleDateString('en-US', { weekday: 'short' });
         
@@ -590,7 +599,6 @@ export const DetailedLifeOverview = ({
       });
       
       // Always add today's live value as the last point
-      const today = new Date();
       const todayDayOfMonth = today.getDate();
       const todayWeekday = today.toLocaleDateString('en-US', { weekday: 'short' });
       const todayLabel = `${todayWeekday} ${todayDayOfMonth}`;
