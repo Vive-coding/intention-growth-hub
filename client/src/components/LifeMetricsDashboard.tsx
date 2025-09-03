@@ -323,13 +323,15 @@ export const LifeMetricsDashboard = ({
                 </div>
               </div>
               <div 
-                className="inline-flex items-center justify-center px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-full text-[9px] sm:text-[10px] lg:text-xs font-medium text-center leading-tight max-w-full break-words"
+                className="inline-flex items-center justify-center px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-full text-[9px] sm:text-[10px] lg:text-xs font-medium text-center leading-tight max-w-full h-[32px] sm:h-[36px] flex items-center justify-center"
                 style={{ 
                   backgroundColor: getPillBackgroundColor(metric.category),
                   color: getPillTextColor(metric.category)
                 }}
               >
-                {metric.category}
+                <span className="block text-center leading-tight">
+                  {metric.category}
+                </span>
               </div>
             </div>
           ))}
@@ -440,13 +442,15 @@ export const LifeMetricsDashboard = ({
                 hasGoals={metric.hasGoals}
               />
               <div 
-                className="inline-flex items-center justify-center px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-full text-[9px] sm:text-xs font-medium text-center leading-tight max-w-full break-words"
+                className="inline-flex items-center justify-center px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-full text-[9px] sm:text-xs font-medium text-center leading-tight max-w-full h-[32px] sm:h-[36px] flex items-center justify-center"
                 style={{ 
                   backgroundColor: getPillBackgroundColor(metric.category),
                   color: getPillTextColor(metric.category)
                 }}
               >
-                {metric.category}
+                <span className="block text-center leading-tight">
+                  {metric.category}
+                </span>
               </div>
             </div>
           ))}
