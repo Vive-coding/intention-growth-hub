@@ -553,43 +553,51 @@ export const DetailedLifeOverview = ({
     }));
     
     if (selectedPeriod === "This Month") {
-      // For "This Month", show daily snapshots for the current month
-      const dailySnapshots = (normalizedSnapshots || []).map((s: any) => ({
+      // For "This Month", show snapshots for the current month + today's live value
+      const currentMonth = new Date().getFullYear() + '-' + String(new Date().getMonth() + 1).padStart(2, '0');
+      
+      // Get snapshots for the current month
+      const currentMonthSnapshots = (normalizedSnapshots || []).filter((s: any) => 
+        s.monthYear === currentMonth
+      ).map((s: any) => ({
         date: new Date(s.snapshotDate || s.createdAt || Date.now()),
         progress: s.progressPercentage,
         completions: s.goalsCompleted,
       })).sort((a,b) => a.date.getTime() - b.date.getTime());
 
-      // If no snapshots exist, show current progress as today's point
-      if (dailySnapshots.length === 0) {
-        const currentProgress = goals && goals.length > 0
-          ? Math.round(goals.reduce((sum: number, goal: Goal) => sum + (goal.progress || 0), 0) / goals.length)
-          : 0;
-        
-        const currentCompletions = goals ? goals.filter((g: Goal) => g.status === 'completed').length : 0;
-        
-        return [{
-          period: 'Today',
-          progressValue: currentProgress,
-          completionValue: currentCompletions,
-          isCurrent: true,
-          isFuture: false,
-          isHistorical: false,
-        }];
-      }
+      // Calculate today's live progress
+      const currentProgress = goals && goals.length > 0
+        ? Math.round(goals.reduce((sum: number, goal: Goal) => sum + (goal.progress || 0), 0) / goals.length)
+        : 0;
+      
+      const currentCompletions = goals ? goals.filter((g: Goal) => g.status === 'completed').length : 0;
 
-      // Show daily snapshots for the current month
-      return dailySnapshots.map((snapshot: any, index: number) => {
-        const isToday = index === dailySnapshots.length - 1;
-        return {
+      // Combine snapshots with today's live value
+      const chartData = [];
+      
+      // Add historical snapshots for this month
+      currentMonthSnapshots.forEach((snapshot: any, index: number) => {
+        chartData.push({
           period: snapshot.date.toLocaleDateString('en-US', { weekday: 'short' }),
           progressValue: snapshot.progress,
           completionValue: snapshot.completions,
-          isCurrent: isToday,
+          isCurrent: false,
           isFuture: false,
-          isHistorical: !isToday,
-        };
+          isHistorical: true,
+        });
       });
+      
+      // Always add today's live value as the last point
+      chartData.push({
+        period: 'Today',
+        progressValue: currentProgress,
+        completionValue: currentCompletions,
+        isCurrent: true,
+        isFuture: false,
+        isHistorical: false,
+      });
+
+      return chartData;
     } else {
       // For historical periods, use actual snapshot data
       let relevantSnapshots;
@@ -617,17 +625,42 @@ export const DetailedLifeOverview = ({
       // Deduplicate snapshots to fix X-axis
       const uniqueSnapshots = deduplicateSnapshots(relevantSnapshots);
       
-      return uniqueSnapshots.map((snapshot: any, index: number) => {
+      const chartData = uniqueSnapshots.map((snapshot: any, index: number) => {
         const monthLabel = formatMonthLabel(snapshot.monthYear);
+        const isCurrentMonth = snapshot.monthYear === (new Date().getFullYear() + '-' + String(new Date().getMonth() + 1).padStart(2, '0'));
+        
         return {
           period: monthLabel,
           progressValue: snapshot.progressPercentage,
           completionValue: snapshot.goalsCompleted,
-          isCurrent: index === uniqueSnapshots.length - 1,
+          isCurrent: isCurrentMonth,
           isFuture: false,
-          isHistorical: true
+          isHistorical: !isCurrentMonth,
         };
       });
+      
+      // For "Last 3 Months", if the current month is included, update it with live data
+      if (selectedPeriod === "Last 3 Months") {
+        const currentMonth = new Date().getFullYear() + '-' + String(new Date().getMonth() + 1).padStart(2, '0');
+        const currentMonthIndex = chartData.findIndex((item: any) => item.isCurrent);
+        
+        if (currentMonthIndex !== -1) {
+          // Update current month with live data
+          const currentProgress = goals && goals.length > 0
+            ? Math.round(goals.reduce((sum: number, goal: Goal) => sum + (goal.progress || 0), 0) / goals.length)
+            : 0;
+          
+          const currentCompletions = goals ? goals.filter((g: Goal) => g.status === 'completed').length : 0;
+          
+          chartData[currentMonthIndex] = {
+            ...chartData[currentMonthIndex],
+            progressValue: currentProgress,
+            completionValue: currentCompletions,
+          };
+        }
+      }
+      
+      return chartData;
     }
   };
 
