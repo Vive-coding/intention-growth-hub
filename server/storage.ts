@@ -909,7 +909,7 @@ export class DatabaseStorage implements IStorage {
           goalsCompleted: current.goalsCompleted,
           totalGoals: current.totalGoals,
           monthYear,
-          snapshotDate: startOfDayUTC, // Use timezone-aware date
+          snapshotDate: new Date(), // Use actual snapshot time, not start of day
         })
         .where(eq(progressSnapshots.id, existing[0].id));
     } else {
@@ -921,7 +921,7 @@ export class DatabaseStorage implements IStorage {
         progressPercentage: current.progress,
         goalsCompleted: current.goalsCompleted,
         totalGoals: current.totalGoals,
-        snapshotDate: startOfDayUTC, // Use timezone-aware date
+        snapshotDate: new Date(), // Use actual snapshot time, not start of day
       });
     }
 
