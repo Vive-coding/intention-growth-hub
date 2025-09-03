@@ -425,6 +425,8 @@ export const AddHabitModal = ({ isOpen, onClose, goalId, onHabitAdded, onHabitAs
                 Array.isArray(query.queryKey) && 
                 query.queryKey[0] === '/api/feedback/status'
             });
+            // Also invalidate suggested habits query to refresh the list
+            queryClient.invalidateQueries({ queryKey: ['/api/goals/habits/suggested'] });
           } catch (error) {
             console.warn('🟣 Failed to dismiss suggested habit:', error);
           }
