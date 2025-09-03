@@ -218,20 +218,27 @@ export const InsightsScreen = () => {
 
   if (isLoading) {
     return (
-      <div className="p-6">
-        <div className="max-w-4xl mx-auto">
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center space-x-3">
-              <Logo size="sm" className="text-gray-900" />
-              <h1 className="text-2xl font-bold text-gray-900">Insights</h1>
-            </div>
-            <Button variant="outline" disabled>
-              <Filter className="w-4 h-4 mr-2" />
-              Filter
-            </Button>
-          </div>
-          <div className="grid gap-6">
-            {[1, 2, 3].map((i) => (
+      <div className="p-4 lg:p-8 pb-24 lg:pb-8">
+        <div className="max-w-7xl mx-auto">
+          {/* Loading skeleton for PageHeader */}
+          <Card className="shadow-md border-0 bg-white/80 backdrop-blur-sm mb-6">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-6 h-6 bg-gray-200 rounded animate-pulse"></div>
+                  <div>
+                    <div className="h-6 bg-gray-200 rounded w-32 mb-2 animate-pulse"></div>
+                    <div className="h-4 bg-gray-200 rounded w-48 animate-pulse"></div>
+                  </div>
+                </div>
+                <div className="h-10 bg-gray-200 rounded w-20 animate-pulse"></div>
+              </div>
+            </CardHeader>
+          </Card>
+          
+          {/* Loading skeleton for insights */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {[1, 2, 3, 4, 5, 6].map((i) => (
               <Card key={i} className="animate-pulse">
                 <CardContent className="p-6">
                   <div className="flex items-center space-x-3 mb-4">

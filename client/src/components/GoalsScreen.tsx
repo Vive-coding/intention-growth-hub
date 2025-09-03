@@ -443,7 +443,7 @@ export const GoalsScreen = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-blue-50 p-4">
+      <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-blue-50 p-4 lg:p-8 pb-24 lg:pb-8">
         <div className="max-w-7xl mx-auto">
           <div className="text-center py-8">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto mb-4"></div>
@@ -455,7 +455,7 @@ export const GoalsScreen = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-blue-50 p-4">
+    <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-blue-50 p-4 lg:p-8 pb-24 lg:pb-8">
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
         <PageHeader
