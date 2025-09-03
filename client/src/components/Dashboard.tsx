@@ -375,10 +375,13 @@ export const Dashboard = ({ onOpenGPT, onDetailedViewChange, onClearDetailedView
     queryKey: ['/api/feedback/status', suggestedHabits],
     queryFn: async () => {
       if (!suggestedHabits || suggestedHabits.length === 0) {
+        console.log('🟣 No suggested habits, returning empty feedback status');
         return { voted: {}, lastAction: {} };
       }
       const ids = suggestedHabits.map((h: any) => h.id).join(',');
+      console.log('🟣 Fetching feedback status for suggested habits:', ids);
       const response = await apiRequest(`/api/feedback/status?type=suggested_habit&ids=${ids}`);
+      console.log('🟣 Feedback status response:', response);
       return response;
     },
     enabled: isAuthenticated && suggestedHabits.length > 0,
@@ -1398,11 +1401,15 @@ export const Dashboard = ({ onOpenGPT, onDetailedViewChange, onClearDetailedView
                             .filter((habit:any)=> {
                               // Filter out existing habits that are dismissed
                               if (habit?.kind === 'existing') {
-                                return !dismissedReinforcements.includes(`habit:${habit?.existingId || 'na'}:${habit?.sourceInsightId || 'na'}`);
+                                const isDismissed = dismissedReinforcements.includes(`habit:${habit?.existingId || 'na'}:${habit?.sourceInsightId || 'na'}`);
+                                console.log('🟣 Existing habit filter:', { habitId: habit.id, isDismissed });
+                                return !isDismissed;
                               }
                               // For new suggested habits, check if they've been dismissed via feedback
                               if (habit?.kind !== 'existing') {
-                                return !habitFeedbackStatus?.voted?.[habit.id];
+                                const isVoted = habitFeedbackStatus?.voted?.[habit.id];
+                                console.log('🟣 New habit filter:', { habitId: habit.id, isVoted, feedbackStatus: habitFeedbackStatus });
+                                return !isVoted;
                               }
                               return true;
                             })
