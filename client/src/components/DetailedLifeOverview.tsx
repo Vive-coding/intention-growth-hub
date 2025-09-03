@@ -570,10 +570,17 @@ export const DetailedLifeOverview = ({
       // Combine daily snapshots with today's live value
       const chartData = [];
       
-      // Add daily snapshots for this month
+      // Add daily snapshots for this month with unique labels
       dailySnapshots.forEach((snapshot: any, index: number) => {
+        const date = snapshot.date;
+        const dayOfMonth = date.getDate();
+        const weekday = date.toLocaleDateString('en-US', { weekday: 'short' });
+        
+        // Create unique label: "Mon 2" instead of just "Mon"
+        const label = `${weekday} ${dayOfMonth}`;
+        
         chartData.push({
-          period: snapshot.date.toLocaleDateString('en-US', { weekday: 'short' }),
+          period: label,
           progressValue: snapshot.progress,
           completionValue: snapshot.completions,
           isCurrent: false,
@@ -583,8 +590,13 @@ export const DetailedLifeOverview = ({
       });
       
       // Always add today's live value as the last point
+      const today = new Date();
+      const todayDayOfMonth = today.getDate();
+      const todayWeekday = today.toLocaleDateString('en-US', { weekday: 'short' });
+      const todayLabel = `${todayWeekday} ${todayDayOfMonth}`;
+      
       chartData.push({
-        period: 'Today',
+        period: todayLabel,
         progressValue: currentProgress,
         completionValue: currentCompletions,
         isCurrent: true,
