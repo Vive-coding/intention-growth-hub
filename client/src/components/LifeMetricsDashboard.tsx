@@ -72,93 +72,116 @@ export const LifeMetricsDashboard = ({
     queryFn: async () => {
       const response = await apiRequest('/api/life-metrics/progress');
       
-      // For "This Month", fetch goals for each metric and calculate progress the same way as detailed view
-      if (currentPeriod === "This Month") {
-        const metricsWithProgress = await Promise.all(
-          response.map(async (metric: any) => {
-            try {
-              // Fetch goals for this metric using the same API as detailed view
-              const goals = await apiRequest(`/api/goals?metric=${encodeURIComponent(metric.name)}`);
-              
-              if (goals.length === 0) {
-                return {
-                  ...metric,
-                  progress: 0,
-                  totalGoals: 0,
-                  completedGoals: 0
-                };
-              }
-              
-              // Calculate average progress using the same logic as detailed view
-              const totalProgress = goals.reduce((sum: number, goal: any) => {
-                return sum + (goal.progress || 0);
-              }, 0);
-              
-              const averageProgress = Math.round(totalProgress / goals.length);
-              const completedGoals = goals.filter((goal: any) => goal.status === 'completed').length;
-              
-              return {
-                ...metric,
-                progress: averageProgress,
-                totalGoals: goals.length,
-                completedGoals
-              };
-            } catch (error) {
-              console.error(`Failed to fetch goals for ${metric.name}:`, error);
-            }
-            return metric;
-          })
-        );
-        
-        return metricsWithProgress;
-      }
-      
-      // For historical periods, use progress snapshots
+      // For current period, fetch goals for each metric and apply time period filtering
       const metricsWithProgress = await Promise.all(
         response.map(async (metric: any) => {
           try {
-            const snapshotsUrl = `/api/life-metrics/${encodeURIComponent(metric.name)}/progress-snapshots?period=${encodeURIComponent(currentPeriod)}`;
-            const snapshots = await apiRequest(snapshotsUrl);
+            // Fetch goals for this metric using the same API as detailed view
+            const goals = await apiRequest(`/api/goals?metric=${encodeURIComponent(metric.name)}`);
             
-            // Apply period-specific filtering
-            let relevantSnapshots;
-            switch (currentPeriod) {
-              case "Last 3 Months":
-                relevantSnapshots = snapshots.slice(-3);
-                break;
-              case "Last 6 Months":
-                relevantSnapshots = snapshots.slice(-6);
-                break;
-              case "This Year":
-                const currentYear = new Date().getFullYear();
-                relevantSnapshots = snapshots.filter((snapshot: any) => {
-                  const snapshotYear = parseInt(snapshot.monthYear.split('-')[0]);
-                  return snapshotYear === currentYear;
-                });
-                break;
-              case "All Time":
-                relevantSnapshots = snapshots;
-                break;
-              default:
-                relevantSnapshots = snapshots.slice(-6);
-            }
-            
-            if (relevantSnapshots.length > 0) {
-              const totalProgress = relevantSnapshots.reduce((sum: number, snapshot: any) => {
-                return sum + snapshot.progressPercentage;
-              }, 0);
-              
-              const averageProgress = Math.round(totalProgress / relevantSnapshots.length);
-              
+            if (goals.length === 0) {
               return {
                 ...metric,
-                progress: averageProgress,
-                totalGoals: relevantSnapshots.length,
-                completedGoals: relevantSnapshots.filter((snapshot: any) => snapshot.progressPercentage >= 90).length
+                progress: 0,
+                totalGoals: 0,
+                completedGoals: 0
               };
             }
+            
+            // Apply the same time period filtering logic as detailed view
+            const filteredGoals = goals.filter((goal: any) => {
+              const now = new Date();
+              
+              switch (currentPeriod) {
+                case "This Month":
+                  if (goal.status === 'active') { return true; }
+                  if (goal.status === 'completed' && goal.completedAt) {
+                    const completedDate = new Date(goal.completedAt);
+                    const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+                    return completedDate >= currentMonthStart;
+                  }
+                  if (goal.createdAt) {
+                    const createdDate = new Date(goal.createdAt);
+                    const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+                    return createdDate >= currentMonthStart;
+                  }
+                  return false;
+                  
+                case "Last 3 Months":
+                  if (goal.status === 'active') { return true; }
+                  if (goal.status === 'completed' && goal.completedAt) {
+                    const completedDate = new Date(goal.completedAt);
+                    const threeMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 2, 1);
+                    return completedDate >= threeMonthsAgo;
+                  }
+                  if (goal.createdAt) {
+                    const createdDate = new Date(goal.createdAt);
+                    const threeMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 2, 1);
+                    return createdDate >= threeMonthsAgo;
+                  }
+                  return false;
+                  
+                case "Last 6 Months":
+                  if (goal.status === 'active') { return true; }
+                  if (goal.status === 'completed' && goal.completedAt) {
+                    const completedDate = new Date(goal.completedAt);
+                    const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+                    return completedDate >= sixMonthsAgo;
+                  }
+                  if (goal.createdAt) {
+                    const createdDate = new Date(goal.createdAt);
+                    const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+                    return createdDate >= sixMonthsAgo;
+                  }
+                  return false;
+                  
+                case "This Year":
+                  if (goal.status === 'active') { return true; }
+                  if (goal.status === 'completed' && goal.completedAt) {
+                    const completedDate = new Date(goal.completedAt);
+                    const yearStart = new Date(now.getFullYear(), 0, 1);
+                    return completedDate >= yearStart;
+                  }
+                  if (goal.createdAt) {
+                    const createdDate = new Date(goal.createdAt);
+                    const yearStart = new Date(now.getFullYear(), 0, 1);
+                    return createdDate >= yearStart;
+                  }
+                  return false;
+                  
+                case "All Time":
+                  return true;
+                  
+                default:
+                  return true;
+              }
+            });
+            
+            if (filteredGoals.length === 0) {
+              return {
+                ...metric,
+                progress: 0,
+                totalGoals: 0,
+                completedGoals: 0
+              };
+            }
+            
+            // Calculate average progress using filtered goals
+            const totalProgress = filteredGoals.reduce((sum: number, goal: any) => {
+              return sum + (goal.progress || 0);
+            }, 0);
+            
+            const averageProgress = Math.round(totalProgress / filteredGoals.length);
+            const completedGoals = filteredGoals.filter((goal: any) => goal.status === 'completed').length;
+            
+            return {
+              ...metric,
+              progress: averageProgress,
+              totalGoals: filteredGoals.length,
+              completedGoals
+            };
           } catch (error) {
-            console.error(`Failed to fetch snapshots for ${metric.name}:`, error);
+            console.error(`Failed to fetch goals for ${metric.name}:`, error);
           }
           return metric;
         })

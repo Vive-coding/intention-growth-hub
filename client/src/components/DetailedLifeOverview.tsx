@@ -124,7 +124,7 @@ export const DetailedLifeOverview = ({
   const [showGoalDetailModal, setShowGoalDetailModal] = useState(false);
   const [showCreateGoalModal, setShowCreateGoalModal] = useState(false);
   const [selectedGoalDetails, setSelectedGoalDetails] = useState<Goal | null>(null);
-  const [showCompleted, setShowCompleted] = useState(false);
+  // Removed showCompleted state - no longer needed
   
   // Auto-open goal creation modal if prefillGoal is provided
   useEffect(() => {
@@ -173,16 +173,128 @@ export const DetailedLifeOverview = ({
 
   // Fetch goals for this specific metric
   const { data: goals = [], isLoading: goalsLoading, error: goalsError } = useQuery({
-    queryKey: ['/api/goals', metric, showCompleted],
+    queryKey: ['/api/goals', metric, selectedPeriod],
     queryFn: async () => {
       const params = new URLSearchParams();
       params.append('metric', metric);
-      if (showCompleted) params.append('status', 'completed');
+      // Server will return goals relevant to the selected time period
       
       const response = await apiRequest(`/api/goals?${params.toString()}`);
       return response;
     },
     retry: 1,
+  });
+
+  // Filter goals based on selected time period
+  const filteredGoals = goals.filter((goal: Goal) => {
+    const now = new Date();
+    
+    switch (selectedPeriod) {
+      case "This Month":
+        // Show goals that are:
+        // 1. Active (regardless of when created - includes goals from previous months)
+        // 2. Created this month
+        // 3. Completed this month
+        if (goal.status === 'active') {
+          return true; // Always show active goals
+        }
+        
+        if (goal.status === 'completed' && goal.completedAt) {
+          const completedDate = new Date(goal.completedAt);
+          const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+          return completedDate >= currentMonthStart;
+        }
+        
+        // For goals without completion date, check if created this month
+        if (goal.createdAt) {
+          const createdDate = new Date(goal.createdAt);
+          const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+          return createdDate >= currentMonthStart;
+        }
+        
+        return false;
+        
+      case "Last 3 Months":
+        // Show goals that are:
+        // 1. Active (not completed)
+        // 2. Created in the last 3 months
+        // 3. Completed in the last 3 months
+        if (goal.status === 'active') {
+          return true; // Always show active goals
+        }
+        
+        if (goal.status === 'completed' && goal.completedAt) {
+          const completedDate = new Date(goal.completedAt);
+          // Last 3 months should include current month + 2 previous months
+          const threeMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 2, 1);
+          return completedDate >= threeMonthsAgo;
+        }
+        
+        // For goals without completion date, check if created in last 3 months
+        if (goal.createdAt) {
+          const createdDate = new Date(goal.createdAt);
+          const threeMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 2, 1);
+          return createdDate >= threeMonthsAgo;
+        }
+        
+        return false;
+        
+      case "Last 6 Months":
+        // Show goals that are:
+        // 1. Active (not completed)
+        // 2. Created in the last 6 months
+        // 3. Completed in the last 6 months
+        if (goal.status === 'active') {
+          return true; // Always show active goals
+        }
+        
+        if (goal.status === 'completed' && goal.completedAt) {
+          const completedDate = new Date(goal.completedAt);
+          // Last 6 months should include current month + 5 previous months
+          const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+          return completedDate >= sixMonthsAgo;
+        }
+        
+        // For goals without completion date, check if created in last 6 months
+        if (goal.createdAt) {
+          const createdDate = new Date(goal.createdAt);
+          const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+          return createdDate >= sixMonthsAgo;
+        }
+        
+        return false;
+        
+      case "This Year":
+        // Show goals that are:
+        // 1. Active (not completed)
+        // 2. Created this year
+        // 3. Completed this year
+        if (goal.status === 'active') {
+          return true; // Always show active goals
+        }
+        
+        if (goal.status === 'completed' && goal.completedAt) {
+          const completedDate = new Date(goal.completedAt);
+          const yearStart = new Date(now.getFullYear(), 0, 1);
+          return completedDate >= yearStart;
+        }
+        
+        // For goals without completion date, check if created this year
+        if (goal.createdAt) {
+          const createdDate = new Date(goal.createdAt);
+          const yearStart = new Date(now.getFullYear(), 0, 1);
+          return createdDate >= yearStart;
+        }
+        
+        return false;
+        
+      case "All Time":
+        // Show all goals
+        return true;
+        
+      default:
+        return true;
+    }
   });
 
   // Handlers for goal interactions
@@ -521,15 +633,15 @@ export const DetailedLifeOverview = ({
 
   // Calculate circular progress value based on goal progress for the selected time period
   const getCircularProgressValue = () => {
-    // Always use current goal progress for the ring - it represents aggregate progress
-    // The ring should show the current state of all goals, not historical averages
-    if (!goals || goals.length === 0) return 0;
+    // Use filtered goals based on selected time period for the ring calculation
+    // This ensures the ring reflects only goals relevant to the current view
+    if (!filteredGoals || filteredGoals.length === 0) return 0;
     
-    const totalProgress = goals.reduce((sum: number, goal: Goal) => {
+    const totalProgress = filteredGoals.reduce((sum: number, goal: Goal) => {
       return sum + (goal.progress || 0);
     }, 0);
     
-    return Math.round(totalProgress / goals.length);
+    return Math.round(totalProgress / filteredGoals.length);
   };
 
   const graphData = getGraphData();
@@ -874,14 +986,6 @@ export const DetailedLifeOverview = ({
                   <Target className="w-5 h-5 text-blue-600" />
                   <span>Your Goals</span>
                 </CardTitle>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowCompleted(!showCompleted)}
-                  className={showCompleted ? "bg-green-100 text-green-700" : ""}
-                >
-                  {showCompleted ? "Hide Completed" : "Show Completed"}
-                </Button>
               </div>
             </CardHeader>
             <CardContent>
@@ -893,9 +997,9 @@ export const DetailedLifeOverview = ({
                 <div className="text-center py-8">
                   <div className="text-red-600">Failed to load goals. Please try again.</div>
                 </div>
-              ) : goals.length === 0 ? (
+              ) : filteredGoals.length === 0 ? (
                 <div className="text-center py-8">
-                  <div className="text-gray-600">No goals found for this life metric.</div>
+                  <div className="text-gray-600">No goals found for this life metric in the selected time period.</div>
                   <Button 
                     onClick={suggestGoals}
                     className="mt-4 bg-gradient-to-r from-green-500 to-green-600 text-white"
@@ -906,7 +1010,8 @@ export const DetailedLifeOverview = ({
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {[...goals].sort((a: Goal, b: Goal) => (b.progress || 0) - (a.progress || 0)).map((goal: Goal) => {
+                  {[...filteredGoals]
+                    .sort((a: Goal, b: Goal) => (b.progress || 0) - (a.progress || 0)).map((goal: Goal) => {
                     const isCompleted = goal.status === 'completed';
                     
                     return (

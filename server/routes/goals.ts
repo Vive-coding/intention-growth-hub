@@ -141,20 +141,7 @@ router.get("/", async (req: Request, res: Response) => {
       whereConditions.push(eq(goalInstances.status, statusFilter));
     }
     
-    // For current month progress, exclude goals completed in previous months
-    // Only show: active goals + goals completed in current month
-    if (!statusFilter || statusFilter === 'active') {
-      const user = await db.select().from(users).where(eq(users.id, userId)).limit(1);
-      const userTimezone = user[0]?.timezone || 'UTC';
-      const now = new Date();
-      const userDate = new Date(now.toLocaleString("en-US", { timeZone: userTimezone }));
-      const currentMonthStart = new Date(userDate.getFullYear(), userDate.getMonth(), 1);
-      
-      // Show active goals OR goals completed in current month
-      whereConditions.push(
-        sql`(${goalInstances.status} = 'active' OR (${goalInstances.status} = 'completed' AND ${goalInstances.completedAt} >= ${currentMonthStart}))`
-      );
-    }
+    // Let client handle time period filtering - server sends all goals
     
     // Get goals with their instances
     const goalsWithInstances = await db
