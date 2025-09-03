@@ -6,7 +6,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { InsightCard } from "@/components/insights/InsightCard";
-import { ThumbsUp, ThumbsDown, Filter } from "lucide-react";
+import { ThumbsUp, ThumbsDown, Filter, TrendingUp } from "lucide-react";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { useLifeMetricView } from "@/hooks/useLifeMetricView";
 import { Logo } from "@/components/ui/Logo";
 import { insightsService } from "@/services/insightsService";
@@ -285,45 +286,48 @@ export const InsightsScreen = () => {
   return (
     <div className="p-4 lg:p-8 pb-24 lg:pb-8">
       <div className="max-w-7xl mx-auto">
-        <div className="mb-6">
-          <div className="mb-4">
-            <h1 className="text-2xl lg:text-3xl font-bold text-gray-800">
-              {metricFilter ? `${metricFilter} Insights` : "Your Insights"}
-            </h1>
-          </div>
+        {/* Header */}
+        <PageHeader
+          title={metricFilter ? `${metricFilter} Insights` : "Your Insights"}
+          description="AI-powered insights from your journal entries"
+          icon={<TrendingUp className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />}
+          showAddButton={false}
+          filters={[
+            {
+              label: "Life Metric",
+              value: selectedFilter,
+              options: metricOptions.map((metric) => ({
+                value: metric,
+                label: metric
+              })),
+              onChange: setSelectedFilter
+            },
+            {
+              label: "Votes",
+              value: voteFilter,
+              options: [
+                { value: "all", label: "All votes" },
+                { value: "upvoted", label: "Voted - Upvote" },
+                { value: "downvoted", label: "Voted - Downvote" },
+                { value: "unvoted", label: "Unvoted" }
+              ],
+              onChange: (v: any) => setVoteFilter(v)
+            }
+          ]}
+        />
 
-          <div className="mb-6 flex items-center gap-4 flex-wrap">
-            <Select value={selectedFilter} onValueChange={setSelectedFilter}>
-              <SelectTrigger className="w-56">
-                <SelectValue placeholder="Life Metric" />
-              </SelectTrigger>
-              <SelectContent>
-                {metricOptions.map((metric) => (
-                  <SelectItem key={metric} value={metric}>{metric}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={voteFilter} onValueChange={(v:any)=>setVoteFilter(v)}>
-              <SelectTrigger className="w-56">
-                <SelectValue placeholder="Vote filter" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All votes</SelectItem>
-                <SelectItem value="upvoted">Voted - Upvote</SelectItem>
-                <SelectItem value="downvoted">Voted - Downvote</SelectItem>
-                <SelectItem value="unvoted">Unvoted</SelectItem>
-              </SelectContent>
-            </Select>
-            <span className="text-sm text-gray-500">Sorted by confidence (high to low)</span>
-          </div>
+        {/* Processing Alert */}
+        {isProcessing && (
+          <Alert className="mb-6">
+            <AlertDescription>
+              Processing new insights from your latest journal entry...
+            </AlertDescription>
+          </Alert>
+        )}
 
-          {isProcessing && (
-            <Alert className="mb-6">
-              <AlertDescription>
-                Processing new insights from your latest journal entry...
-              </AlertDescription>
-            </Alert>
-          )}
+        {/* Sort Info */}
+        <div className="mb-4">
+          <span className="text-sm text-gray-500">Sorted by confidence (high to low)</span>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

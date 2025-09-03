@@ -62,33 +62,59 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
             )}
           </div>
 
-          {/* Filters Row */}
+          {/* Filters Row - Mobile Optimized */}
           {filters.length > 0 && (
-            <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-gray-100">
-              <div className="flex items-center gap-2 text-sm text-gray-500">
-                <Filter className="w-4 h-4" />
-                <span>Filters:</span>
+            <div className="pt-2 border-t border-gray-100">
+              {/* Mobile: Stack filters vertically */}
+              <div className="block sm:hidden space-y-3">
+                {filters.map((filter, index) => (
+                  <div key={index} className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-gray-700">
+                      {filter.label}
+                    </span>
+                    <Select value={filter.value} onValueChange={filter.onChange}>
+                      <SelectTrigger className="w-32 bg-white border-gray-200">
+                        <SelectValue placeholder={filter.label} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {filter.options.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ))}
               </div>
               
-              {filters.map((filter, index) => (
-                <div key={index} className="flex items-center gap-2">
-                  <span className="text-sm text-gray-600 whitespace-nowrap">
-                    {filter.label}
-                  </span>
-                  <Select value={filter.value} onValueChange={filter.onChange}>
-                    <SelectTrigger className="w-32 sm:w-40">
-                      <SelectValue placeholder={filter.label} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {filter.options.map((option) => (
-                        <SelectItem key={option.value} value={option.value}>
-                          {option.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+              {/* Desktop: Horizontal layout */}
+              <div className="hidden sm:flex flex-wrap items-center gap-3">
+                <div className="flex items-center gap-2 text-sm text-gray-500">
+                  <Filter className="w-4 h-4" />
+                  <span>Filters:</span>
                 </div>
-              ))}
+                
+                {filters.map((filter, index) => (
+                  <div key={index} className="flex items-center gap-2">
+                    <span className="text-sm text-gray-600 whitespace-nowrap">
+                      {filter.label}
+                    </span>
+                    <Select value={filter.value} onValueChange={filter.onChange}>
+                      <SelectTrigger className="w-32 lg:w-40">
+                        <SelectValue placeholder={filter.label} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {filter.options.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </div>

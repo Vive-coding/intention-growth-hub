@@ -24,6 +24,7 @@ import {
   Filter,
   Search
 } from "lucide-react";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { Logo } from "@/components/ui/Logo";
 import { GoalDetailModal } from "./GoalDetailModal";
 import { AddHabitModal } from "./AddHabitModal";
@@ -457,66 +458,52 @@ export const GoalsScreen = () => {
     <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-blue-50 p-4">
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
-        <div>
-          <h1 className="text-3xl font-bold text-gray-800">Your Goals</h1>
-          <p className="text-gray-600 mt-2">Track your progress and stay motivated</p>
-        </div>
+        <PageHeader
+          title="Your Goals"
+          description="Track your progress and stay motivated"
+          icon={<Target className="w-5 h-5 sm:w-6 sm:h-6 text-purple-600" />}
+          showAddButton={true}
+          addButtonText="Add Goal"
+          addButtonIcon={<Plus className="w-4 h-4" />}
+          onAddClick={() => setShowCreateGoalModal(true)}
+          filters={[
+            {
+              label: "Life Metric",
+              value: filterMetric || "all",
+              options: [
+                { value: "all", label: "All metrics" },
+                ...lifeMetrics.map((metric) => ({
+                  value: metric.name,
+                  label: metric.name
+                }))
+              ],
+              onChange: setFilterMetric
+            },
+            {
+              label: "Status",
+              value: statusFilter,
+              options: [
+                { value: "all", label: "All Status" },
+                { value: "active", label: "Active" },
+                { value: "completed", label: "Completed" },
+                { value: "archived", label: "Archived" }
+              ],
+              onChange: setStatusFilter
+            }
+          ]}
+        />
 
-        {/* Filters */}
+        {/* Search Bar */}
         <Card className="shadow-md border-0 bg-white/80 backdrop-blur-sm">
-          <CardContent className="p-6">
-            <div className="flex flex-col md:flex-row gap-4 items-end">
-              <div className="flex-1">
-                <Label htmlFor="search">Search Goals</Label>
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                  <Input
-                    id="search"
-                    placeholder="Search goals..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10"
-                  />
-                </div>
-              </div>
-              
-              <div className="w-60">
-                <Label htmlFor="filter">Filter by Life Metric</Label>
-                <Select value={filterMetric} onValueChange={setFilterMetric}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="All metrics" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All metrics</SelectItem>
-                    {lifeMetrics.map((metric) => (
-                      <SelectItem key={metric.id} value={metric.name}>
-                        {metric.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              <div className="flex items-end gap-2">
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="w-40">
-                    <SelectValue placeholder="Status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Status</SelectItem>
-                    <SelectItem value="active">Active</SelectItem>
-                    <SelectItem value="completed">Completed</SelectItem>
-                    <SelectItem value="archived">Archived</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Button
-                  onClick={() => setShowCreateGoalModal(true)}
-                  className="bg-purple-600 text-white hover:bg-purple-700"
-                >
-                  <Plus className="w-4 h-4 mr-2" />
-                  Add Goal
-                </Button>
-              </div>
+          <CardContent className="p-4">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+              <Input
+                placeholder="Search goals..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10"
+              />
             </div>
           </CardContent>
         </Card>
