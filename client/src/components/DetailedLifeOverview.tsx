@@ -192,7 +192,7 @@ export const DetailedLifeOverview = ({
     switch (selectedPeriod) {
       case "This Month":
         // Show goals that are:
-        // 1. Active (regardless of when created - includes goals from previous months)
+        // 1. Active (not completed)
         // 2. Created this month
         // 3. Completed this month
         if (goal.status === 'active') {
@@ -553,30 +553,25 @@ export const DetailedLifeOverview = ({
     }));
     
     if (selectedPeriod === "This Month") {
-      // For "This Month", show snapshots for the current month + today's live value
-      const currentMonth = new Date().getFullYear() + '-' + String(new Date().getMonth() + 1).padStart(2, '0');
-      
-      // Get snapshots for the current month
-      const currentMonthSnapshots = (normalizedSnapshots || []).filter((s: any) => 
-        s.monthYear === currentMonth
-      ).map((s: any) => ({
+      // For "This Month", show daily snapshots for the current month + today's live value
+      const dailySnapshots = (normalizedSnapshots || []).map((s: any) => ({
         date: new Date(s.snapshotDate || s.createdAt || Date.now()),
         progress: s.progressPercentage,
         completions: s.goalsCompleted,
       })).sort((a,b) => a.date.getTime() - b.date.getTime());
 
-      // Calculate today's live progress
-      const currentProgress = goals && goals.length > 0
-        ? Math.round(goals.reduce((sum: number, goal: Goal) => sum + (goal.progress || 0), 0) / goals.length)
+      // Calculate today's live progress from filtered goals (same as ring calculation)
+      const currentProgress = filteredGoals && filteredGoals.length > 0
+        ? Math.round(filteredGoals.reduce((sum: number, goal: Goal) => sum + (goal.progress || 0), 0) / filteredGoals.length)
         : 0;
       
-      const currentCompletions = goals ? goals.filter((g: Goal) => g.status === 'completed').length : 0;
+      const currentCompletions = filteredGoals ? filteredGoals.filter((g: Goal) => g.status === 'completed').length : 0;
 
-      // Combine snapshots with today's live value
+      // Combine daily snapshots with today's live value
       const chartData = [];
       
-      // Add historical snapshots for this month
-      currentMonthSnapshots.forEach((snapshot: any, index: number) => {
+      // Add daily snapshots for this month
+      dailySnapshots.forEach((snapshot: any, index: number) => {
         chartData.push({
           period: snapshot.date.toLocaleDateString('en-US', { weekday: 'short' }),
           progressValue: snapshot.progress,
@@ -645,12 +640,12 @@ export const DetailedLifeOverview = ({
         const currentMonthIndex = chartData.findIndex((item: any) => item.isCurrent);
         
         if (currentMonthIndex !== -1) {
-          // Update current month with live data
-          const currentProgress = goals && goals.length > 0
-            ? Math.round(goals.reduce((sum: number, goal: Goal) => sum + (goal.progress || 0), 0) / goals.length)
+          // Update current month with live data from filtered goals (same as ring calculation)
+          const currentProgress = filteredGoals && filteredGoals.length > 0
+            ? Math.round(filteredGoals.reduce((sum: number, goal: Goal) => sum + (goal.progress || 0), 0) / filteredGoals.length)
             : 0;
           
-          const currentCompletions = goals ? goals.filter((g: Goal) => g.status === 'completed').length : 0;
+          const currentCompletions = filteredGoals ? filteredGoals.filter((g: Goal) => g.status === 'completed').length : 0;
           
           chartData[currentMonthIndex] = {
             ...chartData[currentMonthIndex],
