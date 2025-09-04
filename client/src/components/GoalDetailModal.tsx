@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
+import { analytics } from "@/services/analyticsService";
 import { apiRequest } from "@/lib/queryClient";
 
 interface GoalDetailModalProps {
@@ -343,6 +344,14 @@ export const GoalDetailModal = ({
       });
       
       if (response) {
+        // Track goal completion
+        analytics.trackGoalCompleted(goalData.id, {
+          goal_title: goalData.title,
+          life_metric: goalData.lifeMetric?.name,
+          completion_time: new Date().toISOString(),
+          final_progress: 100,
+        });
+        
         // Update local progress to 100%
         setProgress(100);
         toast({

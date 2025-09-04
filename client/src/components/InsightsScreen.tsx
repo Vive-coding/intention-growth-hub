@@ -11,6 +11,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { useLifeMetricView } from "@/hooks/useLifeMetricView";
 import { Logo } from "@/components/ui/Logo";
 import { insightsService } from "@/services/insightsService";
+import { analytics } from "@/services/analyticsService";
 import type { Insight } from "@/services/insightsService";
 import { useLocation } from "wouter";
 
@@ -89,6 +90,19 @@ export const InsightsScreen = () => {
   const handleVote = async (insightId: string, isUpvote: boolean) => {
     const result = await insightsService.voteOnInsight(insightId, isUpvote);
     if (result) {
+      // Track insight vote
+      if (isUpvote) {
+        analytics.trackInsightUpvoted(insightId, {
+          insight_title: insights.find(i => i.id === insightId)?.title,
+          confidence: insights.find(i => i.id === insightId)?.confidence,
+        });
+      } else {
+        analytics.trackInsightDownvoted(insightId, {
+          insight_title: insights.find(i => i.id === insightId)?.title,
+          confidence: insights.find(i => i.id === insightId)?.confidence,
+        });
+      }
+      
       setInsights(insights.map(insight => {
         if (insight.id === insightId) {
           return {

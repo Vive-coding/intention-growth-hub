@@ -36,6 +36,7 @@ import { useMetricProgress } from "@/hooks/useMetricProgress";
 import { GoalDetailModal } from "./GoalDetailModal";
 import { CreateGoalModal } from "./CreateGoalModal";
 import { useToast } from "@/hooks/use-toast";
+import { analytics } from "@/services/analyticsService";
 import { useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { InsightCard } from "./insights/InsightCard";
@@ -330,6 +331,13 @@ export const DetailedLifeOverview = ({
       });
       
       if (response) {
+        // Track habit completion
+        analytics.trackHabitCompleted(habitId, {
+          goal_id: goalId,
+          metric_name: metric,
+          completion_time: new Date().toISOString(),
+        });
+        
         // Invalidate all goal-related queries to refresh data
         queryClient.invalidateQueries({ queryKey: ['/api/goals'] });
         queryClient.invalidateQueries({ queryKey: ['/api/goal-instances'] });

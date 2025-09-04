@@ -21,6 +21,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { Checkbox } from "@/components/ui/checkbox";
 import { insightsService } from "@/services/insightsService";
 import { toast } from "@/components/ui/sonner";
+import { analytics } from "@/services/analyticsService";
 
 // Custom pill color mapping for unique, meaningful colors
 const getPillBackgroundColor = (metricName: string) => {
@@ -53,6 +54,15 @@ export const Dashboard = ({ onOpenGPT, onDetailedViewChange, onClearDetailedView
     const [selectedMetric, setSelectedMetric] = useState<string | null>(null);
   const [selectedPeriod, setSelectedPeriod] = useState("This Month");
   const [showHabitModal, setShowHabitModal] = useState(false);
+
+  // Wrapper function to track detailed view opening
+  const handleMetricClick = (metricName: string) => {
+    analytics.trackDetailedViewOpened(metricName, {
+      period: selectedPeriod,
+      timestamp: new Date().toISOString(),
+    });
+    setSelectedMetric(metricName);
+  };
  
   const [showMobileActions, setShowMobileActions] = useState(false);
   const [journalContent, setJournalContent] = useState("");
@@ -101,6 +111,13 @@ export const Dashboard = ({ onOpenGPT, onDetailedViewChange, onClearDetailedView
       });
 
       if (response) {
+        // Track journal creation
+        analytics.trackJournalEntryCreated(response.id, {
+          content_length: journalContent.length,
+          has_goals: prefillGoal !== null,
+          has_habits: prefillHabit !== null,
+        });
+        
         setJournalContent('');
         toast.success('Journal saved');
         const t = toast.loading('Analyzing your entry to generate insights...');
@@ -674,7 +691,7 @@ export const Dashboard = ({ onOpenGPT, onDetailedViewChange, onClearDetailedView
           {/* Life Metrics Dashboard - Mobile */}
           <div className="w-full">
             <LifeMetricsDashboard 
-              onMetricClick={setSelectedMetric}
+              onMetricClick={handleMetricClick}
               selectedPeriod={selectedPeriod}
               onPeriodChange={setSelectedPeriod}
             />
@@ -1069,7 +1086,7 @@ export const Dashboard = ({ onOpenGPT, onDetailedViewChange, onClearDetailedView
             {/* Life Metrics Dashboard */}
             <div className="w-full">
               <LifeMetricsDashboard 
-                onMetricClick={setSelectedMetric}
+                onMetricClick={handleMetricClick}
                 selectedPeriod={selectedPeriod}
                 onPeriodChange={setSelectedPeriod}
               />
