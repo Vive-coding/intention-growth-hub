@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Route, Switch } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
+import { usePageTracking } from "@/hooks/usePageTracking";
 import { queryClient } from "@/lib/queryClient";
 import Index from "./pages/Index";
 import { Landing } from "./pages/Landing";
@@ -13,6 +14,9 @@ import { HabitsScreen } from "./components/HabitsScreen";
 
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
+  
+  // Track page views
+  usePageTracking();
 
   return (
     <Switch>

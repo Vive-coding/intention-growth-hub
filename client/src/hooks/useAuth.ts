@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, useEffect } from "react";
 import { apiRequest } from "@/lib/queryClient";
+import { analytics } from "@/services/analyticsService";
 
 // Global function to check token status (can be called from browser console)
 if (typeof window !== 'undefined') {
@@ -70,12 +71,29 @@ export function useAuth() {
   const login = async (userData: any) => {
     console.log("🔐 Login called with userData:", userData);
     setUser(userData);
+    
+    // Track login event
+    analytics.setUser(userData.id, {
+      email: userData.email,
+      timezone: userData.timezone,
+      createdAt: userData.createdAt,
+    });
+    analytics.trackUserLogin({
+      user_id: userData.id,
+      email: userData.email,
+    });
+    
     // Invalidate and refetch user data
     await queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
   };
 
   const logout = () => {
     console.log("🔐 Logout called - clearing token and user");
+    
+    // Track logout event
+    analytics.trackUserLogout();
+    analytics.clearUser();
+    
     localStorage.removeItem("token");
     localStorage.removeItem("user");
     setUser(null);

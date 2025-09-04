@@ -1203,9 +1203,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const DEFAULT_TZ = process.env.DEFAULT_TZ || 'UTC';
     const tzMap = (() => { try { return process.env.USER_TZ_MAP ? JSON.parse(process.env.USER_TZ_MAP) : {}; } catch { return {}; } })();
     // Run every 5 minutes to catch local 23:55 in different time zones
-    // In development, run every 5 minutes to create daily snapshots more frequently
-    const cronSchedule = '*/5 * * * *'; // Every 5 minutes in both dev and prod
-    cron.schedule(cronSchedule, async () => {
+    cron.schedule('*/5 * * * *', async () => {
       try {
         // Load users with timezone if available
         const distinctUsers = await db.query.users.findMany({ columns: { id: true, timezone: true } });
@@ -1216,17 +1214,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const localeNow = new Date(now.toLocaleString('en-US', { timeZone: userTz }));
           const minutes = localeNow.getMinutes();
           const hours = localeNow.getHours();
-          
-          // Create daily snapshots at 23:55 in user's timezone
-          const shouldCreateSnapshot = (hours === 23 && minutes >= 55);
-          
-          if (shouldCreateSnapshot) {
-            console.log('[cron] daily snapshot window hit', { 
-              userId: u.id, 
-              userTz, 
-              localeNow: localeNow.toISOString(),
-              reason: 'daily 23:55'
-            });
+          if (hours === 23 && minutes >= 55) {
+            console.log('[cron] nightly snapshot window hit', { userId: u.id, userTz, localeNow: localeNow.toISOString() });
             // Snapshot all life metrics for user
             const metrics = await storage.getUserLifeMetrics(u.id);
             for (const m of metrics) {
@@ -1351,26 +1340,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: e?.message || 'Failed to run snapshots' });
     }
   });
-
-  // Development endpoint to trigger snapshots (no auth required in dev)
-  if (isDev) {
-    app.post('/api/dev/snapshots/run', async (req: any, res) => {
-      try {
-        console.log('[dev] Manual snapshot trigger');
-        const users = await db.query.users.findMany({ columns: { id: true } });
-        for (const u of users) {
-          const metrics = await storage.getUserLifeMetrics(u.id);
-          for (const m of metrics) {
-            await storage.upsertTodayProgressSnapshot(u.id, m.name);
-          }
-        }
-        res.json({ success: true, users: users.length, message: 'Snapshots created for all users' });
-      } catch (e: any) {
-        console.error('Dev snapshot run failed', e);
-        res.status(500).json({ message: e?.message || 'Failed to run snapshots' });
-      }
-    });
-  }
 
   // Admin: purge progress snapshots
   app.delete('/api/admin/snapshots', authMiddleware, async (req: any, res) => {

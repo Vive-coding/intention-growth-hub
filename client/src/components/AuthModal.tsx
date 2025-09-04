@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useAuth } from "@/hooks/useAuth";
 import { apiRequest } from "@/lib/queryClient";
+import { analytics } from "@/services/analyticsService";
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -52,6 +53,16 @@ export const AuthModal = ({ isOpen, onClose, initialMode = 'signup' }: AuthModal
       // Store token and user data
       localStorage.setItem("token", data.token);
       localStorage.setItem("user", JSON.stringify(data.user));
+      
+      // Track signup event if this is a new user
+      if (isSignup) {
+        analytics.trackUserSignup({
+          user_id: data.user.id,
+          email: data.user.email,
+          first_name: firstName,
+          last_name: lastName,
+        });
+      }
       
       // Update auth context
       await login(data.user);

@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
+import { analytics } from "@/services/analyticsService";
 
 interface CreateGoalModalProps {
   isOpen: boolean;
@@ -185,6 +186,15 @@ export const CreateGoalModal = ({
       });
 
       console.log('Goal creation response:', response);
+
+      // Track goal creation
+      analytics.trackGoalCreated(response.id, {
+        goal_title: title,
+        life_metric: selectedLifeMetric?.name,
+        has_description: !!description,
+        has_target_date: !!targetDate,
+        from_suggestion: !!prefillData?.suggestedGoalId,
+      });
 
       // Reset form
       setTitle("");

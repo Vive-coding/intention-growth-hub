@@ -8,6 +8,7 @@ import { getLifeMetricColors } from "@/lib/utils";
 import type { LifeMetricWithProgress } from "@shared/schema";
 import { useMetricProgress } from "@/hooks/useMetricProgress";
 import { apiRequest } from "@/lib/queryClient";
+import { analytics } from "@/services/analyticsService";
 
 interface LifeMetric {
   category: string;
@@ -432,6 +433,14 @@ export const LifeMetricsDashboard = ({
                 console.log('🔍 Token status before navigation:');
                 console.log('  Token:', localStorage.getItem("token") ? 'PRESENT' : 'MISSING');
                 console.log('  User:', localStorage.getItem("user") ? 'PRESENT' : 'MISSING');
+                
+                // Track life metric click
+                analytics.trackLifeMetricClicked(metric.category, {
+                  progress: metric.progress,
+                  has_goals: metric.hasGoals,
+                  total_goals: metric.totalGoals,
+                });
+                
                 onMetricClick?.(metric.category);
               }}
             >
