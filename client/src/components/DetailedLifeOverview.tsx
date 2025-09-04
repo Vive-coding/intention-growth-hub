@@ -661,7 +661,7 @@ export const DetailedLifeOverview = ({
         
         if (currentMonthIndex !== -1) {
           // Calculate progress only for goals relevant to the current month
-          const currentMonthGoals = filteredGoals.filter(goal => {
+          const currentMonthGoals = filteredGoals.filter((goal: any) => {
             const goalCreated = new Date(goal.createdAt);
             const goalCompleted = goal.completedAt ? new Date(goal.completedAt) : null;
             const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
