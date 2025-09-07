@@ -40,6 +40,7 @@ import { analytics } from "@/services/analyticsService";
 import { useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { InsightCard } from "./insights/InsightCard";
+import { DebugSnapshots } from "./DebugSnapshots";
 
 interface DetailedLifeOverviewProps {
   metric: string;
@@ -122,6 +123,7 @@ export const DetailedLifeOverview = ({
   prefillGoal
 }: DetailedLifeOverviewProps) => {
   const [selectedPeriod, setSelectedPeriod] = useState(externalPeriod || "This Month");
+  const [selectedView, setSelectedView] = useState<'daily' | 'weekly'>('daily');
   const [showGoalDetailModal, setShowGoalDetailModal] = useState(false);
   const [showCreateGoalModal, setShowCreateGoalModal] = useState(false);
   const [selectedGoalDetails, setSelectedGoalDetails] = useState<Goal | null>(null);
@@ -561,7 +563,7 @@ export const DetailedLifeOverview = ({
     }));
     
     if (selectedPeriod === "This Month") {
-      // For "This Month", show daily snapshots for the current month + today's live value
+      // For "This Month", show daily or weekly snapshots based on selectedView
       const dailySnapshots = (normalizedSnapshots || []).map((s: any) => ({
         date: new Date(s.snapshotDate || s.createdAt || Date.now()),
         progress: s.progressPercentage,
@@ -575,80 +577,203 @@ export const DetailedLifeOverview = ({
       
       const currentCompletions = filteredGoals ? filteredGoals.filter((g: Goal) => g.status === 'completed').length : 0;
 
-      // Combine daily snapshots with today's live value
-      const chartData = [];
-      const today = new Date();
-      const todayDateStr = today.toISOString().split('T')[0]; // YYYY-MM-DD format
-      
-      // Add daily snapshots for this month with unique labels (excluding today)
-      dailySnapshots.forEach((snapshot: any, index: number) => {
-        const date = snapshot.date;
-        const snapshotDateStr = date.toISOString().split('T')[0];
+      if (selectedView === 'daily') {
+        // Daily view: show all daily snapshots + today's live value
+        const chartData = [];
+        const today = new Date();
+        const todayDateStr = today.toISOString().split('T')[0]; // YYYY-MM-DD format
         
-        // Skip today's snapshots - we'll use live data instead
-        if (snapshotDateStr === todayDateStr) {
-          return;
-        }
+        // Add daily snapshots for this month with unique labels (excluding today)
+        dailySnapshots.forEach((snapshot: any, index: number) => {
+          const date = snapshot.date;
+          const snapshotDateStr = date.toISOString().split('T')[0];
+          
+          // Skip today's snapshots - we'll use live data instead
+          if (snapshotDateStr === todayDateStr) {
+            return;
+          }
+          
+          const dayOfMonth = date.getDate();
+          const weekday = date.toLocaleDateString('en-US', { weekday: 'short' });
+          
+          // Create unique label: "Mon 2" instead of just "Mon"
+          const label = `${weekday} ${dayOfMonth}`;
+          
+          chartData.push({
+            period: label,
+            progressValue: snapshot.progress,
+            completionValue: snapshot.completions,
+            isCurrent: false,
+            isFuture: false,
+            isHistorical: true,
+          });
+        });
         
-        const dayOfMonth = date.getDate();
-        const weekday = date.toLocaleDateString('en-US', { weekday: 'short' });
-        
-        // Create unique label: "Mon 2" instead of just "Mon"
-        const label = `${weekday} ${dayOfMonth}`;
+        // Always add today's live value as the last point
+        const todayDayOfMonth = today.getDate();
+        const todayWeekday = today.toLocaleDateString('en-US', { weekday: 'short' });
+        const todayLabel = `${todayWeekday} ${todayDayOfMonth}`;
         
         chartData.push({
-          period: label,
-          progressValue: snapshot.progress,
-          completionValue: snapshot.completions,
-          isCurrent: false,
+          period: todayLabel,
+          progressValue: currentProgress,
+          completionValue: currentCompletions,
+          isCurrent: true,
           isFuture: false,
-          isHistorical: true,
+          isHistorical: false,
         });
-      });
-      
-      // Always add today's live value as the last point
-      const todayDayOfMonth = today.getDate();
-      const todayWeekday = today.toLocaleDateString('en-US', { weekday: 'short' });
-      const todayLabel = `${todayWeekday} ${todayDayOfMonth}`;
-      
-      chartData.push({
-        period: todayLabel,
-        progressValue: currentProgress,
-        completionValue: currentCompletions,
-        isCurrent: true,
-        isFuture: false,
-        isHistorical: false,
-      });
 
-      return chartData;
+        return chartData;
+      } else {
+        // Weekly view: group snapshots by week and show last snapshot per week
+        const weeklyData: { [key: string]: any } = {};
+        
+        // Group snapshots by week
+        dailySnapshots.forEach((snapshot: any) => {
+          const date = snapshot.date;
+          const weekStart = new Date(date);
+          weekStart.setDate(date.getDate() - date.getDay()); // Start of week (Sunday)
+          const weekKey = weekStart.toISOString().split('T')[0];
+          
+          // Keep the latest snapshot for each week
+          if (!weeklyData[weekKey] || date > new Date(weeklyData[weekKey].date)) {
+            weeklyData[weekKey] = {
+              date,
+              progress: snapshot.progress,
+              completions: snapshot.completions,
+              weekStart
+            };
+          }
+        });
+        
+        // Convert to chart data
+        const chartData = Object.values(weeklyData)
+          .sort((a: any, b: any) => a.date.getTime() - b.date.getTime())
+          .map((weekData: any, index: number) => {
+            const weekNumber = Math.ceil(weekData.date.getDate() / 7);
+            const weekLabel = `Week ${weekNumber}`;
+            
+            return {
+              period: weekLabel,
+              progressValue: weekData.progress,
+              completionValue: weekData.completions,
+              isCurrent: false,
+              isFuture: false,
+              isHistorical: true,
+            };
+          });
+        
+        // Add current week if it's not in the data
+        const today = new Date();
+        const currentWeekStart = new Date(today);
+        currentWeekStart.setDate(today.getDate() - today.getDay());
+        const currentWeekKey = currentWeekStart.toISOString().split('T')[0];
+        
+        if (!weeklyData[currentWeekKey]) {
+          const currentWeekNumber = Math.ceil(today.getDate() / 7);
+          chartData.push({
+            period: `Week ${currentWeekNumber}`,
+            progressValue: currentProgress,
+            completionValue: currentCompletions,
+            isCurrent: true,
+            isFuture: false,
+            isHistorical: false,
+          });
+        }
+        
+        return chartData;
+      }
     } else {
-      // For historical periods, use actual snapshot data
-      let relevantSnapshots;
+      // For historical periods, use last snapshot per period
+      const now = new Date();
+      let periodSnapshots: any[] = [];
+      
       switch (selectedPeriod) {
-        case "Last 3 Months":
-          relevantSnapshots = normalizedSnapshots.slice(-3);
+        case "Last 3 Months": {
+          // Get last snapshot for each of the last 3 months
+          for (let i = 2; i >= 0; i--) {
+            const targetDate = new Date(now.getFullYear(), now.getMonth() - i, 1);
+            const monthYear = `${targetDate.getFullYear()}-${String(targetDate.getMonth() + 1).padStart(2, '0')}`;
+            
+            // Find the last snapshot for this month
+            const monthSnapshots = normalizedSnapshots.filter((s: any) => s.monthYear === monthYear);
+            if (monthSnapshots.length > 0) {
+              const lastSnapshot = monthSnapshots.reduce((latest: any, current: any) => {
+                const latestDate = new Date(latest.snapshotDate || latest.createdAt);
+                const currentDate = new Date(current.snapshotDate || current.createdAt);
+                return currentDate > latestDate ? current : latest;
+              });
+              periodSnapshots.push(lastSnapshot);
+            }
+          }
           break;
-        case "Last 6 Months":
-          relevantSnapshots = normalizedSnapshots.slice(-6);
+        }
+        case "Last 6 Months": {
+          // Get last snapshot for each of the last 6 months
+          for (let i = 5; i >= 0; i--) {
+            const targetDate = new Date(now.getFullYear(), now.getMonth() - i, 1);
+            const monthYear = `${targetDate.getFullYear()}-${String(targetDate.getMonth() + 1).padStart(2, '0')}`;
+            
+            // Find the last snapshot for this month
+            const monthSnapshots = normalizedSnapshots.filter((s: any) => s.monthYear === monthYear);
+            if (monthSnapshots.length > 0) {
+              const lastSnapshot = monthSnapshots.reduce((latest: any, current: any) => {
+                const latestDate = new Date(latest.snapshotDate || latest.createdAt);
+                const currentDate = new Date(current.snapshotDate || current.createdAt);
+                return currentDate > latestDate ? current : latest;
+              });
+              periodSnapshots.push(lastSnapshot);
+            }
+          }
           break;
-        case "This Year":
-          const currentYear = new Date().getFullYear();
-          relevantSnapshots = normalizedSnapshots.filter((snapshot: any) => {
-            const snapshotYear = parseInt(snapshot.monthYear.split('-')[0]);
-            return snapshotYear === currentYear;
+        }
+        case "This Year": {
+          // Get last snapshot for each month of this year
+          const currentYear = now.getFullYear();
+          for (let month = 0; month < 12; month++) {
+            const monthYear = `${currentYear}-${String(month + 1).padStart(2, '0')}`;
+            
+            // Find the last snapshot for this month
+            const monthSnapshots = normalizedSnapshots.filter((s: any) => s.monthYear === monthYear);
+            if (monthSnapshots.length > 0) {
+              const lastSnapshot = monthSnapshots.reduce((latest: any, current: any) => {
+                const latestDate = new Date(latest.snapshotDate || latest.createdAt);
+                const currentDate = new Date(current.snapshotDate || current.createdAt);
+                return currentDate > latestDate ? current : latest;
+              });
+              periodSnapshots.push(lastSnapshot);
+            }
+          }
+          break;
+        }
+        case "All Time": {
+          // Get last snapshot for each month that has data
+          const monthGroups: { [key: string]: any[] } = {};
+          normalizedSnapshots.forEach((snapshot: any) => {
+            if (!monthGroups[snapshot.monthYear]) {
+              monthGroups[snapshot.monthYear] = [];
+            }
+            monthGroups[snapshot.monthYear].push(snapshot);
+          });
+          
+          // Get last snapshot for each month
+          Object.keys(monthGroups).sort().forEach(monthYear => {
+            const monthSnapshots = monthGroups[monthYear];
+            const lastSnapshot = monthSnapshots.reduce((latest: any, current: any) => {
+              const latestDate = new Date(latest.snapshotDate || latest.createdAt);
+              const currentDate = new Date(current.snapshotDate || current.createdAt);
+              return currentDate > latestDate ? current : latest;
+            });
+            periodSnapshots.push(lastSnapshot);
           });
           break;
-        case "All Time":
-          relevantSnapshots = normalizedSnapshots;
-          break;
+        }
         default:
-          relevantSnapshots = normalizedSnapshots.slice(-6);
+          periodSnapshots = normalizedSnapshots.slice(-6);
       }
       
-      // Deduplicate snapshots to fix X-axis
-      const uniqueSnapshots = deduplicateSnapshots(relevantSnapshots);
-      
-      const chartData = uniqueSnapshots.map((snapshot: any, index: number) => {
+      // Convert to chart data
+      const chartData = periodSnapshots.map((snapshot: any, index: number) => {
         const monthLabel = formatMonthLabel(snapshot.monthYear);
         const isCurrentMonth = snapshot.monthYear === (new Date().getFullYear() + '-' + String(new Date().getMonth() + 1).padStart(2, '0'));
         
@@ -662,39 +787,23 @@ export const DetailedLifeOverview = ({
         };
       });
       
-      // For "Last 3 Months", if the current month is included, update it with smart live data
-      if (selectedPeriod === "Last 3 Months") {
-        const currentMonth = new Date().getFullYear() + '-' + String(new Date().getMonth() + 1).padStart(2, '0');
-        const currentMonthIndex = chartData.findIndex((item: any) => item.isCurrent);
+      // For current month, update with live data if available
+      const currentMonth = new Date().getFullYear() + '-' + String(new Date().getMonth() + 1).padStart(2, '0');
+      const currentMonthIndex = chartData.findIndex((item: any) => item.isCurrent);
+      
+      if (currentMonthIndex !== -1) {
+        // Calculate current progress from live goals
+        const currentProgress = filteredGoals && filteredGoals.length > 0
+          ? Math.round(filteredGoals.reduce((sum: number, goal: Goal) => sum + (goal.progress || 0), 0) / filteredGoals.length)
+          : 0;
         
-        if (currentMonthIndex !== -1) {
-          // Calculate progress only for goals relevant to the current month
-          const currentMonthGoals = filteredGoals.filter((goal: any) => {
-            const goalCreated = new Date(goal.createdAt);
-            const goalCompleted = goal.completedAt ? new Date(goal.completedAt) : null;
-            const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
-            const monthEnd = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0, 23, 59, 59, 999);
-            
-            // Include if: created this month, completed this month, or active throughout this month
-            const wasCreatedThisMonth = goalCreated >= monthStart && goalCreated <= monthEnd;
-            const wasCompletedThisMonth = goalCompleted && goalCompleted >= monthStart && goalCompleted <= monthEnd;
-            const isActiveThroughoutMonth = goal.status === 'active' && goalCreated < monthStart;
-            
-            return wasCreatedThisMonth || wasCompletedThisMonth || isActiveThroughoutMonth;
-          });
-          
-          const currentProgress = currentMonthGoals.length > 0
-            ? Math.round(currentMonthGoals.reduce((sum: number, goal: Goal) => sum + (goal.progress || 0), 0) / currentMonthGoals.length)
-            : 0;
-          
-          const currentCompletions = currentMonthGoals.filter((g: Goal) => g.status === 'completed').length;
-          
-          chartData[currentMonthIndex] = {
-            ...chartData[currentMonthIndex],
-            progressValue: currentProgress,
-            completionValue: currentCompletions,
-          };
-        }
+        const currentCompletions = filteredGoals ? filteredGoals.filter((g: Goal) => g.status === 'completed').length : 0;
+        
+        chartData[currentMonthIndex] = {
+          ...chartData[currentMonthIndex],
+          progressValue: currentProgress,
+          completionValue: currentCompletions,
+        };
       }
       
       return chartData;
@@ -951,7 +1060,13 @@ export const DetailedLifeOverview = ({
             </Button>
           ))}
         </div>
+        
       </div>
+
+      {/* Debug Tool - Only show in development */}
+      {process.env.NODE_ENV === 'development' && (
+        <DebugSnapshots metric={metric} selectedPeriod={selectedPeriod} />
+      )}
 
       {/* Time Availability (compact) */}
       <Card className="mb-4 shadow-sm border bg-white/70">
@@ -993,10 +1108,37 @@ export const DetailedLifeOverview = ({
       {/* Goal Progress and Completions Chart */}
       <Card className="mb-6 shadow-md border-0 bg-white/80 backdrop-blur-sm">
           <CardHeader className="pb-3">
-            <CardTitle className="text-lg flex items-center space-x-2">
-            <TrendingUp className="w-5 h-5 text-green-600" />
-            <span>Goal Progress and Completions</span>
-            </CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-lg flex items-center space-x-2">
+                <TrendingUp className="w-5 h-5 text-green-600" />
+                <span>Goal Progress and Completions</span>
+              </CardTitle>
+              
+              {/* View Toggle for This Month - moved to chart header */}
+              {selectedPeriod === "This Month" && (
+                <div className="flex items-center space-x-2">
+                  <span className="text-sm text-gray-600">View:</span>
+                  <div className="flex items-center space-x-1 bg-gray-100 rounded-lg p-1">
+                    <Button
+                      variant={selectedView === 'daily' ? "default" : "ghost"}
+                      size="sm"
+                      onClick={() => setSelectedView('daily')}
+                      className="h-7 px-2 text-xs"
+                    >
+                      Daily
+                    </Button>
+                    <Button
+                      variant={selectedView === 'weekly' ? "default" : "ghost"}
+                      size="sm"
+                      onClick={() => setSelectedView('weekly')}
+                      className="h-7 px-2 text-xs"
+                    >
+                      Weekly
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
           </CardHeader>
           <CardContent>
           <ResponsiveContainer width="100%" height={200}>

@@ -454,7 +454,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = req.user.id || req.user.claims.sub;
       const { metricName } = req.params;
       const { period } = req.query;
-      console.log('[snapshots] request', { userId, metricName, period });
+      
+      console.log('🔍 [SNAPSHOTS DEBUG] Request received:', { 
+        userId, 
+        metricName, 
+        period,
+        timestamp: new Date().toISOString(),
+        userAgent: req.get('User-Agent'),
+        ip: req.ip
+      });
       
       // Calculate date range based on period
       const endDate = new Date();
@@ -478,20 +486,71 @@ export async function registerRoutes(app: Express): Promise<Server> {
           startDate = new Date(endDate.getFullYear(), endDate.getMonth(), 1);
       }
       
+      console.log('📅 [SNAPSHOTS DEBUG] Date range:', {
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString(),
+        period
+      });
+      
       let snapshots = await storage.getProgressSnapshots(userId, metricName, startDate, endDate);
-      console.log('[snapshots] fetched', snapshots.length, snapshots.slice(-7));
-      if ((!period || period === 'This Month') && snapshots.length === 0) {
+      console.log('📊 [SNAPSHOTS DEBUG] Initial fetch result:', {
+        count: snapshots.length,
+        sample: snapshots.slice(-3).map(s => ({
+          id: s.id,
+          lifeMetricName: s.lifeMetricName,
+          monthYear: s.monthYear,
+          progressPercentage: s.progressPercentage,
+          goalsCompleted: s.goalsCompleted,
+          totalGoals: s.totalGoals,
+          snapshotDate: s.snapshotDate
+        }))
+      });
+      
+      // Always attempt to create today's snapshot for This Month to ensure daily snapshots
+      if (!period || period === 'This Month') {
+        console.log('📅 [SNAPSHOTS DEBUG] Ensuring today\'s snapshot exists...');
         try {
           await storage.upsertTodayProgressSnapshot(userId, metricName);
+          console.log('✅ [SNAPSHOTS DEBUG] Today\'s snapshot ensured');
+          
+          // Update endDate to current time to ensure we include the just-created snapshot
+          endDate = new Date();
+          
+          // Re-fetch snapshots to get the latest data
           snapshots = await storage.getProgressSnapshots(userId, metricName, startDate, endDate);
-          console.log('[snapshots] after lazy upsert', snapshots.length, snapshots.slice(-3));
+          console.log('📊 [SNAPSHOTS DEBUG] After ensuring today\'s snapshot:', {
+            count: snapshots.length,
+            sample: snapshots.slice(-3).map(s => ({
+              id: s.id,
+              lifeMetricName: s.lifeMetricName,
+              monthYear: s.monthYear,
+              progressPercentage: s.progressPercentage,
+              goalsCompleted: s.goalsCompleted,
+              totalGoals: s.totalGoals,
+              snapshotDate: s.snapshotDate
+            }))
+          });
         } catch (e) {
-          console.warn('Lazy snapshot upsert failed:', e);
+          console.error('❌ [SNAPSHOTS DEBUG] Failed to ensure today\'s snapshot:', e);
         }
       }
+      
+      console.log('✅ [SNAPSHOTS DEBUG] Returning snapshots:', {
+        count: snapshots.length,
+        userId,
+        metricName,
+        period
+      });
+      
       res.json(snapshots);
     } catch (error) {
-      console.error("Error fetching progress snapshots:", error);
+      console.error("❌ [SNAPSHOTS DEBUG] Error fetching progress snapshots:", {
+        error: error.message,
+        stack: error.stack,
+        userId: req.user?.id || req.user?.claims?.sub,
+        metricName: req.params.metricName,
+        period: req.query.period
+      });
       res.status(500).json({ message: "Failed to fetch progress snapshots" });
     }
   });

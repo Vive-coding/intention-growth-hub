@@ -859,17 +859,16 @@ export class DatabaseStorage implements IStorage {
     const user = await db.select().from(users).where(eq(users.id, userId)).limit(1);
     const userTimezone = user[0]?.timezone || 'UTC';
     
-    // Get current time in user's timezone
+    // Get current time and calculate start/end of day in UTC
     const now = new Date();
-    const userDate = new Date(now.toLocaleString("en-CA", { timeZone: userTimezone }));
     
-    // Calculate start and end of day in user's timezone
-    const startOfDay = new Date(userDate.getFullYear(), userDate.getMonth(), userDate.getDate(), 0, 0, 0, 0);
-    const endOfDay = new Date(userDate.getFullYear(), userDate.getMonth(), userDate.getDate(), 23, 59, 59, 999);
+    // For now, use UTC for simplicity - this ensures consistent behavior
+    // TODO: Implement proper timezone handling if needed
+    const startOfDayUTC = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+    const endOfDayUTC = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
     
-    // Convert to UTC for database storage using proper timezone conversion
-    const startOfDayUTC = new Date(startOfDay.toLocaleString("en-CA", { timeZone: "UTC" }));
-    const endOfDayUTC = new Date(endOfDay.toLocaleString("en-CA", { timeZone: "UTC" }));
+    // Use current date for monthYear calculation
+    const userDate = now;
 
     // Compute current progress numbers using existing helper
     const current = await this.getCurrentMonthProgress(userId, lifeMetricName);
