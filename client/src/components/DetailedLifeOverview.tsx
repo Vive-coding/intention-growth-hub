@@ -40,7 +40,6 @@ import { analytics } from "@/services/analyticsService";
 import { useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { InsightCard } from "./insights/InsightCard";
-import { DebugSnapshots } from "./DebugSnapshots";
 
 interface DetailedLifeOverviewProps {
   metric: string;
@@ -1065,7 +1064,10 @@ export const DetailedLifeOverview = ({
 
       {/* Debug Tool - Only show in development */}
       {process.env.NODE_ENV === 'development' && (
-        <DebugSnapshots metric={metric} selectedPeriod={selectedPeriod} />
+        <div className="mb-4 p-4 bg-orange-50 border border-orange-200 rounded-lg">
+          <h3 className="text-sm font-medium text-orange-800 mb-2">Snapshot Debug Tool</h3>
+          <p className="text-xs text-orange-600">Debug tools are only available in development mode.</p>
+        </div>
       )}
 
       {/* Time Availability (compact) */}
