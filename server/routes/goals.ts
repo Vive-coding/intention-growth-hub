@@ -1700,6 +1700,8 @@ router.post("/habits/:id/complete", async (req: Request, res: Response) => {
         .where(eq(habitInstances.id, hi.id));
 
       try {
+        console.log(`🔄 SNAPSHOT-TRIGGER: Starting snapshot for habit instance ${hi.id.substring(0, 8)}...`);
+        
         const goalJoin = await db
           .select({ def: goalDefinitions, inst: goalInstances, metric: lifeMetricDefinitions })
           .from(goalInstances)
@@ -1707,11 +1709,27 @@ router.post("/habits/:id/complete", async (req: Request, res: Response) => {
           .innerJoin(lifeMetricDefinitions, eq(goalDefinitions.lifeMetricId, lifeMetricDefinitions.id))
           .where(and(eq(goalInstances.id, hi.goalInstanceId), eq(goalInstances.userId, userId)))
           .limit(1);
+          
+        console.log(`🔍 SNAPSHOT-TRIGGER: Goal join query returned ${goalJoin.length} results`);
+        
         if (goalJoin[0]) {
-          await storage.upsertTodayProgressSnapshot(userId, goalJoin[0].metric.name);
+          const lifeMetricName = goalJoin[0].metric.name;
+          console.log(`📊 SNAPSHOT-TRIGGER: Calling upsertTodayProgressSnapshot for user ${userId.substring(0, 8)}... and metric "${lifeMetricName}"`);
+          
+          await storage.upsertTodayProgressSnapshot(userId, lifeMetricName);
+          
+          console.log(`✅ SNAPSHOT-TRIGGER: Successfully created/updated snapshot for "${lifeMetricName}"`);
+        } else {
+          console.log(`⚠️  SNAPSHOT-TRIGGER: No goal join found for habit instance ${hi.id.substring(0, 8)}...`);
         }
       } catch (e) {
-        console.warn('Snapshot upsert failed after habit completion (fan-out)', e);
+        console.error('❌ SNAPSHOT-TRIGGER: Detailed error in snapshot upsert after habit completion:', {
+          error: e.message,
+          stack: e.stack,
+          habitInstanceId: hi.id,
+          userId: userId.substring(0, 8) + '...',
+          timestamp: new Date().toISOString()
+        });
       }
     }
 

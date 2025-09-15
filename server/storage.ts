@@ -853,13 +853,17 @@ export class DatabaseStorage implements IStorage {
   }
 
   async upsertTodayProgressSnapshot(userId: string, lifeMetricName: string): Promise<void> {
+    console.log(`🔄 STORAGE: Starting upsertTodayProgressSnapshot for user ${userId.substring(0, 8)}... and metric "${lifeMetricName}"`);
     
-    // Get user's timezone for proper date calculation
-    const user = await db.select().from(users).where(eq(users.id, userId)).limit(1);
-    const userTimezone = user[0]?.timezone || 'UTC';
-    
-    // Get current time and calculate start/end of day in user's timezone
-    const now = new Date();
+    try {
+      // Get user's timezone for proper date calculation
+      const user = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+      const userTimezone = user[0]?.timezone || 'UTC';
+      console.log(`🌍 STORAGE: User timezone: ${userTimezone}`);
+      
+      // Get current time and calculate start/end of day in user's timezone
+      const now = new Date();
+      console.log(`⏰ STORAGE: Current time: ${now.toISOString()}`);
     
     // Get the current date in the user's timezone
     const userLocalDate = new Date(now.toLocaleString("en-CA", { timeZone: userTimezone }));
@@ -885,6 +889,8 @@ export class DatabaseStorage implements IStorage {
 
     // Check if a snapshot exists for today using date string comparison for more reliable matching
     const todayDateStr = userDate.toISOString().split('T')[0]; // YYYY-MM-DD format
+    console.log(`📅 STORAGE: Today's date string: ${todayDateStr}`);
+    
     const existing = await db
       .select()
       .from(progressSnapshots)
@@ -894,9 +900,14 @@ export class DatabaseStorage implements IStorage {
         sql`DATE(${progressSnapshots.snapshotDate}) = ${todayDateStr}`
       ))
       .limit(1);
+      
+    console.log(`🔍 STORAGE: Found ${existing.length} existing snapshots for today`);
 
     if (existing.length > 0) {
       // Update existing snapshot
+      console.log(`🔄 STORAGE: Updating existing snapshot ID: ${existing[0].id}`);
+      console.log(`📊 STORAGE: New values - Progress: ${current.progress}%, Completed: ${current.goalsCompleted}/${current.totalGoals}`);
+      
       await db
         .update(progressSnapshots)
         .set({
@@ -907,10 +918,17 @@ export class DatabaseStorage implements IStorage {
           // Don't update snapshotDate to avoid breaking the date range check
         })
         .where(eq(progressSnapshots.id, existing[0].id));
+        
+      console.log(`✅ STORAGE: Successfully updated existing snapshot`);
     } else {
       // Create new snapshot for today
+      console.log(`➕ STORAGE: Creating new snapshot for today`);
+      console.log(`📊 STORAGE: Values - Progress: ${current.progress}%, Completed: ${current.goalsCompleted}/${current.totalGoals}`);
+      
       // Use a consistent time for the same day (noon in user's timezone)
       const consistentDate = new Date(userDate.getFullYear(), userDate.getMonth(), userDate.getDate(), 12, 0, 0, 0);
+      console.log(`📅 STORAGE: Snapshot date: ${consistentDate.toISOString()}`);
+      
       await this.createProgressSnapshot({
         userId,
         lifeMetricName,
@@ -920,6 +938,19 @@ export class DatabaseStorage implements IStorage {
         totalGoals: current.totalGoals,
         snapshotDate: consistentDate,
       });
+      
+      console.log(`✅ STORAGE: Successfully created new snapshot`);
+    }
+    
+    console.log(`🎉 STORAGE: upsertTodayProgressSnapshot completed successfully for "${lifeMetricName}"`);
+    
+    } catch (error) {
+      console.error(`❌ STORAGE: Error in upsertTodayProgressSnapshot for user ${userId.substring(0, 8)}... and metric "${lifeMetricName}":`, {
+        error: error.message,
+        stack: error.stack,
+        timestamp: new Date().toISOString()
+      });
+      throw error; // Re-throw to ensure the calling code knows it failed
     }
 
     // Prune older snapshots to keep storage lean
