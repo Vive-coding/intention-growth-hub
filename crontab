@@ -1,0 +1,19 @@
+# Daily Snapshot Cron Job
+# Run daily at 6 AM UTC (adjust timezone as needed)
+# 0 6 * * * cd /path/to/intention-growth-hub && npm run snapshots:daily
+
+# Example for different timezones:
+# 6 AM EST (UTC-5): 0 11 * * *
+# 6 AM PST (UTC-8): 0 14 * * *
+# 6 AM JST (UTC+9): 0 21 * * *
+
+# To install this cron job:
+# 1. Edit your crontab: crontab -e
+# 2. Add the line above (uncommented)
+# 3. Save and exit
+
+# For Railway deployment, use Railway's cron feature:
+# https://docs.railway.app/guides/cron-jobs
+
+# For Vercel deployment, use Vercel Cron:
+# https://vercel.com/docs/cron-jobs

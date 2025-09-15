@@ -455,17 +455,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { metricName } = req.params;
       const { period } = req.query;
       
-      console.log('🔍 [SNAPSHOTS DEBUG] Request received:', { 
-        userId, 
-        metricName, 
-        period,
-        timestamp: new Date().toISOString(),
-        userAgent: req.get('User-Agent'),
-        ip: req.ip
-      });
+      // Snapshot request for metric: ${metricName}, period: ${period}
       
       // Calculate date range based on period
-      const endDate = new Date();
+      let endDate = new Date();
       let startDate: Date;
       
       switch (period) {
@@ -486,71 +479,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
           startDate = new Date(endDate.getFullYear(), endDate.getMonth(), 1);
       }
       
-      console.log('📅 [SNAPSHOTS DEBUG] Date range:', {
-        startDate: startDate.toISOString(),
-        endDate: endDate.toISOString(),
-        period
-      });
+      // Date range: ${startDate.toISOString()} to ${endDate.toISOString()}
       
       let snapshots = await storage.getProgressSnapshots(userId, metricName, startDate, endDate);
-      console.log('📊 [SNAPSHOTS DEBUG] Initial fetch result:', {
-        count: snapshots.length,
-        sample: snapshots.slice(-3).map(s => ({
-          id: s.id,
-          lifeMetricName: s.lifeMetricName,
-          monthYear: s.monthYear,
-          progressPercentage: s.progressPercentage,
-          goalsCompleted: s.goalsCompleted,
-          totalGoals: s.totalGoals,
-          snapshotDate: s.snapshotDate
-        }))
-      });
       
       // Always attempt to create today's snapshot for This Month to ensure daily snapshots
       if (!period || period === 'This Month') {
-        console.log('📅 [SNAPSHOTS DEBUG] Ensuring today\'s snapshot exists...');
         try {
           await storage.upsertTodayProgressSnapshot(userId, metricName);
-          console.log('✅ [SNAPSHOTS DEBUG] Today\'s snapshot ensured');
-          
           // Update endDate to current time to ensure we include the just-created snapshot
           endDate = new Date();
-          
           // Re-fetch snapshots to get the latest data
           snapshots = await storage.getProgressSnapshots(userId, metricName, startDate, endDate);
-          console.log('📊 [SNAPSHOTS DEBUG] After ensuring today\'s snapshot:', {
-            count: snapshots.length,
-            sample: snapshots.slice(-3).map(s => ({
-              id: s.id,
-              lifeMetricName: s.lifeMetricName,
-              monthYear: s.monthYear,
-              progressPercentage: s.progressPercentage,
-              goalsCompleted: s.goalsCompleted,
-              totalGoals: s.totalGoals,
-              snapshotDate: s.snapshotDate
-            }))
-          });
         } catch (e) {
-          console.error('❌ [SNAPSHOTS DEBUG] Failed to ensure today\'s snapshot:', e);
+          console.error('Failed to ensure today\'s snapshot:', e);
         }
       }
       
-      console.log('✅ [SNAPSHOTS DEBUG] Returning snapshots:', {
-        count: snapshots.length,
-        userId,
-        metricName,
-        period
-      });
-      
       res.json(snapshots);
     } catch (error) {
-      console.error("❌ [SNAPSHOTS DEBUG] Error fetching progress snapshots:", {
-        error: error.message,
-        stack: error.stack,
-        userId: req.user?.id || req.user?.claims?.sub,
-        metricName: req.params.metricName,
-        period: req.query.period
-      });
+      console.error("Error fetching progress snapshots:", error instanceof Error ? error.message : String(error));
       res.status(500).json({ message: "Failed to fetch progress snapshots" });
     }
   });
@@ -908,7 +856,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { period = 'Last 6 Months' } = req.query;
 
       // Calculate date range based on period
-      const endDate = new Date();
+      let endDate = new Date();
       const startDate = new Date();
       
       switch (period) {
@@ -1076,18 +1024,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.log('[insights] Skipping auto-generation for journal create (INSIGHTS_AUTOGEN disabled)');
       }
 
-      // After journal entry, snapshot all life metrics for this user (first snapshot of the day)
+      // After journal entry, snapshot all life metrics for this user
       try {
         const metrics = await storage.getUserLifeMetrics(userId);
-        console.log('[snapshot] trigger after journal create', {
-          userId,
-          metrics: metrics.map(m => m.name),
-        });
         for (const m of metrics) {
           await storage.upsertTodayProgressSnapshot(userId, m.name);
         }
       } catch (e) {
-        console.warn('Snapshot upsert (all metrics) after journal entry failed', e);
+        console.warn('Snapshot upsert after journal entry failed', e);
       }
       
       console.log('Journal entry created:', entry);
@@ -1259,31 +1203,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Assumes user timezone stored in users.profile or defaults to process.env.DEFAULT_TZ
   try {
     const cron = require('node-cron');
+    console.log('[cron] node-cron successfully imported, setting up daily snapshots');
     const DEFAULT_TZ = process.env.DEFAULT_TZ || 'UTC';
     const tzMap = (() => { try { return process.env.USER_TZ_MAP ? JSON.parse(process.env.USER_TZ_MAP) : {}; } catch { return {}; } })();
-    // Run every 5 minutes to catch local 23:55 in different time zones
-    cron.schedule('*/5 * * * *', async () => {
+    // Run once daily at 23:58 UTC to create daily snapshots for all users
+    cron.schedule('58 23 * * *', async () => {
       try {
         // Load users with timezone if available
         const distinctUsers = await db.query.users.findMany({ columns: { id: true, timezone: true } });
+        
+        let processedUsers = 0;
         for (const u of distinctUsers as Array<{ id: string; timezone?: string | null }>) {
-          // Per-user timezone preference: DB value, then env map, then default
-          const userTz = (u.timezone && typeof u.timezone === 'string' && u.timezone.trim()) || tzMap[u.id] || DEFAULT_TZ;
-          const now = new Date();
-          const localeNow = new Date(now.toLocaleString('en-US', { timeZone: userTz }));
-          const minutes = localeNow.getMinutes();
-          const hours = localeNow.getHours();
-          if (hours === 23 && minutes >= 55) {
-            console.log('[cron] nightly snapshot window hit', { userId: u.id, userTz, localeNow: localeNow.toISOString() });
+          try {
             // Snapshot all life metrics for user
             const metrics = await storage.getUserLifeMetrics(u.id);
             for (const m of metrics) {
               await storage.upsertTodayProgressSnapshot(u.id, m.name);
             }
+            processedUsers++;
+          } catch (userError) {
+            console.error(`[cron] Error processing user ${u.id}:`, userError);
           }
         }
+        console.log(`[cron] Nightly snapshots completed for ${processedUsers}/${distinctUsers.length} users`);
       } catch (e) {
-        console.warn('Nightly snapshot scheduler error', e);
+        console.error('[cron] ❌ Nightly snapshot scheduler error', e);
       }
     });
 

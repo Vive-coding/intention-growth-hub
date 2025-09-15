@@ -1544,13 +1544,7 @@ router.post("/habits/:id/complete", async (req: Request, res: Response) => {
     // Check for frequency-aware completion limits
     const { start: today, end: tomorrow } = await getUserTodayWindow(userId);
     
-    console.log('Frequency-aware duplicate check for habit:', habitId, 'user:', userId, 'timezone window:', { 
-      start: today, 
-      end: tomorrow,
-      startISO: today.toISOString(),
-      endISO: tomorrow.toISOString(),
-      serverNow: new Date().toISOString()
-    });
+    // Check for duplicate completions within timezone window
 
     // Get the habit's frequency settings from the first associated goal
     const habitInstance = await db
@@ -1602,7 +1596,7 @@ router.post("/habits/:id/complete", async (req: Request, res: Response) => {
           lte(habitCompletions.completedAt, periodEnd)
         ));
 
-      console.log(`Frequency check: habit=${habitId}, frequency=${frequency}, perPeriodTarget=${perPeriodTarget}, completionsInPeriod=${completionsInPeriod.length}, periodStart=${periodStart.toISOString()}, periodEnd=${periodEnd.toISOString()}`);
+      // Frequency check: ${completionsInPeriod.length}/${perPeriodTarget} for ${frequency} period
 
       // If already completed enough times for this period, prevent further completions
       if (completionsInPeriod.length >= perPeriodTarget) {
@@ -1639,12 +1633,6 @@ router.post("/habits/:id/complete", async (req: Request, res: Response) => {
 
     // Create completion record
     const now = new Date();
-    console.log('Creating habit completion with timestamp:', {
-      habitId,
-      userId,
-      serverNow: now.toISOString(),
-      serverNowLocal: now.toLocaleString('en-US', { timeZone: 'America/Toronto' })
-    });
     
     const [completion] = await db
       .insert(habitCompletions)
@@ -1652,15 +1640,9 @@ router.post("/habits/:id/complete", async (req: Request, res: Response) => {
         habitDefinitionId: habitId,
         userId,
         notes: notes || null,
-        completedAt: now, // Explicitly set the timestamp
+        completedAt: now,
       })
       .returning();
-    
-    console.log('Habit completion created:', {
-      completionId: completion.id,
-      completedAt: completion.completedAt,
-      completedAtISO: completion.completedAt?.toISOString()
-    });
 
     // Update habit's global stats
     const completions = await db
@@ -1726,12 +1708,6 @@ router.post("/habits/:id/complete", async (req: Request, res: Response) => {
           .where(and(eq(goalInstances.id, hi.goalInstanceId), eq(goalInstances.userId, userId)))
           .limit(1);
         if (goalJoin[0]) {
-          console.log('[snapshot] trigger after habit completion', {
-            userId,
-            lifeMetricName: goalJoin[0].metric.name,
-            habitId,
-            goalInstanceId: hi.goalInstanceId,
-          });
           await storage.upsertTodayProgressSnapshot(userId, goalJoin[0].metric.name);
         }
       } catch (e) {

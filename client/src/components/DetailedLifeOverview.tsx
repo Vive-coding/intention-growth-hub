@@ -40,6 +40,7 @@ import { analytics } from "@/services/analyticsService";
 import { useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { InsightCard } from "./insights/InsightCard";
+import { DebugSnapshots } from "./DebugSnapshots";
 
 interface DetailedLifeOverviewProps {
   metric: string;
@@ -576,59 +577,78 @@ export const DetailedLifeOverview = ({
       
       const currentCompletions = filteredGoals ? filteredGoals.filter((g: Goal) => g.status === 'completed').length : 0;
 
+      // Deduplicate daily snapshots (keep latest snapshot per day) - used by both daily and weekly views
+      const snapshotsByDay: { [key: string]: any } = {};
+      dailySnapshots.forEach((snapshot: any) => {
+        const date = snapshot.date;
+        const dateStr = date.toISOString().split('T')[0];
+        
+        // Keep the latest snapshot for each day
+        if (!snapshotsByDay[dateStr] || date > snapshotsByDay[dateStr].date) {
+          snapshotsByDay[dateStr] = snapshot;
+        }
+      });
+
       if (selectedView === 'daily') {
         // Daily view: show all daily snapshots + today's live value
         const chartData = [];
         const today = new Date();
         const todayDateStr = today.toISOString().split('T')[0]; // YYYY-MM-DD format
         
-        // Add daily snapshots for this month with unique labels (excluding today)
-        dailySnapshots.forEach((snapshot: any, index: number) => {
-          const date = snapshot.date;
-          const snapshotDateStr = date.toISOString().split('T')[0];
-          
-          // Skip today's snapshots - we'll use live data instead
-          if (snapshotDateStr === todayDateStr) {
-            return;
-          }
-          
-          const dayOfMonth = date.getDate();
-          const weekday = date.toLocaleDateString('en-US', { weekday: 'short' });
-          
-          // Create unique label: "Mon 2" instead of just "Mon"
-          const label = `${weekday} ${dayOfMonth}`;
+        // Add daily snapshots for this month with unique labels
+        Object.values(snapshotsByDay)
+          .sort((a: any, b: any) => a.date.getTime() - b.date.getTime())
+          .forEach((snapshot: any) => {
+            const date = snapshot.date;
+            const snapshotDateStr = date.toISOString().split('T')[0];
+            
+            const dayOfMonth = date.getDate();
+            const weekday = date.toLocaleDateString('en-US', { weekday: 'short' });
+            
+            // Create unique label: "Mon 2" instead of just "Mon"
+            const label = `${weekday} ${dayOfMonth}`;
+            
+            // Check if this is today's snapshot
+            const isToday = snapshotDateStr === todayDateStr;
+            
+            chartData.push({
+              period: label,
+              progressValue: snapshot.progress,
+              completionValue: snapshot.completions,
+              isCurrent: isToday,
+              isFuture: false,
+              isHistorical: !isToday,
+            });
+          });
+        
+        // If no snapshots exist for today, add today's live value
+        const hasTodaySnapshot = Object.values(snapshotsByDay).some((s: any) => {
+          const snapshotDateStr = s.date.toISOString().split('T')[0];
+          return snapshotDateStr === todayDateStr;
+        });
+        
+        if (!hasTodaySnapshot) {
+          const todayDayOfMonth = today.getDate();
+          const todayWeekday = today.toLocaleDateString('en-US', { weekday: 'short' });
+          const todayLabel = `${todayWeekday} ${todayDayOfMonth}`;
           
           chartData.push({
-            period: label,
-            progressValue: snapshot.progress,
-            completionValue: snapshot.completions,
-            isCurrent: false,
+            period: todayLabel,
+            progressValue: currentProgress,
+            completionValue: currentCompletions,
+            isCurrent: true,
             isFuture: false,
-            isHistorical: true,
+            isHistorical: false,
           });
-        });
-        
-        // Always add today's live value as the last point
-        const todayDayOfMonth = today.getDate();
-        const todayWeekday = today.toLocaleDateString('en-US', { weekday: 'short' });
-        const todayLabel = `${todayWeekday} ${todayDayOfMonth}`;
-        
-        chartData.push({
-          period: todayLabel,
-          progressValue: currentProgress,
-          completionValue: currentCompletions,
-          isCurrent: true,
-          isFuture: false,
-          isHistorical: false,
-        });
+        }
 
         return chartData;
       } else {
-        // Weekly view: group snapshots by week and show last snapshot per week
+        // Weekly view: group deduplicated snapshots by week and show last snapshot per week
         const weeklyData: { [key: string]: any } = {};
         
-        // Group snapshots by week
-        dailySnapshots.forEach((snapshot: any) => {
+        // Group deduplicated snapshots by week
+        Object.values(snapshotsByDay).forEach((snapshot: any) => {
           const date = snapshot.date;
           const weekStart = new Date(date);
           weekStart.setDate(date.getDate() - date.getDay()); // Start of week (Sunday)
@@ -646,10 +666,15 @@ export const DetailedLifeOverview = ({
         });
         
         // Convert to chart data
-        const chartData = Object.values(weeklyData)
-          .sort((a: any, b: any) => a.date.getTime() - b.date.getTime())
-          .map((weekData: any, index: number) => {
-            const weekNumber = Math.ceil(weekData.date.getDate() / 7);
+        const sortedWeeklyData = Object.values(weeklyData)
+          .sort((a: any, b: any) => a.weekStart.getTime() - b.weekStart.getTime());
+          
+        const chartData = sortedWeeklyData.map((weekData: any, index: number) => {
+            // Calculate actual week number within the month
+            const date = weekData.date;
+            const firstDayOfMonth = new Date(date.getFullYear(), date.getMonth(), 1);
+            const firstDayOfWeek = firstDayOfMonth.getDay();
+            const weekNumber = Math.ceil((date.getDate() + firstDayOfWeek) / 7);
             const weekLabel = `Week ${weekNumber}`;
             
             return {
@@ -662,14 +687,24 @@ export const DetailedLifeOverview = ({
             };
           });
         
-        // Add current week if it's not in the data
+        // Add current week if it's not in the data and today is not already represented
         const today = new Date();
         const currentWeekStart = new Date(today);
         currentWeekStart.setDate(today.getDate() - today.getDay());
         const currentWeekKey = currentWeekStart.toISOString().split('T')[0];
+        const todayDateStr = today.toISOString().split('T')[0];
         
-        if (!weeklyData[currentWeekKey]) {
-          const currentWeekNumber = Math.ceil(today.getDate() / 7);
+        // Check if today is already represented in any of the deduplicated snapshots
+        const todayAlreadyInSnapshots = Object.values(snapshotsByDay).some((s: any) => {
+          const snapshotDateStr = s.date.toISOString().split('T')[0];
+          return snapshotDateStr === todayDateStr;
+        });
+        
+        if (!weeklyData[currentWeekKey] && !todayAlreadyInSnapshots) {
+          // Calculate actual week number for today
+          const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+          const firstDayOfWeek = firstDayOfMonth.getDay();
+          const currentWeekNumber = Math.ceil((today.getDate() + firstDayOfWeek) / 7);
           chartData.push({
             period: `Week ${currentWeekNumber}`,
             progressValue: currentProgress,
@@ -1064,10 +1099,7 @@ export const DetailedLifeOverview = ({
 
       {/* Debug Tool - Only show in development */}
       {process.env.NODE_ENV === 'development' && (
-        <div className="mb-4 p-4 bg-orange-50 border border-orange-200 rounded-lg">
-          <h3 className="text-sm font-medium text-orange-800 mb-2">Snapshot Debug Tool</h3>
-          <p className="text-xs text-orange-600">Debug tools are only available in development mode.</p>
-        </div>
+        <DebugSnapshots metric={metric} selectedPeriod={selectedPeriod} />
       )}
 
       {/* Time Availability (compact) */}
@@ -1370,3 +1402,4 @@ export const DetailedLifeOverview = ({
   </div>
   );
 };
+

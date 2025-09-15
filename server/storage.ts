@@ -853,54 +853,50 @@ export class DatabaseStorage implements IStorage {
   }
 
   async upsertTodayProgressSnapshot(userId: string, lifeMetricName: string): Promise<void> {
-    console.log('[snapshot] upsertTodayProgressSnapshot called', { userId, lifeMetricName });
     
     // Get user's timezone for proper date calculation
     const user = await db.select().from(users).where(eq(users.id, userId)).limit(1);
     const userTimezone = user[0]?.timezone || 'UTC';
     
-    // Get current time and calculate start/end of day in UTC
+    // Get current time and calculate start/end of day in user's timezone
     const now = new Date();
     
-    // For now, use UTC for simplicity - this ensures consistent behavior
-    // TODO: Implement proper timezone handling if needed
-    const startOfDayUTC = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
-    const endOfDayUTC = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+    // Get the current date in the user's timezone
+    const userLocalDate = new Date(now.toLocaleString("en-CA", { timeZone: userTimezone }));
+    const year = userLocalDate.getFullYear();
+    const month = userLocalDate.getMonth();
+    const day = userLocalDate.getDate();
     
-    // Use current date for monthYear calculation
-    const userDate = now;
+    // Create start and end of day in user's timezone, then convert to UTC for storage
+    const startOfDayLocal = new Date(year, month, day, 0, 0, 0, 0);
+    const endOfDayLocal = new Date(year, month, day, 23, 59, 59, 999);
+    
+    // Convert to UTC by calculating the timezone offset
+    const timezoneOffset = userLocalDate.getTimezoneOffset() * 60000; // Convert to milliseconds
+    const startOfDayUTC = new Date(startOfDayLocal.getTime() - timezoneOffset);
+    const endOfDayUTC = new Date(endOfDayLocal.getTime() - timezoneOffset);
+    
+    // Use user's local date for monthYear calculation
+    const userDate = userLocalDate;
 
     // Compute current progress numbers using existing helper
     const current = await this.getCurrentMonthProgress(userId, lifeMetricName);
-    console.log('[snapshot] currentMonthProgress', current);
     const monthYear = `${userDate.getFullYear()}-${String(userDate.getMonth() + 1).padStart(2, '0')}`;
 
-    // Check if a snapshot exists for today
+    // Check if a snapshot exists for today using date string comparison for more reliable matching
+    const todayDateStr = userDate.toISOString().split('T')[0]; // YYYY-MM-DD format
     const existing = await db
       .select()
       .from(progressSnapshots)
       .where(and(
         eq(progressSnapshots.userId, userId),
         eq(progressSnapshots.lifeMetricName, lifeMetricName),
-        gte(progressSnapshots.snapshotDate, startOfDayUTC),
-        lt(progressSnapshots.snapshotDate, endOfDayUTC)
+        sql`DATE(${progressSnapshots.snapshotDate}) = ${todayDateStr}`
       ))
       .limit(1);
 
-    console.log('[snapshot] upsert summary', {
-      userId,
-      lifeMetricName,
-      monthYear,
-      progress: current.progress,
-      goalsCompleted: current.goalsCompleted,
-      totalGoals: current.totalGoals,
-      userTimezone,
-      startOfDayUTC: startOfDayUTC.toISOString(),
-      endOfDayUTC: endOfDayUTC.toISOString(),
-    });
-
     if (existing.length > 0) {
-      console.log('[snapshot] updating existing snapshot', existing[0].id);
+      // Update existing snapshot
       await db
         .update(progressSnapshots)
         .set({
@@ -908,11 +904,13 @@ export class DatabaseStorage implements IStorage {
           goalsCompleted: current.goalsCompleted,
           totalGoals: current.totalGoals,
           monthYear,
-          snapshotDate: new Date(), // Use actual snapshot time, not start of day
+          // Don't update snapshotDate to avoid breaking the date range check
         })
         .where(eq(progressSnapshots.id, existing[0].id));
     } else {
-      console.log('[snapshot] creating new snapshot for today');
+      // Create new snapshot for today
+      // Use a consistent time for the same day (noon in user's timezone)
+      const consistentDate = new Date(userDate.getFullYear(), userDate.getMonth(), userDate.getDate(), 12, 0, 0, 0);
       await this.createProgressSnapshot({
         userId,
         lifeMetricName,
@@ -920,7 +918,7 @@ export class DatabaseStorage implements IStorage {
         progressPercentage: current.progress,
         goalsCompleted: current.goalsCompleted,
         totalGoals: current.totalGoals,
-        snapshotDate: new Date(), // Use actual snapshot time, not start of day
+        snapshotDate: consistentDate,
       });
     }
 
@@ -979,7 +977,7 @@ export class DatabaseStorage implements IStorage {
 
     if (toDelete.length > 0) {
       await db.delete(progressSnapshots).where(inArray(progressSnapshots.id, toDelete as any));
-      console.log('[snapshot] prune deleted', toDelete.length, 'rows for', { userId, lifeMetricName });
+      // Pruned old snapshots to keep storage lean
     }
   }
 
