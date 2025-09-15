@@ -71,13 +71,24 @@ async function getUserTodayWindow(userId: string) {
       serverTime: now.toISOString()
     });
     
-    // Get the current date in the user's timezone
-    const userLocalDate = new Date(now.toLocaleString("en-CA", { timeZone: tz }));
-    const year = userLocalDate.getFullYear();
-    const month = userLocalDate.getMonth();
-    const day = userLocalDate.getDate();
+    // Use Intl.DateTimeFormat to get reliable timezone conversion
+    const formatter = new Intl.DateTimeFormat('en-CA', {
+      timeZone: tz,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    });
+    
+    const parts = formatter.formatToParts(now);
+    const year = parseInt(parts.find(p => p.type === 'year')?.value || '0');
+    const month = parseInt(parts.find(p => p.type === 'month')?.value || '1') - 1; // Month is 0-indexed
+    const day = parseInt(parts.find(p => p.type === 'day')?.value || '1');
     
     console.log('User local date:', { year, month: month + 1, day });
+    
+    if (isNaN(year) || isNaN(month) || isNaN(day)) {
+      throw new Error(`Invalid date parts from timezone ${tz}: year=${year}, month=${month}, day=${day}`);
+    }
     
     // Create start and end of day in user's timezone
     const startOfDayLocal = new Date(year, month, day, 0, 0, 0, 0);
@@ -88,10 +99,10 @@ async function getUserTodayWindow(userId: string) {
       end: endOfDayLocal.toISOString()
     });
     
-    // Convert to UTC using a more reliable method
-    // Create the same date/time in UTC and calculate the difference
-    const startUTC = new Date(startOfDayLocal.toLocaleString("en-CA", { timeZone: "UTC" }));
-    const endUTC = new Date(endOfDayLocal.toLocaleString("en-CA", { timeZone: "UTC" }));
+    // Calculate timezone offset and convert to UTC
+    const offsetMs = startOfDayLocal.getTimezoneOffset() * 60 * 1000;
+    const startUTC = new Date(startOfDayLocal.getTime() - offsetMs);
+    const endUTC = new Date(endOfDayLocal.getTime() - offsetMs);
     
     console.log('TIMEZONE-WINDOW:', {
       userId,

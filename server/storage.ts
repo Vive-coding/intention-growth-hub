@@ -865,23 +865,36 @@ export class DatabaseStorage implements IStorage {
       const now = new Date();
       console.log(`⏰ STORAGE: Current time: ${now.toISOString()}`);
     
-    // Get the current date in the user's timezone
-    const userLocalDate = new Date(now.toLocaleString("en-CA", { timeZone: userTimezone }));
-    const year = userLocalDate.getFullYear();
-    const month = userLocalDate.getMonth();
-    const day = userLocalDate.getDate();
+    // Use Intl.DateTimeFormat to get reliable timezone conversion
+    const formatter = new Intl.DateTimeFormat('en-CA', {
+      timeZone: userTimezone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    });
+    
+    const parts = formatter.formatToParts(now);
+    const year = parseInt(parts.find(p => p.type === 'year')?.value || '0');
+    const month = parseInt(parts.find(p => p.type === 'month')?.value || '1') - 1; // Month is 0-indexed
+    const day = parseInt(parts.find(p => p.type === 'day')?.value || '1');
+    
+    console.log(`📅 STORAGE: Parsed date parts - year: ${year}, month: ${month + 1}, day: ${day}`);
+    
+    if (isNaN(year) || isNaN(month) || isNaN(day)) {
+      throw new Error(`Invalid date parts from timezone ${userTimezone}: year=${year}, month=${month}, day=${day}`);
+    }
     
     // Create start and end of day in user's timezone, then convert to UTC for storage
     const startOfDayLocal = new Date(year, month, day, 0, 0, 0, 0);
     const endOfDayLocal = new Date(year, month, day, 23, 59, 59, 999);
     
     // Convert to UTC by calculating the timezone offset
-    const timezoneOffset = userLocalDate.getTimezoneOffset() * 60000; // Convert to milliseconds
+    const timezoneOffset = startOfDayLocal.getTimezoneOffset() * 60000; // Convert to milliseconds
     const startOfDayUTC = new Date(startOfDayLocal.getTime() - timezoneOffset);
     const endOfDayUTC = new Date(endOfDayLocal.getTime() - timezoneOffset);
     
-    // Use user's local date for monthYear calculation
-    const userDate = userLocalDate;
+    // Use the parsed date for monthYear calculation
+    const userDate = new Date(year, month, day);
 
     // Compute current progress numbers using existing helper
     const current = await this.getCurrentMonthProgress(userId, lifeMetricName);
