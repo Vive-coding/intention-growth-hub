@@ -581,12 +581,16 @@ export const DetailedLifeOverview = ({
       const snapshotsByDay: { [key: string]: any } = {};
       dailySnapshots.forEach((snapshot: any) => {
         const date = snapshot.date;
-        const dateStr = date.toISOString().split('T')[0];
+        // Use local date for deduplication to match label generation
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        const localDateStr = `${year}-${month}-${day}`;
         
-        // Keep the latest snapshot for each day (more robust comparison)
-        if (!snapshotsByDay[dateStr] || 
-            date.getTime() > snapshotsByDay[dateStr].date.getTime()) {
-          snapshotsByDay[dateStr] = snapshot;
+        // Keep the latest snapshot for each LOCAL day (more robust comparison)
+        if (!snapshotsByDay[localDateStr] || 
+            date.getTime() > snapshotsByDay[localDateStr].date.getTime()) {
+          snapshotsByDay[localDateStr] = snapshot;
         }
       });
       
@@ -645,21 +649,33 @@ export const DetailedLifeOverview = ({
             });
           });
         
+        // Debug: Log chart data before adding today's live value
+        console.log('📊 Chart data before adding today\'s live value:', chartData.map(item => ({
+          period: item.period,
+          progressValue: item.progressValue,
+          isCurrent: item.isCurrent
+        })));
+        
         // Check if today already has a snapshot to avoid duplicates
+        const todayDayOfMonth = today.getDate();
+        const todayWeekday = today.toLocaleDateString('en-US', { weekday: 'short' });
+        const todayLabel = `${todayWeekday} ${todayDayOfMonth}`;
+        
+        console.log('📊 Today\'s label check:', {
+          todayLabel,
+          todayDate: today.toISOString().split('T')[0],
+          currentProgress,
+          currentCompletions
+        });
+        
         const hasTodaySnapshot = chartData.some((item: any) => {
-          // Check if any existing chart item is for today
-          const today = new Date();
-          const todayDayOfMonth = today.getDate();
-          const todayWeekday = today.toLocaleDateString('en-US', { weekday: 'short' });
-          const todayLabel = `${todayWeekday} ${todayDayOfMonth}`;
           return item.period === todayLabel;
         });
         
+        console.log('📊 Has today snapshot:', hasTodaySnapshot);
+        
         if (!hasTodaySnapshot) {
-          const todayDayOfMonth = today.getDate();
-          const todayWeekday = today.toLocaleDateString('en-US', { weekday: 'short' });
-          const todayLabel = `${todayWeekday} ${todayDayOfMonth}`;
-          
+          console.log('📊 Adding today\'s live value:', todayLabel);
           chartData.push({
             period: todayLabel,
             progressValue: currentProgress,
@@ -668,7 +684,16 @@ export const DetailedLifeOverview = ({
             isFuture: false,
             isHistorical: false,
           });
+        } else {
+          console.log('📊 Skipping today\'s live value - snapshot already exists');
         }
+        
+        // Debug: Log final chart data
+        console.log('📊 Final chart data:', chartData.map(item => ({
+          period: item.period,
+          progressValue: item.progressValue,
+          isCurrent: item.isCurrent
+        })));
 
         return chartData;
       } else {
