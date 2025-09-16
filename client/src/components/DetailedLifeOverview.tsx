@@ -818,23 +818,26 @@ export const DetailedLifeOverview = ({
         };
       });
       
-      // For current month, update with live data if available
-      const currentMonth = new Date().getFullYear() + '-' + String(new Date().getMonth() + 1).padStart(2, '0');
-      const currentMonthIndex = chartData.findIndex((item: any) => item.isCurrent);
-      
-      if (currentMonthIndex !== -1) {
-        // Calculate current progress from live goals
-        const currentProgress = filteredGoals && filteredGoals.length > 0
-          ? Math.round(filteredGoals.reduce((sum: number, goal: Goal) => sum + (goal.progress || 0), 0) / filteredGoals.length)
-          : 0;
+      // For current month, update with live data ONLY if we're in "This Month" view
+      // For historical views like "Last 3 Months", show actual monthly snapshot values
+      if (selectedPeriod === "This Month") {
+        const currentMonth = new Date().getFullYear() + '-' + String(new Date().getMonth() + 1).padStart(2, '0');
+        const currentMonthIndex = chartData.findIndex((item: any) => item.isCurrent);
         
-        const currentCompletions = filteredGoals ? filteredGoals.filter((g: Goal) => g.status === 'completed').length : 0;
-        
-        chartData[currentMonthIndex] = {
-          ...chartData[currentMonthIndex],
-          progressValue: currentProgress,
-          completionValue: currentCompletions,
-        };
+        if (currentMonthIndex !== -1) {
+          // Calculate current progress from live goals
+          const currentProgress = filteredGoals && filteredGoals.length > 0
+            ? Math.round(filteredGoals.reduce((sum: number, goal: Goal) => sum + (goal.progress || 0), 0) / filteredGoals.length)
+            : 0;
+          
+          const currentCompletions = filteredGoals ? filteredGoals.filter((g: Goal) => g.status === 'completed').length : 0;
+          
+          chartData[currentMonthIndex] = {
+            ...chartData[currentMonthIndex],
+            progressValue: currentProgress,
+            completionValue: currentCompletions,
+          };
+        }
       }
       
       return chartData;
