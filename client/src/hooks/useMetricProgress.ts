@@ -25,12 +25,28 @@ export const useMetricProgress = (metricName: string, selectedPeriod: string) =>
             // Apply period-specific filtering
             let relevantSnapshots;
             switch (selectedPeriod) {
-              case "Last 3 Months":
-                relevantSnapshots = snapshots.slice(-3);
+              case "Last 3 Months": {
+                // Filter by actual month range instead of just taking last 3 snapshots
+                const now = new Date();
+                const threeMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 3, 1);
+                const threeMonthsAgoStr = `${threeMonthsAgo.getFullYear()}-${String(threeMonthsAgo.getMonth() + 1).padStart(2, '0')}`;
+                
+                relevantSnapshots = snapshots.filter((snapshot: any) => {
+                  return snapshot.monthYear >= threeMonthsAgoStr;
+                });
                 break;
-              case "Last 6 Months":
-                relevantSnapshots = snapshots.slice(-6);
+              }
+              case "Last 6 Months": {
+                // Filter by actual month range instead of just taking last 6 snapshots
+                const now = new Date();
+                const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 6, 1);
+                const sixMonthsAgoStr = `${sixMonthsAgo.getFullYear()}-${String(sixMonthsAgo.getMonth() + 1).padStart(2, '0')}`;
+                
+                relevantSnapshots = snapshots.filter((snapshot: any) => {
+                  return snapshot.monthYear >= sixMonthsAgoStr;
+                });
                 break;
+              }
               case "This Year":
                 const currentYear = new Date().getFullYear();
                 relevantSnapshots = snapshots.filter((snapshot: any) => {

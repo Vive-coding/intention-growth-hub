@@ -1735,8 +1735,8 @@ router.post("/habits/:id/complete", async (req: Request, res: Response) => {
         }
       } catch (e) {
         console.error('❌ SNAPSHOT-TRIGGER: Detailed error in snapshot upsert after habit completion:', {
-          error: e.message,
-          stack: e.stack,
+          error: e instanceof Error ? e.message : String(e),
+          stack: e instanceof Error ? e.stack : undefined,
           habitInstanceId: hi.id,
           userId: userId.substring(0, 8) + '...',
           timestamp: new Date().toISOString()

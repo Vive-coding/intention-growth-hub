@@ -591,7 +591,7 @@ export const DetailedLifeOverview = ({
 
       if (selectedView === 'daily') {
         // Daily view: show all daily snapshots + today's live value
-        const chartData = [];
+        const chartData: any[] = [];
         const today = new Date();
         const todayDateStr = today.toISOString().split('T')[0]; // YYYY-MM-DD format
         
@@ -621,10 +621,14 @@ export const DetailedLifeOverview = ({
             });
           });
         
-        // If no snapshots exist for today, add today's live value
-        const hasTodaySnapshot = Object.values(snapshotsByDay).some((s: any) => {
-          const snapshotDateStr = s.date.toISOString().split('T')[0];
-          return snapshotDateStr === todayDateStr;
+        // Check if today already has a snapshot to avoid duplicates
+        const hasTodaySnapshot = chartData.some((item: any) => {
+          // Check if any existing chart item is for today
+          const today = new Date();
+          const todayDayOfMonth = today.getDate();
+          const todayWeekday = today.toLocaleDateString('en-US', { weekday: 'short' });
+          const todayLabel = `${todayWeekday} ${todayDayOfMonth}`;
+          return item.period === todayLabel;
         });
         
         if (!hasTodaySnapshot) {
@@ -687,26 +691,19 @@ export const DetailedLifeOverview = ({
             };
           });
         
-        // Add current week if it's not in the data and today is not already represented
+        // Add current week if it's not already in the chart data
         const today = new Date();
-        const currentWeekStart = new Date(today);
-        currentWeekStart.setDate(today.getDate() - today.getDay());
-        const currentWeekKey = currentWeekStart.toISOString().split('T')[0];
-        const todayDateStr = today.toISOString().split('T')[0];
+        const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+        const firstDayOfWeek = firstDayOfMonth.getDay();
+        const currentWeekNumber = Math.ceil((today.getDate() + firstDayOfWeek) / 7);
+        const currentWeekLabel = `Week ${currentWeekNumber}`;
         
-        // Check if today is already represented in any of the deduplicated snapshots
-        const todayAlreadyInSnapshots = Object.values(snapshotsByDay).some((s: any) => {
-          const snapshotDateStr = s.date.toISOString().split('T')[0];
-          return snapshotDateStr === todayDateStr;
-        });
+        // Check if current week already exists in chart data to avoid duplicates
+        const hasCurrentWeekInChart = chartData.some((item: any) => item.period === currentWeekLabel);
         
-        if (!weeklyData[currentWeekKey] && !todayAlreadyInSnapshots) {
-          // Calculate actual week number for today
-          const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-          const firstDayOfWeek = firstDayOfMonth.getDay();
-          const currentWeekNumber = Math.ceil((today.getDate() + firstDayOfWeek) / 7);
+        if (!hasCurrentWeekInChart) {
           chartData.push({
-            period: `Week ${currentWeekNumber}`,
+            period: currentWeekLabel,
             progressValue: currentProgress,
             completionValue: currentCompletions,
             isCurrent: true,
