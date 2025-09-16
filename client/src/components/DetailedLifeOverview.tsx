@@ -583,10 +583,34 @@ export const DetailedLifeOverview = ({
         const date = snapshot.date;
         const dateStr = date.toISOString().split('T')[0];
         
-        // Keep the latest snapshot for each day
-        if (!snapshotsByDay[dateStr] || date > snapshotsByDay[dateStr].date) {
+        // Keep the latest snapshot for each day (more robust comparison)
+        if (!snapshotsByDay[dateStr] || 
+            date.getTime() > snapshotsByDay[dateStr].date.getTime()) {
           snapshotsByDay[dateStr] = snapshot;
         }
+      });
+      
+      console.log('📊 Deduplication results:', {
+        originalCount: dailySnapshots.length,
+        deduplicatedCount: Object.keys(snapshotsByDay).length,
+        duplicatesRemoved: dailySnapshots.length - Object.keys(snapshotsByDay).length
+      });
+      
+      // Debug: Log all snapshots with their labels
+      console.log('📊 All snapshots before deduplication:');
+      dailySnapshots.forEach((snapshot, i) => {
+        const dayOfMonth = snapshot.date.getDate();
+        const weekday = snapshot.date.toLocaleDateString('en-US', { weekday: 'short' });
+        const label = `${weekday} ${dayOfMonth}`;
+        console.log(`  ${i + 1}. ${label} (${snapshot.date.toISOString()}) - ${snapshot.progress}%`);
+      });
+      
+      console.log('📊 Deduplicated snapshots:');
+      Object.entries(snapshotsByDay).forEach(([dateStr, snapshot], i) => {
+        const dayOfMonth = snapshot.date.getDate();
+        const weekday = snapshot.date.toLocaleDateString('en-US', { weekday: 'short' });
+        const label = `${weekday} ${dayOfMonth}`;
+        console.log(`  ${i + 1}. ${label} (${dateStr}) - ${snapshot.progress}%`);
       });
 
       if (selectedView === 'daily') {
@@ -658,8 +682,9 @@ export const DetailedLifeOverview = ({
           weekStart.setDate(date.getDate() - date.getDay()); // Start of week (Sunday)
           const weekKey = weekStart.toISOString().split('T')[0];
           
-          // Keep the latest snapshot for each week
-          if (!weeklyData[weekKey] || date > new Date(weeklyData[weekKey].date)) {
+          // Keep the latest snapshot for each week (more robust comparison)
+          if (!weeklyData[weekKey] || 
+              date.getTime() > weeklyData[weekKey].date.getTime()) {
             weeklyData[weekKey] = {
               date,
               progress: snapshot.progress,
@@ -667,6 +692,12 @@ export const DetailedLifeOverview = ({
               weekStart
             };
           }
+        });
+        
+        console.log('📊 Weekly deduplication results:', {
+          dailySnapshots: Object.keys(snapshotsByDay).length,
+          weeklyGroups: Object.keys(weeklyData).length,
+          weeksReduced: Object.keys(snapshotsByDay).length - Object.keys(weeklyData).length
         });
         
         // Convert to chart data
