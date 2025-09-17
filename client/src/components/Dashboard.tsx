@@ -250,13 +250,15 @@ export const Dashboard = ({ onOpenGPT, onDetailedViewChange, onClearDetailedView
   });
 
   // Fetch completed habits for today
-  const { data: completedHabits = [], isLoading: completedHabitsLoading } = useQuery({
+  const { data: completedHabits = [], isLoading: completedHabitsLoading, error: completedHabitsError } = useQuery({
     queryKey: ['/api/goals/habits/completed-today'],
     queryFn: async () => {
+      console.log('🟣 Fetching completed habits...');
       const response = await apiRequest('/api/goals/habits/completed-today', {
         method: 'GET',
       });
-      console.log('Completed habits response:', response);
+      console.log('🟣 Completed habits response:', response);
+      console.log('🟣 Completed habits count:', response?.length || 0);
       return response;
     },
     retry: 1,
@@ -268,9 +270,11 @@ export const Dashboard = ({ onOpenGPT, onDetailedViewChange, onClearDetailedView
     console.log('Dashboard habit data:', {
       todaysHabits: todaysHabits.length,
       completedHabits: completedHabits.length,
+      completedHabitsLoading,
+      completedHabitsError: completedHabitsError?.message,
       selectedHabitIds
     });
-  }, [todaysHabits, completedHabits, selectedHabitIds]);
+  }, [todaysHabits, completedHabits, completedHabitsLoading, completedHabitsError, selectedHabitIds]);
 
   // Debug logging for goals data
   useEffect(() => {
@@ -302,7 +306,7 @@ export const Dashboard = ({ onOpenGPT, onDetailedViewChange, onClearDetailedView
       console.log('Completing habits:', selectedHabits.map((habit: any) => habit.name));
       
       // Call once per habit. Backend already fans-out progress updates to all associated goals.
-      const results = await Promise.all(selectedHabits.map(async (habit: any) => {
+      const results = await Promise.allSettled(selectedHabits.map(async (habit: any) => {
         // Send the first goalId to help backend update specific goal progress
         const goalId = habit.goalId || (habit.goalIds && habit.goalIds[0]);
         const result = await apiRequest(`/api/goals/habits/${habit.id}/complete`, {
@@ -311,34 +315,81 @@ export const Dashboard = ({ onOpenGPT, onDetailedViewChange, onClearDetailedView
           body: JSON.stringify({ goalId }),
         });
         console.log(`Habit ${habit.name} completion result:`, result);
-        return result;
+        return { habit, result };
       }));
       
-      console.log('All completion results:', results);
+      // Process results and handle errors
+      const successfulCompletions: any[] = [];
+      const alreadyCompleted: any[] = [];
+      const errors: any[] = [];
+      
+      results.forEach((result, index) => {
+        if (result.status === 'fulfilled') {
+          successfulCompletions.push(result.value);
+        } else {
+          const error = result.reason;
+          const habit = selectedHabits[index];
+          console.error(`Habit ${habit.name} completion failed:`, error);
+          
+          // Check if it's a duplicate completion error
+          if (error.message && error.message.includes('already completed')) {
+            alreadyCompleted.push(habit);
+          } else {
+            errors.push({ habit, error });
+          }
+        }
+      });
+      
+      console.log('Completion results:', { successfulCompletions, alreadyCompleted, errors });
+      
+      // Clear selected habits
       setSelectedHabitIds([]);
       
-      // Show success message
-      toast.success(`Successfully completed ${results.length} habit${results.length > 1 ? 's' : ''}`);
+      // Show appropriate messages
+      if (successfulCompletions.length > 0) {
+        toast.success(`Successfully completed ${successfulCompletions.length} habit${successfulCompletions.length > 1 ? 's' : ''}`);
+      }
+      
+      if (alreadyCompleted.length > 0) {
+        toast.message(`Already completed today: ${alreadyCompleted.map(h => h.name).join(', ')}`);
+      }
+      
+      if (errors.length > 0) {
+        toast.error(`Failed to complete: ${errors.map(e => e.habit.name).join(', ')}`);
+      }
       
       // Immediately update local state to show completion
-      console.log('🟣 Habit completion successful, updating UI...');
+      console.log('🟣 Habit completion processed, updating UI...');
+      
+      // Add a small delay to ensure database updates have completed
+      await new Promise(resolve => setTimeout(resolve, 500));
       
       // Refresh today + completed counts so the right panel numbers update immediately
+      console.log('🟣 Invalidating habit queries...');
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['/api/goals/habits/today'] }),
         queryClient.invalidateQueries({ queryKey: ['/api/goals/habits/completed-today'] }),
       ]);
       
       // Force an immediate refetch to avoid intermediary 304s
+      console.log('🟣 Refetching completed habits...');
       const refetchResult = await queryClient.refetchQueries({ queryKey: ['/api/goals/habits/completed-today'], type: 'active' });
       console.log('🟣 Refetch result:', refetchResult);
+      
+      // Also refetch today's habits to remove completed ones
+      console.log('🟣 Refetching today\'s habits...');
+      const todayRefetchResult = await queryClient.refetchQueries({ queryKey: ['/api/goals/habits/today'], type: 'active' });
+      console.log('🟣 Today habits refetch result:', todayRefetchResult);
       
       // Also refresh the specific goal data to show updated progress
       await queryClient.invalidateQueries({ queryKey: ['/api/goals'] });
       
       // Proactively upsert today's snapshots for all metrics so charts match ring values immediately
       try {
-        await apiRequest('/api/admin/snapshots/run');
+        await apiRequest('/api/admin/snapshots/run', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        });
         await queryClient.invalidateQueries({ queryKey: ['/api/life-metrics/progress'] });
         await queryClient.invalidateQueries({ queryKey: ['metric-progress'] });
       } catch (e) {
@@ -356,6 +407,7 @@ export const Dashboard = ({ onOpenGPT, onDetailedViewChange, onClearDetailedView
       setShowHabitModal(false);
     } catch (error) {
       console.error('Error completing selected habits:', error);
+      toast.error('Failed to complete habits. Please try again.');
     } finally {
       setIsCompletingSelected(false);
     }

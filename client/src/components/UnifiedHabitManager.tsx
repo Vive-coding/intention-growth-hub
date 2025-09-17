@@ -102,6 +102,12 @@ export function UnifiedHabitManager({
   const [internalShowHabitModal, setInternalShowHabitModal] = useState(false);
   const [showSortInfo, setShowSortInfo] = useState(false);
   
+  // Debug logging for completed habits
+  console.log('🟣 UnifiedHabitManager received completedHabits:', {
+    count: completedHabits.length,
+    habits: completedHabits.map(h => ({ id: h.id, title: h.title }))
+  });
+  
   // Use external control if provided, otherwise use internal state
   const modalOpen = showHabitModal !== undefined ? showHabitModal : internalShowHabitModal;
   console.log('UnifiedHabitManager: modal state:', { 

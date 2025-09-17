@@ -71,7 +71,8 @@ async function getUserTodayWindow(userId: string) {
       serverTime: now.toISOString()
     });
     
-    // Use Intl.DateTimeFormat to get reliable timezone conversion
+    // Use a simpler approach: create the start and end of day in the user's timezone
+    // by using the Intl.DateTimeFormat to get the correct date, then create UTC dates
     const formatter = new Intl.DateTimeFormat('en-CA', {
       timeZone: tz,
       year: 'numeric',
@@ -90,31 +91,33 @@ async function getUserTodayWindow(userId: string) {
       throw new Error(`Invalid date parts from timezone ${tz}: year=${year}, month=${month}, day=${day}`);
     }
     
-    // Create start and end of day in user's timezone
-    const startOfDayLocal = new Date(year, month, day, 0, 0, 0, 0);
-    const endOfDayLocal = new Date(year, month, day, 23, 59, 59, 999);
+    // Create start and end of day in UTC for the user's local date
+    // This is much simpler and more reliable
+    const startUTC = new Date(Date.UTC(year, month, day, 0, 0, 0, 0));
+    const endUTC = new Date(Date.UTC(year, month, day, 23, 59, 59, 999));
     
-    console.log('Start/End of day (user local):', {
-      start: startOfDayLocal.toISOString(),
-      end: endOfDayLocal.toISOString()
-    });
+    // Now we need to adjust these UTC times to account for the user's timezone
+    // We'll calculate the offset by comparing a known time in the user's timezone
+    const testTime = new Date(year, month, day, 12, 0, 0); // Noon in user's timezone
+    const testTimeInUserTz = new Date(testTime.toLocaleString("en-US", {timeZone: tz}));
+    const testTimeInUTC = new Date(testTime.toLocaleString("en-US", {timeZone: "UTC"}));
+    const offsetMs = testTimeInUserTz.getTime() - testTimeInUTC.getTime();
     
-    // Calculate timezone offset and convert to UTC
-    const offsetMs = startOfDayLocal.getTimezoneOffset() * 60 * 1000;
-    const startUTC = new Date(startOfDayLocal.getTime() - offsetMs);
-    const endUTC = new Date(endOfDayLocal.getTime() - offsetMs);
+    const adjustedStartUTC = new Date(startUTC.getTime() - offsetMs);
+    const adjustedEndUTC = new Date(endUTC.getTime() - offsetMs);
     
     console.log('TIMEZONE-WINDOW:', {
       userId,
       timezone: tz,
       userLocalDate: `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`,
+      offsetMs,
       timeWindow: {
-        startUTC: startUTC.toISOString(),
-        endUTC: endUTC.toISOString()
+        startUTC: adjustedStartUTC.toISOString(),
+        endUTC: adjustedEndUTC.toISOString()
       }
     });
     
-    return { start: startUTC, end: endUTC };
+    return { start: adjustedStartUTC, end: adjustedEndUTC };
   } catch (error) {
     console.error('getUserTodayWindow error:', error);
     // Fallback to server's local day
