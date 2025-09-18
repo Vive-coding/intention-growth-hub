@@ -7,6 +7,7 @@ import {
   insightVotes, 
   suggestedGoals, 
   suggestedHabits,
+  feedbackEvents,
   type Insight,
   type InsightVote,
   type LifeMetricDefinition,
@@ -74,11 +75,25 @@ router.get("/", async (req: Request, res: Response) => {
     // Alternative approach: manually fetch votes for all insights
     const insightIds = userInsights.map(insight => insight.id);
     let allVotes: any[] = [];
+    let allFeedbackEvents: any[] = [];
     if (insightIds.length > 0) {
+      // Get votes from insight_votes table
       allVotes = await db.query.insightVotes.findMany({
         where: inArray(insightVotes.insightId, insightIds)
       });
+      
+      // Also get feedback events for consistency
+      allFeedbackEvents = await db.query.feedbackEvents.findMany({
+        where: and(
+          eq(feedbackEvents.userId, userId),
+          eq(feedbackEvents.type, 'insight'),
+          inArray(feedbackEvents.itemId, insightIds)
+        ),
+        orderBy: desc(feedbackEvents.createdAt)
+      });
+      
       console.log(`[INSIGHTS DEBUG] Manual votes query for all insights:`, allVotes);
+      console.log(`[INSIGHTS DEBUG] Feedback events for all insights:`, allFeedbackEvents);
     }
 
     console.log(`[INSIGHTS DEBUG] Fetched ${userInsights.length} insights for user ${userId}`);
@@ -112,8 +127,22 @@ router.get("/", async (req: Request, res: Response) => {
         const cHash = conceptHash(`${insight.title}\n${insight.explanation}`);
         // Use manually fetched votes if relationship isn't working
         const insightVotes = allVotes.filter(v => v.insightId === insight.id);
-        const upvotes = insightVotes.filter((v: any) => v.isUpvote).length;
-        const downvotes = insightVotes.filter((v: any) => !v.isUpvote).length;
+        
+        // Also get feedback events for this insight
+        const insightFeedbackEvents = allFeedbackEvents.filter(e => e.itemId === insight.id);
+        
+        // Count votes from both sources
+        const upvotesFromVotes = insightVotes.filter((v: any) => v.isUpvote).length;
+        const downvotesFromVotes = insightVotes.filter((v: any) => !v.isUpvote).length;
+        
+        const upvotesFromFeedback = insightFeedbackEvents.filter((e: any) => e.action === 'upvote').length;
+        const downvotesFromFeedback = insightFeedbackEvents.filter((e: any) => e.action === 'downvote').length;
+        
+        // Use the maximum count from both sources (they should be the same after sync)
+        const upvotes = Math.max(upvotesFromVotes, upvotesFromFeedback);
+        const downvotes = Math.max(downvotesFromVotes, downvotesFromFeedback);
+        
+        // For userVote, prefer the insight_votes table as it's more reliable
         const userVote = insightVotes.find((v: any) => v.userId === userId)?.isUpvote;
         
         if (idx === 0) {
@@ -122,8 +151,13 @@ router.get("/", async (req: Request, res: Response) => {
             title: insight.title,
             relationshipVotes: insight.votes,
             manualVotes: insightVotes,
-            upvotes,
-            downvotes,
+            feedbackEvents: insightFeedbackEvents,
+            upvotesFromVotes,
+            downvotesFromVotes,
+            upvotesFromFeedback,
+            downvotesFromFeedback,
+            finalUpvotes: upvotes,
+            finalDownvotes: downvotes,
             userVote,
             userId
           });
@@ -237,6 +271,18 @@ router.post("/:id/vote", async (req: Request, res: Response) => {
         isUpvote,
       });
     }
+
+    // Also record the vote in feedback_events table for consistency with detailed metric page
+    const action = isUpvote ? 'upvote' : 'downvote';
+    await db.insert(feedbackEvents).values({
+      userId,
+      type: 'insight',
+      itemId: insightId,
+      action,
+      context: { source: 'insights_page' }
+    });
+
+    console.log(`[INSIGHTS VOTE] Recorded vote for insight ${insightId}: ${action} by user ${userId}`);
 
     res.json({ success: true });
   } catch (error) {
