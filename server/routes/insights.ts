@@ -70,6 +70,17 @@ router.get("/", async (req: Request, res: Response) => {
       },
     });
 
+    console.log(`[INSIGHTS DEBUG] Fetched ${userInsights.length} insights for user ${userId}`);
+    if (userInsights.length > 0) {
+      console.log(`[INSIGHTS DEBUG] First insight votes:`, userInsights[0].votes);
+      console.log(`[INSIGHTS DEBUG] Sample insight structure:`, {
+        id: userInsights[0].id,
+        title: userInsights[0].title,
+        votesCount: userInsights[0].votes?.length || 0,
+        votes: userInsights[0].votes
+      });
+    }
+
     // Transform and de-duplicate existing insights
     const texts = userInsights.map((i:any) => `${i.title}\n${i.explanation}`);
     const embs = await embedNormalized(texts);
@@ -82,12 +93,28 @@ router.get("/", async (req: Request, res: Response) => {
         }
         const decision = decideSimilarity(maxSim);
         const cHash = conceptHash(`${insight.title}\n${insight.explanation}`);
+        const upvotes = insight.votes?.filter((v: any) => v.isUpvote).length || 0;
+        const downvotes = insight.votes?.filter((v: any) => !v.isUpvote).length || 0;
+        const userVote = insight.votes?.find((v: any) => v.userId === userId)?.isUpvote;
+        
+        if (idx === 0) {
+          console.log(`[INSIGHTS DEBUG] Transforming first insight:`, {
+            id: insight.id,
+            title: insight.title,
+            votesArray: insight.votes,
+            upvotes,
+            downvotes,
+            userVote,
+            userId
+          });
+        }
+        
         return {
           ...insight,
           lifeMetrics: insight.lifeMetrics.map((lm: any) => lm.lifeMetric),
-          upvotes: insight.votes.filter((v: any) => v.isUpvote).length,
-          downvotes: insight.votes.filter((v: any) => !v.isUpvote).length,
-          userVote: insight.votes.find((v: any) => v.userId === userId)?.isUpvote,
+          upvotes,
+          downvotes,
+          userVote,
           similarity: Number(maxSim.toFixed(3)),
           kind: decision.relation === 'duplicate' ? 'reinforce' : decision.relation === 'similar' ? 'reinforce' : 'new',
           duplicateOfId: decision.relation === 'duplicate' && dupIndex !== undefined ? userInsights[dupIndex].id : undefined,
