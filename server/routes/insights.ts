@@ -79,6 +79,12 @@ router.get("/", async (req: Request, res: Response) => {
         votesCount: userInsights[0].votes?.length || 0,
         votes: userInsights[0].votes
       });
+      
+      // Let's also try a direct query to see if there are any votes for this insight
+      const directVotes = await db.query.insightVotes.findMany({
+        where: eq(insightVotes.insightId, userInsights[0].id)
+      });
+      console.log(`[INSIGHTS DEBUG] Direct votes query for first insight:`, directVotes);
     }
 
     // Transform and de-duplicate existing insights
