@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "../db";
-import { and, eq, desc } from "drizzle-orm";
+import { and, eq, desc, inArray } from "drizzle-orm";
 import { 
   insights, 
   insightLifeMetrics, 
@@ -50,6 +50,7 @@ router.get("/", async (req: Request, res: Response) => {
     }
 
     // Get insights with their life metrics, votes, and suggestions
+    // Let's try a manual approach to debug the votes issue
     const userInsights = await db.query.insights.findMany({
       where: eq(insights.userId, userId),
       orderBy: desc(insights.createdAt),
@@ -69,6 +70,16 @@ router.get("/", async (req: Request, res: Response) => {
         },
       },
     });
+
+    // Alternative approach: manually fetch votes for all insights
+    const insightIds = userInsights.map(insight => insight.id);
+    let allVotes: any[] = [];
+    if (insightIds.length > 0) {
+      allVotes = await db.query.insightVotes.findMany({
+        where: inArray(insightVotes.insightId, insightIds)
+      });
+      console.log(`[INSIGHTS DEBUG] Manual votes query for all insights:`, allVotes);
+    }
 
     console.log(`[INSIGHTS DEBUG] Fetched ${userInsights.length} insights for user ${userId}`);
     if (userInsights.length > 0) {
@@ -99,15 +110,18 @@ router.get("/", async (req: Request, res: Response) => {
         }
         const decision = decideSimilarity(maxSim);
         const cHash = conceptHash(`${insight.title}\n${insight.explanation}`);
-        const upvotes = insight.votes?.filter((v: any) => v.isUpvote).length || 0;
-        const downvotes = insight.votes?.filter((v: any) => !v.isUpvote).length || 0;
-        const userVote = insight.votes?.find((v: any) => v.userId === userId)?.isUpvote;
+        // Use manually fetched votes if relationship isn't working
+        const insightVotes = allVotes.filter(v => v.insightId === insight.id);
+        const upvotes = insightVotes.filter((v: any) => v.isUpvote).length;
+        const downvotes = insightVotes.filter((v: any) => !v.isUpvote).length;
+        const userVote = insightVotes.find((v: any) => v.userId === userId)?.isUpvote;
         
         if (idx === 0) {
           console.log(`[INSIGHTS DEBUG] Transforming first insight:`, {
             id: insight.id,
             title: insight.title,
-            votesArray: insight.votes,
+            relationshipVotes: insight.votes,
+            manualVotes: insightVotes,
             upvotes,
             downvotes,
             userVote,
