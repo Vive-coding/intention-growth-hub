@@ -64,16 +64,23 @@ export const ANALYTICS_EVENTS = {
   ERROR_OCCURRED: 'error_occurred',
 } as const;
 
-// Declare global amplitude types
+// Declare global amplitude types for Browser SDK 2.0+
 declare global {
   interface Window {
     amplitude: {
       track: (eventName: string, properties?: any) => void;
       identify: (identify: any) => void;
       setUserId: (userId: string) => void;
-      setUserProperties: (properties: any) => void;
       init: (apiKey: string, options?: any) => void;
       add: (plugin: any) => void;
+      Identify: new () => {
+        set: (property: string, value: any) => any;
+        setOnce: (property: string, value: any) => any;
+        append: (property: string, value: any) => any;
+        prepend: (property: string, value: any) => any;
+        unset: (property: string) => any;
+        add: (property: string, value: number) => any;
+      };
     };
     sessionReplay: {
       plugin: (options: any) => any;
@@ -114,7 +121,18 @@ class AnalyticsService {
     window.amplitude.setUserId(userId);
     
     if (properties) {
-      window.amplitude.setUserProperties(properties);
+      // Use Amplitude 2.0+ identify method with Identify object
+      const identify = new window.amplitude.Identify();
+      
+      // Set each property using the identify object
+      Object.entries(properties).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+          identify.set(key, value);
+        }
+      });
+      
+      // Send the identify event
+      window.amplitude.identify(identify);
     }
   }
 
@@ -124,6 +142,18 @@ class AnalyticsService {
     
     this.userId = null;
     window.amplitude.setUserId(null);
+    
+    // Clear user properties using identify
+    const identify = new window.amplitude.Identify();
+    // Clear common user properties
+    identify.unset('email');
+    identify.unset('timezone');
+    identify.unset('createdAt');
+    identify.unset('totalGoals');
+    identify.unset('totalHabits');
+    identify.unset('totalJournals');
+    
+    window.amplitude.identify(identify);
   }
 
   // Track events

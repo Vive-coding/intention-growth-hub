@@ -1,5 +1,5 @@
 // Backend analytics service for Amplitude
-import { track, identify, setUserId, setUserProperties, init } from '@amplitude/analytics-node';
+import { track, identify, setUserId, init, Identify } from '@amplitude/analytics-node';
 
 // Types for analytics events
 export interface UserProperties {
@@ -63,7 +63,18 @@ class BackendAnalyticsService {
       setUserId(userId);
       
       if (properties) {
-        setUserProperties(properties);
+        // Use modern identify method with Identify object
+        const identifyObj = new Identify();
+        
+        // Set each property using the identify object
+        Object.entries(properties).forEach(([key, value]) => {
+          if (value !== undefined && value !== null) {
+            identifyObj.set(key, value);
+          }
+        });
+        
+        // Send the identify event
+        identify(identifyObj);
       }
     } catch (error) {
       console.error('Failed to set user in analytics:', error);
