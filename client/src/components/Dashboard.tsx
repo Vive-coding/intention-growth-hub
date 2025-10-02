@@ -11,6 +11,7 @@ import { InsightCard } from "./insights/InsightCard";
 import { DetailedLifeOverview } from "./DetailedLifeOverview";
 import { AuthModal } from "./AuthModal";
 import { AddHabitModal } from "./AddHabitModal";
+import { CreateGoalWizard } from "./CreateGoalWizard";
 import { UnifiedHabitManager } from "./UnifiedHabitManager";
 import { ReinforcementBadge } from "@/components/ui/ReinforcementBadge";
 import { useAuth } from "@/hooks/useAuth";
@@ -72,6 +73,8 @@ export const Dashboard = ({ onOpenGPT, onDetailedViewChange, onClearDetailedView
   const [showAddHabitModal, setShowAddHabitModal] = useState(false);
   const [prefillHabit, setPrefillHabit] = useState<any>(null);
   const [selectedHabitIds, setSelectedHabitIds] = useState<string[]>([]);
+  const [showGoalWizard, setShowGoalWizard] = useState(false);
+  const [selectedSuggestedGoal, setSelectedSuggestedGoal] = useState<any>(null);
   const [isCompletingSelected, setIsCompletingSelected] = useState(false);
   const { 
     user, 
@@ -928,14 +931,15 @@ export const Dashboard = ({ onOpenGPT, onDetailedViewChange, onClearDetailedView
                             size="sm" 
                             className="text-xs border-purple-200 text-purple-700 hover:bg-purple-50"
                             onClick={() => {
-                              const prefillData = {
+                              setSelectedSuggestedGoal({
+                                id: goal.id,
                                 title: goal.title,
                                 description: goal.description,
                                 lifeMetricId: goal.lifeMetric?.id,
-                                suggestedGoalId: goal.id
-                              };
-                              setPrefillGoal(prefillData);
-                              setSelectedMetric(goal.lifeMetric?.name);
+                                lifeMetricName: goal.lifeMetric?.name,
+                                lifeMetricColor: goal.lifeMetric?.color
+                              });
+                              setShowGoalWizard(true);
                             }}
                           >
                             Add to {goal.lifeMetric?.name || 'Life Metric'}
@@ -1416,14 +1420,15 @@ export const Dashboard = ({ onOpenGPT, onDetailedViewChange, onClearDetailedView
                                       size="sm" 
                                       className="text-xs border-purple-200 text-purple-700 hover:bg-purple-50"
                                       onClick={() => {
-                                        const prefillData = {
+                                        setSelectedSuggestedGoal({
+                                          id: goal.id,
                                           title: goal.title,
                                           description: goal.description,
                                           lifeMetricId: goal.lifeMetric?.id,
-                                          suggestedGoalId: goal.id
-                                        };
-                                        setPrefillGoal(prefillData);
-                                        setSelectedMetric(goal.lifeMetric?.name);
+                                          lifeMetricName: goal.lifeMetric?.name,
+                                          lifeMetricColor: goal.lifeMetric?.color
+                                        });
+                                        setShowGoalWizard(true);
                                       }}
                                     >
                                       Add to {goal.lifeMetric?.name || 'Life Metric'}
@@ -1776,6 +1781,23 @@ export const Dashboard = ({ onOpenGPT, onDetailedViewChange, onClearDetailedView
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Goal Creation Wizard */}
+      {showGoalWizard && selectedSuggestedGoal && (
+        <CreateGoalWizard
+          isOpen={showGoalWizard}
+          onClose={() => {
+            setShowGoalWizard(false);
+            setSelectedSuggestedGoal(null);
+          }}
+          onGoalCreated={() => {
+            queryClient.invalidateQueries({ queryKey: ['/api/goals'] });
+            queryClient.invalidateQueries({ queryKey: ['/api/goals/suggested'] });
+          }}
+          suggestedGoalId={selectedSuggestedGoal.id}
+          prefillData={selectedSuggestedGoal}
+        />
+      )}
     </div>
   );
 };

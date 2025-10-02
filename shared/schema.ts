@@ -147,6 +147,20 @@ export const suggestedHabits = pgTable("suggested_habits", {
   targetFrequency: varchar("target_frequency", { length: 20 }).default("daily"), // daily, weekly, monthly
   targetCount: integer("target_count").default(1), // how many times per frequency period
   archived: boolean("archived").default(false).notNull(),
+  isHighLeverage: boolean("is_high_leverage").default(false), // Can serve multiple goal types
+  applicableGoalTypes: text("applicable_goal_types").array(), // ['career', 'health', 'personal']
+  noveltyScore: integer("novelty_score"), // 1-10: How unique/creative
+  impactScore: integer("impact_score"), // 1-10: Potential for meaningful improvement
+  actionabilityScore: integer("actionability_score"), // 1-10: How clear and doable
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Suggested goal-habit relationships (links habits to specific goals)
+export const suggestedGoalHabits = pgTable("suggested_goal_habits", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  suggestedGoalId: uuid("suggested_goal_id").notNull().references(() => suggestedGoals.id, { onDelete: "cascade" }),
+  suggestedHabitId: uuid("suggested_habit_id").notNull().references(() => suggestedHabits.id, { onDelete: "cascade" }),
+  priority: integer("priority").default(1), // 1=essential, 2=helpful, 3=optional
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -309,7 +323,7 @@ export const insightVotesRelations = relations(insightVotes, ({ one }) => ({
   }),
 }));
 
-export const suggestedGoalsRelations = relations(suggestedGoals, ({ one }) => ({
+export const suggestedGoalsRelations = relations(suggestedGoals, ({ one, many }) => ({
   insight: one(insights, {
     fields: [suggestedGoals.insightId],
     references: [insights.id],
@@ -318,6 +332,7 @@ export const suggestedGoalsRelations = relations(suggestedGoals, ({ one }) => ({
     fields: [suggestedGoals.lifeMetricId],
     references: [lifeMetricDefinitions.id],
   }),
+  habitLinks: many(suggestedGoalHabits),
 }));
 
 export const suggestedHabitsRelations = relations(suggestedHabits, ({ one, many }) => ({
@@ -330,6 +345,18 @@ export const suggestedHabitsRelations = relations(suggestedHabits, ({ one, many 
     references: [lifeMetricDefinitions.id],
   }),
   completions: many(habitCompletions),
+  goalLinks: many(suggestedGoalHabits),
+}));
+
+export const suggestedGoalHabitsRelations = relations(suggestedGoalHabits, ({ one }) => ({
+  suggestedGoal: one(suggestedGoals, {
+    fields: [suggestedGoalHabits.suggestedGoalId],
+    references: [suggestedGoals.id],
+  }),
+  suggestedHabit: one(suggestedHabits, {
+    fields: [suggestedGoalHabits.suggestedHabitId],
+    references: [suggestedHabits.id],
+  }),
 }));
 
 export const habitCompletionsRelations = relations(habitCompletions, ({ one }) => ({

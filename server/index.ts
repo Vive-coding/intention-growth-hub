@@ -108,11 +108,9 @@ app.use((req, res, next) => {
   }
 
   const port = process.env.PORT || 3000;
-  server.listen({
-    port,
-    host: "0.0.0.0",
-    reusePort: true,
-  }, () => {
-    log(`serving on port ${port}`);
+  // Use localhost for development on macOS, 0.0.0.0 for production
+  const host = process.env.NODE_ENV === 'production' ? '0.0.0.0' : 'localhost';
+  server.listen(port, host, () => {
+    log(`serving on port ${port} (host: ${host})`);
   });
 })();

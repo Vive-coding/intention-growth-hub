@@ -14,6 +14,7 @@ import {
   insights,
   lifeMetricDefinitions,
   users,
+  feedbackEvents,
   type GoalDefinition,
   type GoalInstance,
   type SuggestedGoal,
@@ -38,6 +39,53 @@ interface AuthenticatedRequest extends Request {
 }
 
 const router = Router();
+
+// Helper function to promote a suggested habit to a habit definition
+async function promoteSuggestedHabit(
+  suggestedHabitId: string,
+  userId: string
+): Promise<HabitDefinition | null> {
+  try {
+    // Get suggested habit
+    const [suggestedHabit] = await db
+      .select()
+      .from(suggestedHabits)
+      .where(eq(suggestedHabits.id, suggestedHabitId))
+      .limit(1);
+
+    if (!suggestedHabit) {
+      console.warn(`Suggested habit ${suggestedHabitId} not found`);
+      return null;
+    }
+
+    // Create habit definition
+    const [habitDef] = await db
+      .insert(habitDefinitions)
+      .values({
+        userId,
+        name: suggestedHabit.title,
+        description: suggestedHabit.description || '',
+        category: suggestedHabit.lifeMetricId,
+        globalCompletions: 0,
+        globalStreak: 0,
+        isActive: true,
+      })
+      .returning();
+
+    // Archive suggested habit
+    await db
+      .update(suggestedHabits)
+      .set({ archived: true })
+      .where(eq(suggestedHabits.id, suggestedHabitId));
+
+    console.log(`✓ Promoted suggested habit ${suggestedHabitId} to habit definition ${habitDef.id}`);
+
+    return habitDef;
+  } catch (error) {
+    console.error(`Error promoting suggested habit ${suggestedHabitId}:`, error);
+    return null;
+  }
+}
 
 // Helper to calculate timezone offset in minutes
 function getTimezoneOffsetMinutes(timezone: string): number {
@@ -903,6 +951,58 @@ router.get("/habits/suggested", async (req: Request, res: Response) => {
   } catch (error) {
     console.error("Error fetching suggested habits:", error);
     res.status(500).json({ error: "Failed to fetch suggested habits" });
+  }
+});
+
+// Get suggested habits for a specific suggested goal
+router.get("/suggested/:goalId/habits", async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user?.id;
+    if (!userId) {
+      return res.status(401).json({ message: "User not authenticated" });
+    }
+
+    const suggestedGoalId = req.params.goalId;
+
+    // Get the suggested goal
+    const [goal] = await db
+      .select()
+      .from(suggestedGoals)
+      .where(eq(suggestedGoals.id, suggestedGoalId))
+      .limit(1);
+
+    if (!goal) {
+      return res.status(404).json({ error: "Suggested goal not found" });
+    }
+
+    // Get suggested habits linked to this goal
+    const suggestedHabitsForGoal = await storage.getSuggestedHabitsForGoal(suggestedGoalId);
+
+    // Get existing active habits in the same life metric
+    const existingHabits = await db
+      .select({
+        id: habitDefinitions.id,
+        name: habitDefinitions.name,
+        description: habitDefinitions.description,
+        category: habitDefinitions.category,
+        globalCompletions: habitDefinitions.globalCompletions,
+        globalStreak: habitDefinitions.globalStreak,
+      })
+      .from(habitDefinitions)
+      .where(and(
+        eq(habitDefinitions.userId, userId),
+        eq(habitDefinitions.category, goal.lifeMetricId),
+        eq(habitDefinitions.isActive, true)
+      ));
+
+    res.json({
+      goal,
+      suggestedHabits: suggestedHabitsForGoal,
+      existingHabits
+    });
+  } catch (error) {
+    console.error("Error fetching suggested habits for goal:", error);
+    res.status(500).json({ error: "Failed to fetch suggested habits for goal" });
   }
 });
 
@@ -2227,7 +2327,16 @@ router.post("/", async (req: Request, res: Response) => {
     if (!userId) {
       return res.status(401).json({ message: "User not authenticated" });
     }
-    const { title, description, lifeMetricId, targetValue, targetDate, habitIds } = req.body;
+    const { 
+      title, 
+      description, 
+      lifeMetricId, 
+      targetValue, 
+      targetDate, 
+      habitIds,              // Existing habit definition IDs
+      suggestedHabitIds,     // Suggested habit IDs to promote
+      habitTargets           // Frequency/target settings per habit
+    } = req.body;
 
     // Create goal definition
     const [goalDefinition] = await db
@@ -2248,31 +2357,67 @@ router.post("/", async (req: Request, res: Response) => {
       .values({
         goalDefinitionId: goalDefinition.id,
         userId,
-        targetValue: targetValue ? parseInt(targetValue) || 1 : 1, // Default to 1 if invalid
+        targetValue: targetValue ? parseInt(targetValue) || 1 : 1,
         currentValue: 0,
         targetDate: targetDate ? new Date(targetDate) : null,
         status: "active",
-        monthYear: new Date().toISOString().slice(0, 7), // "2025-01"
+        monthYear: new Date().toISOString().slice(0, 7),
       })
       .returning();
 
-    // Associate habits if provided
-    if (habitIds && Array.isArray(habitIds)) {
-      for (const habitId of habitIds) {
-        // Check if habit definition exists
+    // Promote suggested habits first
+    const promotedHabitIds: string[] = [];
+    if (suggestedHabitIds && Array.isArray(suggestedHabitIds)) {
+      for (const suggestedHabitId of suggestedHabitIds) {
+        const promotedHabit = await promoteSuggestedHabit(suggestedHabitId, userId);
+        if (promotedHabit) {
+          promotedHabitIds.push(promotedHabit.id);
+        }
+      }
+    }
+
+    // Combine existing and promoted habit IDs
+    const allHabitIds = [...(habitIds || []), ...promotedHabitIds];
+
+    // Associate habits with goal
+    if (allHabitIds.length > 0) {
+      for (const habitId of allHabitIds) {
         const habitDef = await db.query.habitDefinitions.findFirst({
           where: eq(habitDefinitions.id, habitId),
         });
 
         if (habitDef) {
+          // Get target settings for this habit (from habitTargets object)
+          const targetSettings = habitTargets?.[habitId] || {
+            frequency: 'daily',
+            perPeriodTarget: 1,
+            periodsCount: 1
+          };
+
           await db.insert(habitInstances).values({
             habitDefinitionId: habitId,
             goalInstanceId: goalInstance.id,
             userId,
-            targetValue: 1, // Default target, can be customized
+            targetValue: targetSettings.perPeriodTarget * targetSettings.periodsCount,
             currentValue: 0,
             goalSpecificStreak: 0,
+            frequencySettings: targetSettings,
           });
+
+          // Record acceptance feedback for promoted habits
+          if (promotedHabitIds.includes(habitId)) {
+            try {
+              await db.insert(feedbackEvents).values({
+                userId,
+                type: 'suggested_habit',
+                itemId: habitId,
+                action: 'accept',
+                context: { goalId: goalInstance.id, source: 'goal_creation' }
+              });
+            } catch (e) {
+              console.warn('Failed to record habit acceptance feedback:', e);
+            }
+          }
         }
       }
     }

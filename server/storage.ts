@@ -10,6 +10,7 @@ import {
   insightVotes,
   suggestedGoals,
   suggestedHabits,
+  suggestedGoalHabits,
   habitDefinitions,
   habitInstances,
   habitCompletions,
@@ -75,7 +76,18 @@ export interface IStorage {
   getUserInsights(userId: string): Promise<Insight[]>;
   createInsight(data: InsertInsight & { lifeMetricIds: string[] }): Promise<Insight>;
   createSuggestedGoal(data: { insightId: string; lifeMetricId: string; title: string; description?: string }): Promise<SuggestedGoal>;
-  createSuggestedHabit(data: { insightId: string; lifeMetricId: string; title: string; description?: string }): Promise<SuggestedHabit>;
+  createSuggestedHabit(data: { 
+    insightId: string; 
+    lifeMetricId: string; 
+    title: string; 
+    description?: string;
+    targetFrequency?: string;
+    targetCount?: number;
+    isHighLeverage?: boolean;
+    applicableGoalTypes?: string[];
+  }): Promise<SuggestedHabit>;
+  linkSuggestedGoalHabit(data: { suggestedGoalId: string; suggestedHabitId: string; priority: number }): Promise<any>;
+  getSuggestedHabitsForGoal(suggestedGoalId: string): Promise<any[]>;
   updateInsightConfidence(insightId: string, newConfidence: number): Promise<Insight>;
   
   // Habit completion operations
@@ -777,9 +789,55 @@ export class DatabaseStorage implements IStorage {
     lifeMetricId: string;
     title: string;
     description?: string;
+    targetFrequency?: string;
+    targetCount?: number;
+    isHighLeverage?: boolean;
+    applicableGoalTypes?: string[];
   }): Promise<SuggestedHabit> {
     const [habit] = await db.insert(suggestedHabits).values(data).returning();
     return habit;
+  }
+
+  async linkSuggestedGoalHabit(data: {
+    suggestedGoalId: string;
+    suggestedHabitId: string;
+    priority: number;
+  }): Promise<any> {
+    const [link] = await db.insert(suggestedGoalHabits).values(data).returning();
+    return link;
+  }
+
+  async getSuggestedHabitsForGoal(suggestedGoalId: string): Promise<any[]> {
+    const results = await db
+      .select({
+        habit: suggestedHabits,
+        link: suggestedGoalHabits,
+        lifeMetric: lifeMetricDefinitions,
+      })
+      .from(suggestedGoalHabits)
+      .innerJoin(suggestedHabits, eq(suggestedGoalHabits.suggestedHabitId, suggestedHabits.id))
+      .innerJoin(lifeMetricDefinitions, eq(suggestedHabits.lifeMetricId, lifeMetricDefinitions.id))
+      .where(and(
+        eq(suggestedGoalHabits.suggestedGoalId, suggestedGoalId),
+        eq(suggestedHabits.archived, false)
+      ))
+      .orderBy(asc(suggestedGoalHabits.priority));
+    
+    return results.map(r => ({
+      id: r.habit.id,
+      title: r.habit.title,
+      description: r.habit.description,
+      targetFrequency: r.habit.targetFrequency,
+      targetCount: r.habit.targetCount,
+      isHighLeverage: r.habit.isHighLeverage,
+      applicableGoalTypes: r.habit.applicableGoalTypes,
+      priority: r.link.priority,
+      lifeMetric: {
+        id: r.lifeMetric.id,
+        name: r.lifeMetric.name,
+        color: r.lifeMetric.color,
+      },
+    }));
   }
 
   async updateInsightConfidence(insightId: string, newConfidence: number): Promise<Insight> {

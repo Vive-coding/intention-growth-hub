@@ -253,12 +253,59 @@ HABIT QUALITY REQUIREMENTS:
 - Tied to specific goals and life metrics
 - Daily or weekly routines, not one-time actions
 - Clear trigger or context
+- HIGH LEVERAGE: Habits should be applicable to multiple goals when possible
+- NOVEL & INTERESTING: Habits should be unique and shareable (not generic "go for a walk")
+
+GOAL-HABIT STRUCTURE:
+For each suggested goal, provide 2-3 specific habits:
+- priority: 1 (Essential) - Critical for goal success
+- priority: 2 (Helpful) - Supportive but not required
+- priority: 3 (Optional) - Nice to have
+- Mark high-leverage habits with isHighLeverage: true
+
+HIGH LEVERAGE CRITERIA:
+- Habit supports multiple goal types (career + personal development)
+- Habit is a meta-skill (reflection, learning, communication)
+- Example: "Energy Autopsy" helps career, health, personal goals
+
+NOVELTY REQUIREMENTS:
+Current daily habits: {currentDailyHabitCount}/10
+- Habits must be NOVEL and INTERESTING
+- Users should feel proud to share with others
+- Not generic ("exercise", "meditate", "drink water")
+- Include specific triggers and actions
+
+CONTEXT TO AVOID DUPLICATES:
+Recently Accepted Goals:
+{recentAcceptedGoals}
+
+Recently Accepted Habits:
+{recentAcceptedHabits}
+
+Upvoted Insights:
+{upvotedInsights}
+
+HIGH-LEVERAGE HABIT EXAMPLES:
+✓ "Energy Autopsy" (Daily): One line each night - what gave me energy? What drained me?
+✓ "One-Sentence Story" (Daily): Capture the story of your day in one sentence
+✓ "Future Self Ping" (Weekly): Write a short note to "3 months from now me"
+✓ "Uncomfortable Compliment" (Daily/Weekly): Give one compliment that feels slightly vulnerable
+✓ "Micro-Adventure" (Weekly): Try one novel thing (new café, route, wardrobe experiment)
+✓ "Second Brain Snapshot" (Daily): Capture the most surprising thing you learned today
+✓ "Skill Dividend" (Weekly): Apply one existing skill in a new context
+
+BAD HABITS (too generic):
+✗ "Exercise daily"
+✗ "Meditate for 10 minutes"
+✗ "Drink 8 glasses of water"
+✗ "Read before bed"
 
 FINAL OUTPUT CONSTRAINTS:
 - Generate 1-2 insights (only the most impactful)
 - Generate 2-4 goals total (capture more ideas while maintaining quality)
-- Generate 2-4 habits total (support the goals effectively)
+- Each goal should include 2-3 habits (nested structure)
 - Quality over quantity - but don't artificially limit good ideas
+- Keep total daily habit count under 10 across all goals
 
 Examples of GOOD goals:
 - "Complete 3 professional development courses by end of quarter" (specific, measurable, time-bound)
@@ -275,7 +322,7 @@ Requirements:
 - Assign a confidence score (0-100%)
 - ALWAYS link to specific life metrics using the provided UUIDs from lifeMetricMapping
 - Suggest 1-2 SMART goals that are measurable, actionable, and novel
-- Suggest 1-2 habits per goal that reinforce positive patterns or address challenges
+- Each goal must include 2-3 habits in a NESTED structure
 - Don't refer to the user as "the user", refer to them as "you" in most cases
 
 IMPORTANT: You must respond with ONLY valid JSON. Do not include any other text, explanations, or markdown formatting.
@@ -288,14 +335,31 @@ Output Format (respond with ONLY this JSON structure):
   "explanation": "string",
   "confidence": "number",
   "lifeMetricIds": ["uuid"],
-  "suggestedGoals": [{{"title": "string", "description": "string", "lifeMetricId": "uuid"}}],
-  "suggestedHabits": [{{"title": "string", "description": "string", "lifeMetricId": "uuid"}}],
+  "suggestedGoals": [
+    {{
+      "title": "string",
+      "description": "string",
+      "lifeMetricId": "uuid",
+      "habits": [
+        {{
+          "title": "string",
+          "description": "string",
+          "lifeMetricId": "uuid",
+          "priority": 1,
+          "isHighLeverage": true,
+          "applicableGoalTypes": ["career", "personal"],
+          "frequency": "daily",
+          "targetCount": 1
+        }}
+      ]
+    }}
+  ],
   "reasoning": "string"
 }}`;
 
 const insightAnalysisPrompt = new PromptTemplate({
   template: TEMPLATE,
-  inputVariables: ["researchBrief", "journalEntry", "existingInsights", "activeGoals", "recentHabits", "lifeMetrics", "researchSupport", "relatedHistory", "lifeMetricMapping"],
+  inputVariables: ["researchBrief", "journalEntry", "existingInsights", "activeGoals", "recentHabits", "lifeMetrics", "researchSupport", "relatedHistory", "lifeMetricMapping", "recentAcceptedGoals", "recentAcceptedHabits", "upvotedInsights", "currentDailyHabitCount"],
 });
 
 interface JournalContext {
@@ -305,6 +369,10 @@ interface JournalContext {
   recentHabits: string;
   lifeMetrics: string;
   lifeMetricMapping: string;
+  recentAcceptedGoals: string;
+  recentAcceptedHabits: string;
+  upvotedInsights: string;
+  currentDailyHabitCount: number;
 }
 
 export class InsightAgent {
@@ -346,6 +414,10 @@ export class InsightAgent {
           recentHabits: (input: JournalContext) => input.recentHabits,
           lifeMetrics: (input: JournalContext) => input.lifeMetrics,
           lifeMetricMapping: (input: JournalContext) => input.lifeMetricMapping,
+          recentAcceptedGoals: (input: JournalContext) => input.recentAcceptedGoals,
+          recentAcceptedHabits: (input: JournalContext) => input.recentAcceptedHabits,
+          upvotedInsights: (input: JournalContext) => input.upvotedInsights,
+          currentDailyHabitCount: (input: JournalContext) => input.currentDailyHabitCount,
         },
       insightAnalysisPrompt,
       model,
