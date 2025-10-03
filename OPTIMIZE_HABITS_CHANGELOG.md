@@ -319,5 +319,20 @@ The target calculation fix (`habitOptimizationService.ts` lines 478-522) is impl
    - Verify new habits have correct periodsCount (not 1)
    - Check terminal logs for calculation details
 4. ✅ Validate AI generates punchy habit names
-5. 🚀 Push all changes to remote git (ONLY after step 3 passes)
+5. ✅ Push all changes to remote git → **COMPLETED**
+6. ✅ Fix production 404 error (Vercel) → **COMPLETED**
+
+## Recent Commits
+
+- `12cd224` - fix: Replace dynamic imports with static imports for Vercel compatibility
+  - Changed `await import()` to static import for `HabitOptimizationService`
+  - Fixes 404 errors on `/api/goals/habits/optimize/*` routes in production
+  - Dynamic imports don't bundle correctly with esbuild on Vercel
+  
+- `5764398` - fix: Calculate proper frequency settings for all habit-goal associations
+  - Created `calculateFrequencySettings` helper function
+  - Fixed periodsCount hardcoded to 1 issue
+  - Applied to goal creation and manual habit addition
+  
+- Previous commits documented in git history
 
