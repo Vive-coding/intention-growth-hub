@@ -221,6 +221,32 @@ Implemented AI-powered habit optimization that automatically archives orphaned h
 - Monthly habits examples: targetCount = 1-2
 - Clear explanation of how system calculates totals
 
+### 3. Fixed Frequency Settings Calculation for ALL Habits ✅
+**Issue**: ALL habits (not just optimized ones) had `periodsCount: 1` hardcoded
+**Root Cause** (`routes/goals.ts` lines 2149, 2504):
+- When adding habits to goals, used hardcoded default `periodsCount: 1`
+- Didn't calculate periods based on goal target date
+- Applied to both manual habit additions AND goal creation
+
+**Solution** (`routes/goals.ts` lines 2086-2116):
+- Created `calculateFrequencySettings()` helper function
+- Calculates `periodsCount` based on goal target date and frequency:
+  - Daily: `periodsCount = days remaining`
+  - Weekly: `periodsCount = ceil(days remaining / 7)`
+  - Monthly: `periodsCount = ceil(days remaining / 30)`
+- Calculates `targetValue = perPeriodTarget × periodsCount`
+- Used in both "Add habit to goal" (line 2174) and "Goal creation" (line 2544)
+
+**Example Results**:
+- Goal with 60-day deadline + daily habit → `periodsCount: 60, targetValue: 60`
+- Goal with 60-day deadline + weekly habit (3x) → `periodsCount: 9, targetValue: 27`
+- Goal with 90-day deadline + monthly habit → `periodsCount: 3, targetValue: 3`
+
+**Logging Added**:
+- Line 2108: Logs all calculations for debugging
+- Line 2197: Logs habit instance creation
+- Line 2550: Logs goal creation habit linking
+
 ## Testing Checklist
 
 - [x] Orphaned habits auto-archived correctly
@@ -233,6 +259,8 @@ Implemented AI-powered habit optimization that automatically archives orphaned h
 - [x] Route matching works (no 404s)
 - [x] Goal coverage validation allows reasonable exceptions
 - [x] Habit targets use AI's targetCount and goal target dates ✅ **FIXED**
+- [x] Frequency settings calculate periodsCount from goal dates ✅ **FIXED**
+- [x] All habit additions (manual + optimization + goal creation) use proper calculation ✅ **FIXED**
 
 ## Files Ready for Git Push
 

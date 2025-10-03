@@ -2083,6 +2083,38 @@ router.put("/habits/:id", async (req: Request, res: Response) => {
   }
 });
 
+// Helper function to calculate frequency settings based on goal target date
+function calculateFrequencySettings(
+  goalTargetDate: Date | null,
+  requestedFrequency: string = 'daily',
+  requestedPerPeriodTarget: number = 1
+): { frequency: string; perPeriodTarget: number; periodsCount: number; targetValue: number } {
+  const targetDate = goalTargetDate || new Date(Date.now() + 90 * 24 * 60 * 60 * 1000);
+  const daysRemaining = Math.max(1, Math.ceil((targetDate.getTime() - Date.now()) / (24 * 60 * 60 * 1000)));
+  
+  let periodsCount = 1;
+  const perPeriodTarget = requestedPerPeriodTarget;
+  
+  if (requestedFrequency === 'daily') {
+    periodsCount = daysRemaining;
+  } else if (requestedFrequency === 'weekly') {
+    periodsCount = Math.max(1, Math.ceil(daysRemaining / 7));
+  } else if (requestedFrequency === 'monthly') {
+    periodsCount = Math.max(1, Math.ceil(daysRemaining / 30));
+  }
+  
+  const targetValue = perPeriodTarget * periodsCount;
+  
+  console.log(`🎯 Calculated frequency settings: targetDate=${goalTargetDate?.toISOString() || 'null'}, daysRemaining=${daysRemaining}, frequency=${requestedFrequency}, perPeriod=${perPeriodTarget}, periods=${periodsCount}, total=${targetValue}`);
+  
+  return {
+    frequency: requestedFrequency,
+    perPeriodTarget,
+    periodsCount,
+    targetValue
+  };
+}
+
 // Add habit to goal
 router.post("/:goalId/habits", async (req: Request, res: Response) => {
   try {
@@ -2092,12 +2124,14 @@ router.post("/:goalId/habits", async (req: Request, res: Response) => {
       return res.status(401).json({ message: "User not authenticated" });
     }
     const goalInstanceId = req.params.goalId;
-    const { habitDefinitionId, targetValue } = req.body;
+    const { habitDefinitionId, targetValue, frequency, perPeriodTarget } = req.body;
     
     console.log('🟣 Adding habit to goal - Request data:', {
       goalInstanceId,
       habitDefinitionId,
       targetValue,
+      frequency,
+      perPeriodTarget,
       body: req.body,
       userId
     });
@@ -2138,18 +2172,27 @@ router.post("/:goalId/habits", async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Habit already associated with this goal" });
     }
 
+    // Calculate proper frequency settings based on goal target date
+    const calculatedSettings = req.body.frequencySettings 
+      ? req.body.frequencySettings 
+      : calculateFrequencySettings(
+          goal[0].targetDate,
+          frequency || 'daily',
+          perPeriodTarget || 1
+        );
+
     // Create habit instance
     const insertData = {
       habitDefinitionId,
       goalInstanceId,
       userId,
-      targetValue: targetValue || 1,
+      targetValue: targetValue || calculatedSettings.targetValue,
       currentValue: 0,
       goalSpecificStreak: 0,
-      frequencySettings: req.body.frequencySettings || {
-        frequency: 'daily',
-        perPeriodTarget: 1,
-        periodsCount: 1
+      frequencySettings: {
+        frequency: calculatedSettings.frequency,
+        perPeriodTarget: calculatedSettings.perPeriodTarget,
+        periodsCount: calculatedSettings.periodsCount
       },
     };
     
@@ -2498,21 +2541,28 @@ router.post("/", async (req: Request, res: Response) => {
         });
 
         if (habitDef) {
-          // Get target settings for this habit (from habitTargets object)
-          const targetSettings = habitTargets?.[habitId] || {
-            frequency: 'daily',
-            perPeriodTarget: 1,
-            periodsCount: 1
-          };
+          // Get target settings for this habit (from habitTargets object) or calculate defaults
+          const requestedSettings = habitTargets?.[habitId];
+          const targetSettings = requestedSettings || calculateFrequencySettings(
+            goalInstance.targetDate,
+            requestedSettings?.frequency || 'daily',
+            requestedSettings?.perPeriodTarget || 1
+          );
+
+          console.log(`🟣 Creating habit instance for goal creation - habitId: ${habitId}, targetDate: ${goalInstance.targetDate?.toISOString()}, settings:`, targetSettings);
 
           await db.insert(habitInstances).values({
             habitDefinitionId: habitId,
             goalInstanceId: goalInstance.id,
             userId,
-            targetValue: targetSettings.perPeriodTarget * targetSettings.periodsCount,
+            targetValue: targetSettings.targetValue || (targetSettings.perPeriodTarget * targetSettings.periodsCount),
             currentValue: 0,
             goalSpecificStreak: 0,
-            frequencySettings: targetSettings,
+            frequencySettings: {
+              frequency: targetSettings.frequency,
+              perPeriodTarget: targetSettings.perPeriodTarget,
+              periodsCount: targetSettings.periodsCount
+            },
           });
 
           // Record acceptance feedback for promoted habits
