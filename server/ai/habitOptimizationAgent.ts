@@ -61,7 +61,7 @@ OPTIMIZATION OBJECTIVES:
 2. **Maximize Leverage**: Each NEW habit should serve 2-4 goals (not too generic, not too narrow)
 3. **Shareable Phrasing**: Habits must use PUNCHY, 3-4 word titles that users can proudly say to others ("I ship something tiny 3x/week")
 4. **Complementary Set**: New habits should work together to create a cohesive, powerful daily/weekly rhythm
-5. **Maintain Goal Coverage**: Ensure EVERY goal has at least 1 supporting habit (existing OR new)
+        5. **Maintain Goal Coverage**: Ensure MOST goals have at least 1 supporting habit (existing OR new) - some goals may be nearly complete or one-time tasks
 6. **Archive Aggressively**: Archive low-completion (<40%) AND redundant habits without hesitation
 7. **Respect User Context**: Use insights and journal themes to create personally meaningful habits
 
@@ -105,7 +105,7 @@ CONSTRAINTS:
 - Archive at least 40% of current habits
 - Create 5-8 new habits that are BOTH high-leverage AND specific/novel
 - Each new habit should cover 2-4 goals (populate coversGoals array with goal IDs)
-- Every goal must have at least 1 habit after optimization
+- Most goals should have at least 1 habit after optimization (up to 40% can be uncovered if they're nearly complete or one-time tasks)
 - **Habit Title Format**: 3-4 punchy words that users can proudly share ("I [habit] [frequency]")
 - **Complementary Set**: New habits should create a cohesive rhythm (e.g., morning input + evening reflection, weekly creation + daily learning)
 - **Pride Factor**: User should be excited to tell friends "I [habit name]" - avoid generic/boring phrasing
@@ -309,12 +309,12 @@ export class HabitOptimizationAgent {
       (goal) => !goalCoverage.has(goal.id)
     );
     
-    // Allow up to 20% of goals to not have coverage (they might be nearly complete or low priority)
-    const maxAllowedUncovered = Math.ceil(context.activeGoals.length * 0.2);
+    // Allow up to 40% of goals to not have coverage (they might be nearly complete, low priority, or one-time tasks)
+    const maxAllowedUncovered = Math.ceil(context.activeGoals.length * 0.4);
     
     if (uncoveredGoals.length > maxAllowedUncovered) {
       errors.push(
-        `Too many goals without habit coverage (${uncoveredGoals.length}/${context.activeGoals.length}). Max allowed: ${maxAllowedUncovered}. Uncovered: ${uncoveredGoals.map((g) => g.title).join(", ")}`
+        `Too many goals without habit coverage (${uncoveredGoals.length}/${context.activeGoals.length}). Max allowed: ${maxAllowedUncovered}.\n\nGoals without habits:\n${uncoveredGoals.map((g, i) => `${i + 1}. ${g.title}`).join("\n")}\n\nThese goals may need habits or could be nearly complete/one-time tasks.`
       );
     } else if (uncoveredGoals.length > 0) {
       console.warn(

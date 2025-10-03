@@ -64,6 +64,17 @@ export class HabitOptimizationService {
     if (orphanedHabits.length > 0) {
       const orphanedIds = orphanedHabits.map(h => h.id);
       
+      // First, remove habit instances (associations with goals)
+      await db
+        .delete(habitInstances)
+        .where(
+          and(
+            eq(habitInstances.userId, userId),
+            inArray(habitInstances.habitDefinitionId, orphanedIds)
+          )
+        );
+
+      // Then archive the habits
       await db
         .update(habitDefinitions)
         .set({ isActive: false })
@@ -363,6 +374,18 @@ export class HabitOptimizationService {
             }
           }
         }
+
+        // First, remove habit instances (associations with goals)
+        await db
+          .delete(habitInstances)
+          .where(
+            and(
+              eq(habitInstances.userId, userId),
+              inArray(habitInstances.habitDefinitionId, habitIdsToArchive)
+            )
+          );
+
+        console.log(`[HabitOptimization] Removed ${habitIdsToArchive.length} habit instances from goals`);
 
         // Now archive the habits
         await db
