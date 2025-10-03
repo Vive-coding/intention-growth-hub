@@ -236,7 +236,7 @@ router.get("/", async (req: Request, res: Response) => {
       .from(lifeMetricDefinitions)
       .where(eq(lifeMetricDefinitions.userId, userId));
 
-    // Get associated habits for each goal instance
+    // Get associated habits for each goal instance (only active habits)
     const habitInstancesMap = new Map();
     for (const { goalDefinition, goalInstance } of goalsWithInstances) {
       const associatedHabits = await db
@@ -246,7 +246,10 @@ router.get("/", async (req: Request, res: Response) => {
         })
         .from(habitInstances)
         .innerJoin(habitDefinitions, eq(habitInstances.habitDefinitionId, habitDefinitions.id))
-        .where(eq(habitInstances.goalInstanceId, goalInstance.id));
+        .where(and(
+          eq(habitInstances.goalInstanceId, goalInstance.id),
+          eq(habitDefinitions.isActive, true) // Filter out archived habits
+        ));
       
       habitInstancesMap.set(goalInstance.id, associatedHabits);
     }
@@ -1114,6 +1117,111 @@ router.get("/:goalId/habits/recommendations", async (req: Request, res: Response
     res.status(500).json({ error: "Failed to compute recommendations" });
   }
 });
+
+// ====== Habit Optimization Routes (MUST be before /habits route) ======
+
+// Archive orphaned habits (habits not linked to any active goals)
+router.post("/habits/optimize/archive-orphaned", async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user?.id;
+    
+    if (!userId) {
+      return res.status(401).json({ message: "User not authenticated" });
+    }
+
+    console.log(`[HabitOptimization] Archiving orphaned habits for user ${userId}`);
+
+    const { HabitOptimizationService } = await import("../services/habitOptimizationService");
+    
+    const result = await HabitOptimizationService.archiveOrphanedHabits(userId);
+    
+    res.json({
+      success: true,
+      ...result
+    });
+  } catch (error: any) {
+    console.error("[HabitOptimization] Error archiving orphaned habits:", error);
+    res.status(500).json({ 
+      error: "Failed to archive orphaned habits",
+      message: error.message 
+    });
+  }
+});
+
+// Get optimization analysis (without executing)
+router.get("/habits/optimize/analyze", async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user?.id;
+    
+    if (!userId) {
+      return res.status(401).json({ message: "User not authenticated" });
+    }
+
+    console.log(`[HabitOptimization] Analyzing habits for user ${userId}`);
+
+    // Import the service dynamically to avoid circular dependencies
+    const { HabitOptimizationService } = await import("../services/habitOptimizationService");
+    
+    // First, archive orphaned habits automatically
+    console.log(`[HabitOptimization] Auto-archiving orphaned habits before analysis...`);
+    const orphanedResult = await HabitOptimizationService.archiveOrphanedHabits(userId);
+    console.log(`[HabitOptimization] Auto-archived ${orphanedResult.archivedCount} orphaned habits`);
+    
+    // Then analyze remaining active habits
+    const proposal = await HabitOptimizationService.analyzeHabits(userId);
+    
+    // Include orphaned habits info in response
+    res.json({
+      ...proposal,
+      orphanedHabitsArchived: orphanedResult.archivedCount,
+      orphanedHabitNames: orphanedResult.archivedHabits
+    });
+  } catch (error: any) {
+    console.error("[HabitOptimization] Error analyzing habits:", error);
+    res.status(500).json({ 
+      error: "Failed to analyze habits",
+      message: error.message 
+    });
+  }
+});
+
+// Execute habit optimization
+router.post("/habits/optimize/execute", async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user?.id;
+    
+    if (!userId) {
+      return res.status(401).json({ message: "User not authenticated" });
+    }
+
+    const { proposal } = req.body;
+
+    if (!proposal || !proposal.habitsToArchive || !proposal.habitsToCreate) {
+      return res.status(400).json({ error: "Invalid optimization proposal" });
+    }
+
+    console.log(`[HabitOptimization] Executing optimization for user ${userId}`);
+
+    // Import the service dynamically
+    const { HabitOptimizationService } = await import("../services/habitOptimizationService");
+    
+    await HabitOptimizationService.executeOptimization(userId, proposal);
+    
+    res.json({ 
+      success: true,
+      message: "Habits optimized successfully",
+      summary: proposal.summary
+    });
+  } catch (error: any) {
+    console.error("[HabitOptimization] Error executing optimization:", error);
+    res.status(500).json({ 
+      error: "Failed to execute optimization",
+      message: error.message
+    });
+  }
+});
+
+// ====== End Habit Optimization Routes ======
 
 // Get all habits for the user
 router.get("/habits", async (req: Request, res: Response) => {
@@ -2190,7 +2298,7 @@ router.get("/:id", async (req: Request, res: Response) => {
       return res.status(404).json({ error: "Goal not found" });
     }
 
-    // Get associated habits for this goal
+    // Get associated habits for this goal (only active habits)
     const associatedHabits = await db
       .select({
         habitInstance: habitInstances,
@@ -2198,7 +2306,10 @@ router.get("/:id", async (req: Request, res: Response) => {
       })
       .from(habitInstances)
       .innerJoin(habitDefinitions, eq(habitInstances.habitDefinitionId, habitDefinitions.id))
-      .where(eq(habitInstances.goalInstanceId, goalId));
+      .where(and(
+        eq(habitInstances.goalInstanceId, goalId),
+        eq(habitDefinitions.isActive, true) // Filter out archived habits
+      ));
 
     // Debug: Log the raw habit data from database
     console.log('🟣 Raw habit data from database:', associatedHabits.map(hi => ({

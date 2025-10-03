@@ -4,11 +4,14 @@ import { habitsService, type Habit } from "@/services/habitsService";
 import { HabitCompletionCard } from "./HabitCompletionCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
-import { Flame, Calendar, CheckCircle } from "lucide-react";
+import { Flame, Calendar, CheckCircle, Sparkles } from "lucide-react";
 import { useLocation } from "wouter";
 import { Logo } from "@/components/ui/Logo";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { OptimizeHabitsModal } from "./OptimizeHabitsModal";
+import { useToast } from "@/hooks/use-toast";
 
 export function HabitsScreen() {
   // Get metric filter from URL
@@ -19,8 +22,10 @@ export function HabitsScreen() {
   // Hooks must stay at top-level and never be conditional
   const [statusFilter, setStatusFilter] = React.useState<'active' | 'archived' | 'all'>('active');
   const [lifeMetricFilter, setLifeMetricFilter] = React.useState<string>('All');
+  const [showOptimizeModal, setShowOptimizeModal] = React.useState(false);
+  const { toast } = useToast();
 
-  const { data: habits, isLoading, error } = useQuery({
+  const { data: habits, isLoading, error, refetch } = useQuery({
     queryKey: ["habits", statusFilter],
     queryFn: () => habitsService.getHabits(statusFilter),
   });
@@ -172,6 +177,20 @@ export function HabitsScreen() {
         ]}
       />
       
+      {/* Optimize Habits Button */}
+      {statusFilter === 'active' && filteredHabits.length >= 5 && (
+        <div className="flex justify-end">
+          <Button
+            onClick={() => setShowOptimizeModal(true)}
+            variant="outline"
+            className="gap-2"
+          >
+            <Sparkles className="w-4 h-4" />
+            Optimize Habits
+          </Button>
+        </div>
+      )}
+      
       {/* Summary Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6 mt-6">
         <Card>
@@ -215,6 +234,19 @@ export function HabitsScreen() {
             <HabitCompletionCard key={habit.id} habit={habit} />
           ))}
         </div>
+
+      {/* Optimize Habits Modal */}
+      <OptimizeHabitsModal
+        open={showOptimizeModal}
+        onClose={() => setShowOptimizeModal(false)}
+        onSuccess={() => {
+          toast({
+            title: "Habits Optimized!",
+            description: "Your habits have been successfully optimized.",
+          });
+          refetch(); // Refresh habits list
+        }}
+      />
       </div>
     </div>
   );
