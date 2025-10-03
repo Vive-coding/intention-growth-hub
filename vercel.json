@@ -2,3 +2,4 @@
   "buildCommand": "npm run build:frontend",
   "outputDirectory": "client/dist"
 }
+// Force fresh deployment - Thu Oct  2 23:22:42 EDT 2025
