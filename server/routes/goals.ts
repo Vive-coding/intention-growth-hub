@@ -1119,6 +1119,59 @@ router.get("/:goalId/habits/recommendations", async (req: Request, res: Response
   }
 });
 
+// Suggest more habits for a specific goal
+router.post("/:goalId/habits/suggest-more", async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user?.id;
+    if (!userId) {
+      return res.status(401).json({ message: "User not authenticated" });
+    }
+    
+    const goalId = req.params.goalId;
+    
+    // Load goal with definition and metric context
+    const goalRow = await db
+      .select({
+        gi: goalInstances,
+        gd: goalDefinitions,
+        lm: lifeMetricDefinitions,
+      })
+      .from(goalInstances)
+      .innerJoin(goalDefinitions, eq(goalInstances.goalDefinitionId, goalDefinitions.id))
+      .leftJoin(lifeMetricDefinitions, eq(goalDefinitions.lifeMetricId, lifeMetricDefinitions.id))
+      .where(and(eq(goalInstances.id, goalId), eq(goalInstances.userId, userId)))
+      .limit(1);
+
+    if (!goalRow[0]) {
+      return res.status(404).json({ message: "Goal not found" });
+    }
+
+    const goalTitle = goalRow[0].gd.title || "";
+    const goalDesc = goalRow[0].gd.description || "";
+    const goalMetric = goalRow[0].lm?.name || goalRow[0].gd.category || "";
+    
+    // Generate new habit suggestions using AI
+    const { generateHabitSuggestions } = await import('../ai/habitSuggestionAgent');
+    
+    const newSuggestions = await generateHabitSuggestions({
+      goalTitle,
+      goalDescription: goalDesc,
+      lifeMetric: goalMetric,
+      userId,
+      limit: 5
+    });
+
+    res.json({
+      success: true,
+      suggestions: newSuggestions,
+      message: `Generated ${newSuggestions.length} new habit suggestions`
+    });
+  } catch (error) {
+    console.error("Error suggesting more habits:", error);
+    res.status(500).json({ error: "Failed to generate habit suggestions" });
+  }
+});
+
 // ====== Habit Optimization Routes (MUST be before /habits route) ======
 
 // Archive orphaned habits (habits not linked to any active goals)

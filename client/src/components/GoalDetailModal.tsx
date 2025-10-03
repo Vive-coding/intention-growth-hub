@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { ArrowLeft, Edit, Plus, Flame, X, CheckCircle, Archive, Trash } from "lucide-react";
+import { ArrowLeft, Edit, Plus, Flame, X, CheckCircle, Archive, Trash, ChevronDown, ChevronRight, Sparkles } from "lucide-react";
 
 import { HabitCompletionProgress } from "./HabitCompletionProgress";
 import { Input } from "@/components/ui/input";
@@ -136,7 +136,14 @@ export const GoalDetailModal = ({
   const [existingHabitPeriods, setExistingHabitPeriods] = useState(1);
   const [activeTab, setActiveTab] = useState("select");
   const [targetValue, setTargetValue] = useState(1);
-  const [selectedHabitId, setSelectedHabitId] = useState("");
+  const [selectedHabitIds, setSelectedHabitIds] = useState<string[]>([]);
+  const [showBrowseAll, setShowBrowseAll] = useState(false);
+  const [suggestingMore, setSuggestingMore] = useState(false);
+  const [showTargetSetting, setShowTargetSetting] = useState(false);
+  const [habitTargets, setHabitTargets] = useState<{[habitId: string]: {frequency: string; perPeriodTarget: number; periodsCount: number}}>({});
+  const [newSuggestionsCount, setNewSuggestionsCount] = useState(0);
+  const [newSuggestedHabits, setNewSuggestedHabits] = useState<any[]>([]);
+  const [showNewSuggestions, setShowNewSuggestions] = useState(false);
   
   // Calculate periods based on goal target date and frequency
   const calculatePeriodsFromTargetDate = (frequency: string) => {
@@ -220,6 +227,15 @@ export const GoalDetailModal = ({
     queryKey: ['/api/goals', goalData.id, 'habits', 'recommendations'],
     queryFn: async () => {
       return apiRequest(`/api/goals/${goalData.id}/habits/recommendations?limit=5`);
+    },
+    retry: 1,
+  });
+
+  // Dashboard suggested habits (global suggestions)
+  const { data: dashboardSuggestedHabits = [] } = useQuery({
+    queryKey: ['/api/goals/habits/suggested'],
+    queryFn: async () => {
+      return apiRequest('/api/goals/habits/suggested');
     },
     retry: 1,
   });
@@ -335,6 +351,48 @@ export const GoalDetailModal = ({
         variant: 'destructive',
       });
     }
+  };
+
+  const suggestMoreHabits = async () => {
+    setSuggestingMore(true);
+    try {
+      // Trigger new habit suggestions for this goal
+      const response = await apiRequest(`/api/goals/${goalData.id}/habits/suggest-more`, {
+        method: 'POST',
+        body: JSON.stringify({ goalId: goalData.id })
+      });
+      
+      // Refresh both recommendations and dashboard suggestions
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['/api/goals', goalData.id, 'habits', 'recommendations'] }),
+        queryClient.invalidateQueries({ queryKey: ['/api/goals/habits/suggested'] })
+      ]);
+      
+      // Store new suggested habits
+      const newHabits = response?.suggestions || [];
+      setNewSuggestedHabits(newHabits);
+      setNewSuggestionsCount(newHabits.length);
+      setShowNewSuggestions(false); // Hide them initially, show button instead
+      
+      toast({
+        title: "New habits suggested!",
+        description: `${newHabits.length} new habits ready to view.`,
+      });
+    } catch (error) {
+      console.error("Error suggesting more habits:", error);
+      toast({
+        title: "Error",
+        description: "Failed to generate new habit suggestions. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setSuggestingMore(false);
+    }
+  };
+
+  const viewNewSuggestions = () => {
+    setShowNewSuggestions(true);
+    setNewSuggestionsCount(0); // Hide the "View X new" button after viewing
   };
 
   const handleManualComplete = async () => {
@@ -584,38 +642,45 @@ export const GoalDetailModal = ({
       console.log('Goal object:', goalData);
       
       if (activeTab === "select") {
-        if (!selectedHabitId) {
-          alert("Please select a habit");
+        if (selectedHabitIds.length === 0) {
+          alert("Please select at least one habit");
           return;
         }
         
-        console.log('Adding existing habit:', selectedHabitId, 'to goal:', goalData.id);
+        console.log('Adding existing habits:', selectedHabitIds, 'to goal:', goalData.id);
         
-        const response = await apiRequest(`/api/goals/${goalData.id}/habits`, {
-          method: 'POST',
-          body: JSON.stringify({
-            habitDefinitionId: selectedHabitId,
-            targetValue: targetValue,
-            frequencySettings: {
-              frequency: existingHabitFrequency,
-              perPeriodTarget: existingHabitPerPeriod,
-              periodsCount: existingHabitPeriods,
-            },
-          }),
+        // Add multiple habits
+        const promises = selectedHabitIds.map(async (habitId) => {
+          const response = await apiRequest(`/api/goals/${goalData.id}/habits`, {
+            method: 'POST',
+            body: JSON.stringify({
+              habitDefinitionId: habitId,
+              targetValue: targetValue,
+              frequencySettings: {
+                frequency: existingHabitFrequency,
+                perPeriodTarget: existingHabitPerPeriod,
+                periodsCount: existingHabitPeriods,
+              },
+            }),
+          });
+          return response;
         });
         
-        console.log('Added existing habit to goal:', response);
+        const responses = await Promise.all(promises);
+        
+        console.log('Added existing habits to goal:', responses);
         
         toast({
-          title: 'Habit added successfully!',
-          description: 'The habit has been added to your goal.',
+          title: 'Habits added successfully!',
+          description: `${selectedHabitIds.length} habit(s) have been added to your goal.`,
         });
         
         // Invalidate queries to refresh data
         queryClient.invalidateQueries({ queryKey: ['/api/goals'] });
         
-        // Call the parent's onAddHabit function
-        const selectedHabit = existingHabits.find((h: any) => h.id === selectedHabitId);
+        // Call the parent's onAddHabit function for each habit
+        selectedHabitIds.forEach((habitId) => {
+          const selectedHabit = existingHabits.find((h: any) => h.id === habitId);
         if (selectedHabit) {
           const calculatedTargetValue = existingHabitPerPeriod * existingHabitPeriods;
           console.log('🟣 Adding existing habit with calculated values:', {
@@ -635,12 +700,13 @@ export const GoalDetailModal = ({
             periodsCount: existingHabitPeriods,
           },
         });
+          }
+        });
         
         // Wait a moment for the parent to process, then refresh the goal data
         setTimeout(async () => {
           await refreshGoalData();
         }, 100);
-        }
         
       } else if (activeTab === "create") {
         if (!newHabitTitle.trim()) {
@@ -695,7 +761,7 @@ export const GoalDetailModal = ({
       }
       
       // Reset form and close panel
-      setSelectedHabitId("");
+      setSelectedHabitIds([]);
       setNewHabitTitle("");
       setNewHabitDescription("");
       setNewHabitFrequency("daily");
@@ -707,12 +773,106 @@ export const GoalDetailModal = ({
       setTargetValue(1);
       setSearchTerm("");
       setShowAddHabitPanel(false);
+      setShowBrowseAll(false);
+      setShowTargetSetting(false);
+      setHabitTargets({});
       
     } catch (error) {
       console.error('Error adding habit:', error);
       toast({
         title: 'Failed to add habit',
         description: 'Please try again.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleAddHabitWithTargets = async () => {
+    try {
+      console.log('Adding habits with individual targets:', selectedHabitIds, habitTargets);
+      
+      // Add multiple habits with their individual targets
+      const promises = selectedHabitIds.map(async (habitId) => {
+        const targets = habitTargets[habitId];
+        if (!targets) return;
+        
+        console.log('Adding habit:', habitId, 'with targets:', targets);
+        
+        const response = await apiRequest(`/api/goals/${goalData.id}/habits`, {
+          method: 'POST',
+          body: JSON.stringify({
+            habitDefinitionId: habitId,
+            targetValue: targets.perPeriodTarget * targets.periodsCount,
+            frequencySettings: {
+              frequency: targets.frequency,
+              perPeriodTarget: targets.perPeriodTarget,
+              periodsCount: targets.periodsCount,
+            },
+          }),
+        });
+        
+        return response;
+      });
+      
+      const responses = await Promise.all(promises);
+      console.log('Added habits with targets:', responses);
+      
+      toast({
+        title: 'Habits added successfully!',
+        description: `${selectedHabitIds.length} habit(s) have been added to your goal with individual targets.`,
+      });
+      
+      // Invalidate queries to refresh data
+      queryClient.invalidateQueries({ queryKey: ['/api/goals'] });
+      
+      // Call the parent's onAddHabit function for each habit
+      selectedHabitIds.forEach((habitId) => {
+        const targets = habitTargets[habitId];
+        if (!targets) return;
+        
+        const selectedHabit = existingHabits.find((h: any) => h.id === habitId) ||
+                             recommendedHabits.find((h: any) => h.id === habitId) ||
+                             dashboardSuggestedHabits.find((h: any) => h.id === habitId);
+        
+        if (selectedHabit) {
+          const calculatedTargetValue = targets.perPeriodTarget * targets.periodsCount;
+          console.log('🟣 Adding habit with calculated values:', {
+            habitId: selectedHabit.id,
+            habitTitle: selectedHabit.title || selectedHabit.name,
+            perPeriodTarget: targets.perPeriodTarget,
+            periodsCount: targets.periodsCount,
+            calculatedTargetValue,
+            frequency: targets.frequency
+          });
+          onAddHabit(goalData.id, {
+            habitDefinitionId: selectedHabit.id,
+            targetValue: calculatedTargetValue,
+            frequencySettings: {
+              frequency: targets.frequency,
+              perPeriodTarget: targets.perPeriodTarget,
+              periodsCount: targets.periodsCount,
+            },
+          });
+        }
+      });
+      
+      // Wait a moment for the parent to process, then refresh the goal data
+      setTimeout(async () => {
+        await refreshGoalData();
+      }, 100);
+      
+      // Close the modal and reset state
+      setShowTargetSetting(false);
+      setShowAddHabitPanel(false);
+      setSelectedHabitIds([]);
+      setHabitTargets({});
+      setShowBrowseAll(false);
+      
+    } catch (error) {
+      console.error('Error adding habits with targets:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to add habits. Please try again.',
         variant: 'destructive',
       });
     }
@@ -922,48 +1082,26 @@ export const GoalDetailModal = ({
               </div>
             </div>
             
-            <div className="flex-1 overflow-y-auto overflow-x-hidden">
-              <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-              <TabsList className="grid w-full grid-cols-2">
+            <div className="flex-1 flex flex-col overflow-hidden">
+              <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full flex flex-col flex-1">
+              <TabsList className="grid w-full grid-cols-2 flex-shrink-0">
                               <TabsTrigger value="select" className="text-xs sm:text-sm">Select Existing</TabsTrigger>
               <TabsTrigger value="create" className="text-xs sm:text-sm">Create New</TabsTrigger>
               </TabsList>
 
-              <TabsContent value="select" className="space-y-4 mt-4">
-                <div className="space-y-2">
-                  <p className="text-sm text-gray-600">Select a habit to add to this goal:</p>
+              <TabsContent value="select" className="space-y-4 mt-4 flex-1 flex flex-col">
+                <div className="space-y-2 flex-1 flex flex-col">
+                  <p className="text-sm text-gray-600">Select habits to add to this goal:</p>
                   
-                  {/* Expandable Habit Selection */}
-                  <div className="space-y-2">
+                  {/* Selected Habits Counter */}
+                  {selectedHabitIds.length > 0 && (
+                    <div className="text-xs font-medium text-gray-500 mb-2">
+                      Selected Habits ({selectedHabitIds.length})
+                    </div>
+                  )}
                     
-                    {/* Selected Habit Display */}
-                    {selectedHabitId && (
-                      <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
-                        <div className="flex items-center justify-between">
-                          <div className="flex-1">
-                            <div className="font-medium text-sm text-blue-800">
-                              {existingHabits.find(h => h.id === selectedHabitId)?.title}
-                            </div>
-                            {existingHabits.find(h => h.id === selectedHabitId)?.description && (
-                              <div className="text-xs text-blue-600 mt-1">
-                                {existingHabits.find(h => h.id === selectedHabitId)?.description}
-                              </div>
-                            )}
-                          </div>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setSelectedHabitId("")}
-                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                          >
-                            <X className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    )}
-                    
-                    {/* Habit List - Always Visible */}
-                    <div className="border rounded-md max-h-64 overflow-y-auto">
+                    {/* Habit Selection - Single Scroll Container */}
+                    <div className="border rounded-md flex-1 overflow-y-auto" style={{ maxHeight: '500px' }}>
                         {/* Search Input */}
                         <div className="p-3 border-b bg-gray-50">
                           <Input
@@ -974,153 +1112,226 @@ export const GoalDetailModal = ({
                           />
                         </div>
                         
-                        {/* Recommended Habits Section */}
-                        {Array.isArray(recommendedHabits) && recommendedHabits.length > 0 && (
-                          <>
-                            <div className="px-3 py-2 text-xs font-medium text-gray-500 bg-gray-100 border-b">
-                              RECOMMENDED
-                            </div>
-                            {recommendedHabits
+                        {/* Recommended Habits Section - Always Expanded */}
+                        <div className="space-y-2">
+                          {/* Combined Recommended Habits */}
+                          {(() => {
+                            // Filter dashboard suggestions to only show relevant ones
+                            const relevantDashboardHabits = Array.isArray(dashboardSuggestedHabits) 
+                              ? dashboardSuggestedHabits
+                                  .filter((habit: any) => {
+                                    // Check if habit is relevant to current goal
+                                    const habitTitle = (habit.title || habit.name || '').toLowerCase();
+                                    const habitDesc = (habit.description || '').toLowerCase();
+                                    const goalTitle = goalData.title.toLowerCase();
+                                    const goalDesc = (goalData.description || '').toLowerCase();
+                                    
+                                    // More strict relevance check
+                                    const goalText = `${goalTitle} ${goalDesc}`;
+                                    const habitText = `${habitTitle} ${habitDesc}`;
+                                    
+                                    // Extract meaningful keywords (longer than 3 chars, not common words)
+                                    const commonWords = ['the', 'and', 'for', 'with', 'this', 'that', 'your', 'you', 'are', 'can', 'will', 'have', 'has', 'been', 'from', 'into', 'more', 'most', 'some', 'time', 'day', 'week', 'month', 'year'];
+                                    const goalKeywords = goalText.split(' ').filter(word => 
+                                      word.length > 3 && !commonWords.includes(word)
+                                    );
+                                    const habitKeywords = habitText.split(' ').filter(word => 
+                                      word.length > 3 && !commonWords.includes(word)
+                                    );
+                                    
+                                    // Check for meaningful keyword overlap
+                                    const hasOverlap = goalKeywords.some(keyword => 
+                                      habitKeywords.some(hKeyword => 
+                                        hKeyword.includes(keyword) || keyword.includes(hKeyword) ||
+                                        hKeyword === keyword
+                                      )
+                                    );
+                                    
+                                    return hasOverlap;
+                                  })
+                                  .slice(0, 2)
+                              : [];
+                            
+                            const semanticHabits = Array.isArray(recommendedHabits) ? recommendedHabits.slice(0, 3) : [];
+                            
+                            // Include new suggested habits if they're being shown
+                            const newHabits = showNewSuggestions ? newSuggestedHabits : [];
+                            
+                            // Also include high-scoring existing habits that aren't already recommended
+                            const highScoringExisting = existingHabits
+                              .filter((habit: any) => 
+                                !goalData.habits.some((associatedHabit: any) => associatedHabit.id === habit.id) &&
+                                !relevantDashboardHabits.some((dh: any) => dh.id === habit.id) &&
+                                !semanticHabits.some((sh: any) => sh.id === habit.id) &&
+                                !newHabits.some((nh: any) => nh.id === habit.id) &&
+                                habit.isActive === true && // Only active habits
+                                habit.score > 0.7 // High scoring habits
+                              )
+                              .slice(0, 2); // Limit to 2 high-scoring existing habits
+                            
+                            // Combine all habits - existing recommendations first, then new suggestions
+                            const allHabits = [...relevantDashboardHabits, ...semanticHabits, ...highScoringExisting, ...newHabits]
                               .filter((habit: any) =>
-                                habit.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                                (habit.title || habit.name)?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                                 habit.description?.toLowerCase().includes(searchTerm.toLowerCase())
                               )
                               .filter((habit: any) => 
-                                // Filter out habits that are already associated with this goal
                                 !goalData.habits.some((associatedHabit: any) => 
                                   associatedHabit.id === habit.id
                                 )
                               )
-                              .map((habit: any) => (
-                                <div
-                                  key={habit.id}
-                                  className={`p-3 border-b cursor-pointer hover:bg-gray-50 ${
-                                    selectedHabitId === habit.id ? 'bg-blue-50 border-blue-200' : ''
-                                  }`}
-                                  onClick={() => setSelectedHabitId(habit.id)}
-                                >
-                                  <div className="flex justify-between items-start">
-                                    <div className="flex-1">
-                                      <div className="font-medium text-sm">{habit.title}</div>
-                                      {habit.description && (
-                                        <div className="text-xs text-gray-600 line-clamp-2 mt-1">{habit.description}</div>
-                                      )}
-                                    </div>
-                                    <div className="text-xs text-gray-500 ml-3 flex-shrink-0">
-                                      Score {(habit.score*100).toFixed(0)}
+                              .filter((habit: any) => {
+                                // Prioritize active habits, only show inactive if high leverage + high impact
+                                if (habit.isActive !== false) return true; // Show active habits
+                                // For inactive habits, only show if they have high score/leverage
+                                return habit.score > 0.8 || habit.isHighLeverage;
+                              });
+                            
+                            // Don't limit the total count when showing new suggestions
+                            const finalHabits = showNewSuggestions ? allHabits : allHabits.slice(0, 5);
+
+                            if (finalHabits.length === 0) return null;
+
+                            return (
+                              <>
+                                <div className="px-3 py-2 text-xs font-medium text-gray-500 bg-blue-50 border-b flex items-center gap-2">
+                                  <Sparkles className="w-3 h-3" />
+                                  RECOMMENDED
+                                  {showNewSuggestions && (
+                                    <span className="bg-green-500 text-white text-xs px-2 py-0.5 rounded-full">
+                                      +{newSuggestedHabits.length} new
+                                    </span>
+                                  )}
+                                </div>
+                                {finalHabits.map((habit: any) => (
+                                  <div
+                                    key={habit.id}
+                                    className={`p-3 border-b cursor-pointer hover:bg-gray-50 ${
+                                      selectedHabitIds.includes(habit.id) ? 'bg-blue-50 border-blue-200' : ''
+                                    }`}
+                                    onClick={() => {
+                                      if (selectedHabitIds.includes(habit.id)) {
+                                        setSelectedHabitIds(prev => prev.filter(id => id !== habit.id));
+                                      } else {
+                                        setSelectedHabitIds(prev => [...prev, habit.id]);
+                                      }
+                                    }}
+                                  >
+                                    <div className="flex items-start gap-3">
+                                      <div className={`w-4 h-4 mt-0.5 border-2 rounded ${
+                                        selectedHabitIds.includes(habit.id) 
+                                          ? 'bg-blue-600 border-blue-600' 
+                                          : 'border-gray-300'
+                                      }`}>
+                                        {selectedHabitIds.includes(habit.id) && (
+                                          <div className="w-full h-full flex items-center justify-center">
+                                            <div className="w-2 h-2 bg-white rounded-sm"></div>
+                                          </div>
+                                        )}
+                                      </div>
+                                      <div className="flex-1">
+                                        <div className="font-medium text-sm">{habit.title || habit.name}</div>
+                                        {habit.description && (
+                                          <div className="text-xs text-gray-600 line-clamp-2 mt-1">{habit.description}</div>
+                                        )}
+                                      </div>
+                                      <div className="text-xs text-gray-500 ml-3 flex-shrink-0">
+                                        {newHabits.includes(habit) ? 'New' : 
+                                         habit.score ? `Score ${(habit.score*100).toFixed(0)}` : 'Suggested'}
+                                      </div>
                                     </div>
                                   </div>
-                                </div>
-                              ))}
-                          </>
-                        )}
-                        
-                        {/* All Other Habits */}
-                        <div className="px-3 py-2 text-xs font-medium text-gray-500 bg-gray-100 border-b">
-                          ALL HABITS
-                        </div>
-                        {existingHabits
-                          .filter((habit: any) =>
-                            habit.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                            habit.description?.toLowerCase().includes(searchTerm.toLowerCase())
-                          )
-                          .filter((habit: any) => 
-                            // Filter out habits that are already associated with this goal
-                            !goalData.habits.some((associatedHabit: any) => 
-                              associatedHabit.id === habit.id
-                            )
-                          )
-                          .map((habit: any) => (
-                            <div
-                              key={habit.id}
-                              className={`p-3 border-b cursor-pointer hover:bg-gray-50 ${
-                                selectedHabitId === habit.id ? 'bg-blue-50 border-blue-200' : ''
-                              }`}
-                              onClick={() => setSelectedHabitId(habit.id)}
-                            >
-                              <div className="font-medium text-sm">{habit.title}</div>
-                              {habit.description && (
-                                <div className="text-xs text-gray-600 line-clamp-2 mt-1">{habit.description}</div>
-                              )}
-                            </div>
-                          ))}
-                      </div>
-                  </div>
-                  
-                </div>
-                
-                {/* Target Setting Module - Always Visible */}
-                <div className="space-y-4">
-                  <div className="bg-gray-50 p-4 rounded-lg">
-                    <h4 className="font-medium text-sm mb-3">
-                      Set Habit Targets for this Goal
-                      {selectedHabitId ? (
-                        <span className="text-xs text-gray-500 ml-2">
-                          (Selected: {selectedHabitId})
-                        </span>
-                      ) : (
-                        <span className="text-xs text-gray-500 ml-2">
-                          (Select a habit above to configure targets)
-                        </span>
-                      )}
-                    </h4>
-                      
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                        <div>
-                          <Label htmlFor="existingHabitFrequency">Frequency</Label>
-                          <Select value={existingHabitFrequency} onValueChange={setExistingHabitFrequency}>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select frequency" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="daily">Daily</SelectItem>
-                              <SelectItem value="weekly">Weekly</SelectItem>
-                              <SelectItem value="monthly">Monthly</SelectItem>
-                            </SelectContent>
-                          </Select>
+                                ))}
+                              </>
+                            );
+                          })()}
+
+                          {/* New Suggestions Button or Suggest More Button */}
+                          <div className="p-3 border-b">
+                            {newSuggestionsCount > 0 ? (
+                              <Button
+                                variant="default"
+                                size="sm"
+                                onClick={viewNewSuggestions}
+                                className="w-full text-xs bg-green-600 hover:bg-green-700"
+                              >
+                                <Sparkles className="w-3 h-3 mr-2" />
+                                View {newSuggestionsCount} new suggested habits
+                              </Button>
+                            ) : (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={suggestMoreHabits}
+                                disabled={suggestingMore}
+                                className="w-full text-xs"
+                              >
+                                <Sparkles className="w-3 h-3 mr-2" />
+                                {suggestingMore ? "Generating..." : "Suggest More Habits"}
+                              </Button>
+                            )}
+                          </div>
                         </div>
                         
-                        <div>
-                          <Label htmlFor="existingHabitPerPeriod">Target per period</Label>
-                          <Input
-                            id="existingHabitPerPeriod"
-                            type="number"
-                            min="1"
-                            value={existingHabitPerPeriod}
-                            onChange={(e) => setExistingHabitPerPeriod(Number(e.target.value))}
-                            placeholder="e.g., 1"
-                          />
-                        </div>
-                        
-                        <div>
-                          <Label htmlFor="existingHabitPeriods">
-                            {existingHabitFrequency === 'daily' ? 'Number of days' : 
-                             existingHabitFrequency === 'weekly' ? 'Number of weeks' : 
-                             'Number of months'}
-                          </Label>
-                          <Input
-                            id="existingHabitPeriods"
-                            type="number"
-                            min="1"
-                            value={existingHabitPeriods}
-                            onChange={(e) => setExistingHabitPeriods(Number(e.target.value))}
-                            placeholder="e.g., 7"
-                          />
+                        {/* Browse All Habits - Always Expanded */}
+                        <div className="border-t">
+                          <div className="px-3 py-2 text-xs font-medium text-gray-500 bg-gray-100 border-b">
+                            BROWSE ALL HABITS
+                          </div>
+                          <div>
+                              {existingHabits
+                                .filter((habit: any) =>
+                                  habit.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                                  habit.description?.toLowerCase().includes(searchTerm.toLowerCase())
+                                )
+                                .filter((habit: any) => 
+                                  !goalData.habits.some((associatedHabit: any) => 
+                                    associatedHabit.id === habit.id
+                                  )
+                                )
+                                .map((habit: any) => (
+                                  <div
+                                    key={habit.id}
+                                    className={`p-3 border-b cursor-pointer hover:bg-gray-50 ${
+                                      selectedHabitIds.includes(habit.id) ? 'bg-blue-50 border-blue-200' : ''
+                                    }`}
+                                    onClick={() => {
+                                      if (selectedHabitIds.includes(habit.id)) {
+                                        setSelectedHabitIds(prev => prev.filter(id => id !== habit.id));
+                                      } else {
+                                        setSelectedHabitIds(prev => [...prev, habit.id]);
+                                      }
+                                    }}
+                                  >
+                                    <div className="flex items-start gap-3">
+                                      <div className={`w-4 h-4 mt-0.5 border-2 rounded ${
+                                        selectedHabitIds.includes(habit.id) 
+                                          ? 'bg-blue-600 border-blue-600' 
+                                          : 'border-gray-300'
+                                      }`}>
+                                        {selectedHabitIds.includes(habit.id) && (
+                                          <div className="w-full h-full flex items-center justify-center">
+                                            <div className="w-2 h-2 bg-white rounded-sm"></div>
+                                          </div>
+                                        )}
+                                      </div>
+                                      <div className="flex-1">
+                                        <div className="font-medium text-sm">{habit.title}</div>
+                                        {habit.description && (
+                                          <div className="text-xs text-gray-600 line-clamp-2 mt-1">{habit.description}</div>
+                                        )}
+                                      </div>
+                                      {habit.score && (
+                                        <div className="text-xs text-gray-500 ml-3 flex-shrink-0">
+                                          Score {(habit.score*100).toFixed(0)}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                ))}
+                          </div>
                         </div>
                       </div>
-                      
-                      <div className="mt-3 p-3 bg-blue-50 rounded border border-blue-200">
-                        <div className="text-sm text-blue-800">
-                          <strong>Target:</strong> {existingHabitPerPeriod} per {existingHabitFrequency} × {existingHabitPeriods} {existingHabitFrequency === 'daily' ? 'days' : existingHabitFrequency === 'weekly' ? 'weeks' : 'months'} = {existingHabitPerPeriod * existingHabitPeriods} total
-                        </div>
-                      </div>
-                      
-                      {!selectedHabitId && (
-                        <div className="text-center py-4 text-sm text-gray-500">
-                          Select a habit above to configure its targets for this goal
-                        </div>
-                      )}
-                    </div>
                   </div>
                 </TabsContent>
 
@@ -1199,15 +1410,162 @@ export const GoalDetailModal = ({
                   </div>
                 </div>
               </TabsContent>
-                          </Tabs>
+            </Tabs>
             </div>
             
             <div className="flex flex-col sm:flex-row justify-end gap-2 pt-6 mt-4">
               <Button variant="outline" onClick={() => setShowAddHabitPanel(false)} className="w-full sm:w-auto">
                 Cancel
               </Button>
-              <Button onClick={handleAddHabit} className="w-full sm:w-auto">
-                Add Habit
+              <Button 
+                onClick={() => {
+                  if (activeTab === "select" && selectedHabitIds.length > 0) {
+                    // Initialize habit targets with defaults
+                    const defaultTargets: {[habitId: string]: {frequency: string; perPeriodTarget: number; periodsCount: number}} = {};
+                    selectedHabitIds.forEach(habitId => {
+                      defaultTargets[habitId] = {
+                        frequency: "daily",
+                        perPeriodTarget: 1,
+                        periodsCount: goalData.targetDate ? calculatePeriodsFromTargetDate("daily") : 7
+                      };
+                    });
+                    setHabitTargets(defaultTargets);
+                    setShowTargetSetting(true);
+                  } else {
+                    handleAddHabit();
+                  }
+                }}
+                disabled={activeTab === "select" && selectedHabitIds.length === 0}
+                className="w-full sm:w-auto"
+              >
+{activeTab === "select" ? "Next" : "Add Habit"}
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        {/* Target Setting Panel */}
+        <div className={`absolute inset-0 bg-white transition-transform duration-300 ${showTargetSetting ? 'translate-x-0' : 'translate-x-full'} z-20`}>
+          <div className="p-3 sm:p-6 h-full flex flex-col overflow-hidden bg-white relative" style={{ height: 'calc(90vh - 2rem)' }}>
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center space-x-2">
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={() => setShowTargetSetting(false)}
+                  className="p-1"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                </Button>
+                <span className="text-sm text-gray-500">Back to Habit Selection</span>
+              </div>
+              <div className="text-center">
+                <h2 className="text-xl font-bold">Set Habit Targets</h2>
+                <p className="text-sm text-gray-600">Define how often you'll complete each habit to achieve your goal by {goalData.targetDate ? new Date(goalData.targetDate).toLocaleDateString() : 'your target date'}</p>
+              </div>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto overflow-x-hidden">
+              <div className="space-y-6">
+                {selectedHabitIds.map((habitId) => {
+                  const habit = existingHabits.find(h => h.id === habitId) || 
+                               recommendedHabits.find(h => h.id === habitId) ||
+                               dashboardSuggestedHabits.find(h => h.id === habitId);
+                  const targets = habitTargets[habitId] || {frequency: "daily", perPeriodTarget: 1, periodsCount: 7};
+                  
+                  return (
+                    <div key={habitId} className="bg-gray-50 p-4 rounded-lg">
+                      <h4 className="font-medium text-sm mb-3">{habit?.title || habit?.name}</h4>
+                      
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div>
+                          <Label htmlFor={`frequency-${habitId}`}>Frequency</Label>
+                          <Select 
+                            value={targets.frequency} 
+                            onValueChange={(value) => {
+                              setHabitTargets(prev => ({
+                                ...prev,
+                                [habitId]: {
+                                  ...prev[habitId],
+                                  frequency: value,
+                                  periodsCount: goalData.targetDate ? calculatePeriodsFromTargetDate(value) : prev[habitId]?.periodsCount || 7
+                                }
+                              }));
+                            }}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select frequency" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="daily">Daily</SelectItem>
+                              <SelectItem value="weekly">Weekly</SelectItem>
+                              <SelectItem value="monthly">Monthly</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        
+                        <div>
+                          <Label htmlFor={`perPeriod-${habitId}`}>Per Period</Label>
+                          <Input
+                            id={`perPeriod-${habitId}`}
+                            type="number"
+                            min="1"
+                            value={targets.perPeriodTarget}
+                            onChange={(e) => {
+                              setHabitTargets(prev => ({
+                                ...prev,
+                                [habitId]: {
+                                  ...prev[habitId],
+                                  perPeriodTarget: Number(e.target.value)
+                                }
+                              }));
+                            }}
+                            placeholder="e.g., 1"
+                          />
+                        </div>
+                        
+                        <div>
+                          <Label htmlFor={`periods-${habitId}`}>
+                            {targets.frequency === 'daily' ? 'Number of days' : 
+                             targets.frequency === 'weekly' ? 'Number of weeks' : 
+                             'Number of months'}
+                          </Label>
+                          <Input
+                            id={`periods-${habitId}`}
+                            type="number"
+                            min="1"
+                            value={targets.periodsCount}
+                            onChange={(e) => {
+                              setHabitTargets(prev => ({
+                                ...prev,
+                                [habitId]: {
+                                  ...prev[habitId],
+                                  periodsCount: Number(e.target.value)
+                                }
+                              }));
+                            }}
+                            placeholder="e.g., 7"
+                          />
+                        </div>
+                      </div>
+                      
+                      <div className="mt-3 p-3 bg-blue-50 rounded border border-blue-200">
+                        <div className="text-sm text-blue-800">
+                          <strong>Total:</strong> {targets.perPeriodTarget * targets.periodsCount} completions by {goalData.targetDate ? new Date(goalData.targetDate).toLocaleDateString() : 'your target date'}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            
+            <div className="flex flex-col sm:flex-row justify-end gap-2 pt-6 mt-4">
+              <Button variant="outline" onClick={() => setShowTargetSetting(false)} className="w-full sm:w-auto">
+                Back
+              </Button>
+              <Button onClick={handleAddHabitWithTargets} className="w-full sm:w-auto">
+                Add Habits
               </Button>
             </div>
           </div>
