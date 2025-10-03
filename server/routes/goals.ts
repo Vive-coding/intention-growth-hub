@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { db } from "../db";
+import { HabitOptimizationService } from "../services/habitOptimizationService";
 
 console.log('=== GOALS ROUTES FILE === Loading goals routes file...');
 import { and, eq, desc, sql, inArray, gte, lt, lte } from "drizzle-orm";
@@ -1130,8 +1131,6 @@ router.post("/habits/optimize/archive-orphaned", async (req: Request, res: Respo
     }
 
     console.log(`[HabitOptimization] Archiving orphaned habits for user ${userId}`);
-
-    const { HabitOptimizationService } = await import("../services/habitOptimizationService");
     
     const result = await HabitOptimizationService.archiveOrphanedHabits(userId);
     
@@ -1158,9 +1157,6 @@ router.get("/habits/optimize/analyze", async (req: Request, res: Response) => {
     }
 
     console.log(`[HabitOptimization] Analyzing habits for user ${userId}`);
-
-    // Import the service dynamically to avoid circular dependencies
-    const { HabitOptimizationService } = await import("../services/habitOptimizationService");
     
     // First, archive orphaned habits automatically
     console.log(`[HabitOptimization] Auto-archiving orphaned habits before analysis...`);
@@ -1201,9 +1197,6 @@ router.post("/habits/optimize/execute", async (req: Request, res: Response) => {
     }
 
     console.log(`[HabitOptimization] Executing optimization for user ${userId}`);
-
-    // Import the service dynamically
-    const { HabitOptimizationService } = await import("../services/habitOptimizationService");
     
     await HabitOptimizationService.executeOptimization(userId, proposal);
     
