@@ -5,6 +5,7 @@ import { Loader2, Sparkles, TrendingDown, Target, AlertCircle, CheckCircle2, XCi
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { apiRequest } from "@/lib/queryClient";
 
 interface HabitToArchive {
   id: string;
@@ -59,20 +60,7 @@ export function OptimizeHabitsModal({ open, onClose, onSuccess }: OptimizeHabits
     setProposal(null);
 
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch("/api/goals/habits/optimize/analyze", {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-        credentials: "include",
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || "Failed to analyze habits");
-      }
-
-      const data = await response.json();
+      const data = await apiRequest("/api/goals/habits/optimize/analyze");
       setProposal(data);
     } catch (err: any) {
       console.error("Error analyzing habits:", err);
@@ -90,21 +78,10 @@ export function OptimizeHabitsModal({ open, onClose, onSuccess }: OptimizeHabits
     setError(null);
 
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch("/api/goals/habits/optimize/execute", {
+      await apiRequest("/api/goals/habits/optimize/execute", {
         method: "POST",
-        headers: { 
-          "Content-Type": "application/json",
-          'Authorization': `Bearer ${token}`,
-        },
-        credentials: "include",
         body: JSON.stringify({ proposal }),
       });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || "Failed to optimize habits");
-      }
 
       onSuccess();
       onClose();
