@@ -7,6 +7,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { usePageTracking } from "@/hooks/usePageTracking";
 import { queryClient } from "@/lib/queryClient";
 import Index from "./pages/Index";
+import ChatHome from "./pages/chat/ChatHome";
 import { Landing } from "./pages/Landing";
 import NotFound from "./pages/NotFound";
 import InsightsPage from "./pages/insights";
@@ -20,6 +21,11 @@ function Router() {
 
   return (
     <Switch>
+      {/* New chat-first routes */}
+      <Route path="/chat" component={ChatHome} />
+      <Route path="/chat/:threadId" component={ChatHome} />
+
+      {/* Temporary: keep existing index as fallback until we flip default */}
       <Route path="/" component={Index} />
       <Route path="/landing" component={Landing} />
       <Route path="/insights" component={InsightsPage} />

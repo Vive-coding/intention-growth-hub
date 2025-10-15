@@ -256,6 +256,41 @@ export const progressSnapshots = pgTable("progress_snapshots", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+// Chat threads: one row per conversation
+export const chatThreads = pgTable("chat_threads", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  title: varchar("title", { length: 255 }),
+  summary: text("summary"),
+  isTest: boolean("is_test").default(false).notNull(),
+  privacyScope: jsonb("privacy_scope"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Chat messages: one row per message within a thread
+export const chatMessages = pgTable("chat_messages", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  threadId: uuid("thread_id").notNull().references(() => chatThreads.id, { onDelete: "cascade" }),
+  role: varchar("role", { length: 20 }).notNull(), // user | assistant | system
+  content: text("content").notNull(),
+  status: varchar("status", { length: 20 }).default("complete").notNull(), // streaming | complete | error
+  toolCalls: jsonb("tool_calls"),
+  metadata: jsonb("metadata"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Cached context snapshots (optional)
+export const chatContextSnapshots = pgTable("chat_context_snapshots", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  threadId: uuid("thread_id").references(() => chatThreads.id, { onDelete: "cascade" }),
+  profileCapsule: jsonb("profile_capsule"),
+  workingSet: jsonb("working_set"),
+  ragContext: jsonb("rag_context"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   lifeMetrics: many(lifeMetricDefinitions),
@@ -394,6 +429,21 @@ export const habitInstancesRelations = relations(habitInstances, ({ one }) => ({
   }),
 }));
 
+// Chat relations
+export const chatThreadsRelations = relations(chatThreads, ({ one }) => ({
+  user: one(users, {
+    fields: [chatThreads.userId],
+    references: [users.id],
+  }),
+}));
+
+export const chatMessagesRelations = relations(chatMessages, ({ one }) => ({
+  thread: one(chatThreads, {
+    fields: [chatMessages.threadId],
+    references: [chatThreads.id],
+  }),
+}));
+
 // Types for Replit Auth
 export type UpsertUser = typeof users.$inferInsert;
 export type User = typeof users.$inferSelect;
@@ -435,6 +485,12 @@ export type InsertHabitCompletion = typeof habitCompletions.$inferInsert;
 
 export type ProgressSnapshot = typeof progressSnapshots.$inferSelect;
 export type InsertProgressSnapshot = typeof progressSnapshots.$inferInsert;
+
+// Types for chat
+export type ChatThread = typeof chatThreads.$inferSelect;
+export type InsertChatThread = typeof chatThreads.$inferInsert;
+export type ChatMessage = typeof chatMessages.$inferSelect;
+export type InsertChatMessage = typeof chatMessages.$inferInsert;
 
 // Insert schemas
 export const insertLifeMetricDefinitionSchema = createInsertSchema(lifeMetricDefinitions).omit({

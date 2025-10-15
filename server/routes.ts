@@ -5,6 +5,7 @@ import { storage } from "./storage";
 import { setupDevAuth, isDevAuthenticated } from "./devAuth";
 import { createUser, authenticateUser, generateToken, verifyToken } from "./auth";
 import insightsRouter from "./routes/insights";
+import chatRouter from "./routes/chat";
 import goalsRouter from "./routes/goals";
 import { securityMiddleware } from "./middleware/security";
 import { InsightService } from "./services/insightService";
@@ -60,6 +61,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   console.log('=== REGISTERING GOALS ROUTES ===');
   app.use('/api/goals', authMiddleware, goalsRouter);
   console.log('=== GOALS ROUTES REGISTERED ===');
+
+  // Register chat routes (feature-flagged)
+  const CHAT_API_ENABLED = (process.env.CHAT_API_ENABLED || '').toLowerCase() === 'true';
+  const enableChatInDev = process.env.NODE_ENV === 'development';
+  if (CHAT_API_ENABLED || enableChatInDev) {
+    app.use('/api/chat', authMiddleware, chatRouter);
+  }
 
   // Feedback capture endpoint (append-only)
   app.post('/api/feedback', authMiddleware, async (req: any, res) => {
