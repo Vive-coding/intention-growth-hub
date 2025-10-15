@@ -46,12 +46,12 @@ export class ChatContextService {
       .from(insights)
       .where(eq(insights.userId, userId))
       .orderBy(desc(insights.createdAt))
-      .limit(3);
+      .limit(5);
 
     return {
       activeGoals: goals.map((g) => ({ title: g.title ?? "Untitled goal", targetDate: g.targetDate ? new Date(g.targetDate).toISOString() : null, status: g.status ?? "active" })),
       activeHabits: habits.map((h) => ({ name: h.name, streak: 0 })),
-      recentInsights: recent.map((i) => ({ title: i.title, summary: i.explanation.slice(0, 140) })),
+      recentInsights: recent.map((i) => ({ title: i.title, summary: (i.explanation || '').slice(0, 140) })),
     };
   }
 

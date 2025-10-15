@@ -97,6 +97,9 @@ router.post("/respond", async (req: any, res) => {
         },
       });
       finalText = result.finalText || finalText;
+      if (result.cta) {
+        send(JSON.stringify({ type: "cta", label: result.cta }));
+      }
     } catch (e) {
       console.error('[chat] life coach stream failed', e);
       send(JSON.stringify({ type: 'error', message: 'Assistant failed to respond' }));

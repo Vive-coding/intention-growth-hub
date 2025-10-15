@@ -4,7 +4,11 @@ import { chatThreads } from "../../shared/schema";
 import { eq } from "drizzle-orm";
 import { ChatContextService } from "../services/chatContextService";
 
-const SYSTEM_PROMPT = `You are a supportive AI life coach in SMS mode. Reply in ≤2 sentences, concrete and kind. Offer exactly one suggestion or reflection.`;
+const SYSTEM_PROMPT = `You are a supportive AI life coach.
+Style: SMS mode, ≤2 sentences by default, warm and specific. Avoid repetition.
+Goal: Provide exactly one concrete suggestion or reflection that advances the user's goal.
+CTA: If a clear next action exists, append a single token at the very end in the format CTA(<label>) with no other text after it. Examples: CTA(Review habits), CTA(View suggestions), CTA(Optimize).
+Never include more than one CTA. Never include markdown fences.`;
 
 function clampTokens(text: string, maxChars = 500): string {
   if (text.length <= maxChars) return text;
@@ -26,7 +30,7 @@ function packContext(opts: {
 
   const goals = (workingSet.activeGoals || []).slice(0, 5).map(g => `• ${g.title} (${g.status}${g.targetDate ? `, target ${g.targetDate.slice(0,10)}` : ''})`).join('\n');
   const habits = (workingSet.activeHabits || []).slice(0, 6).map(h => `• ${h.name} (streak ${h.streak})`).join('\n');
-  const insights = (workingSet.recentInsights || []).slice(0, 3).map(i => `• ${i.title}: ${i.summary}`).join('\n');
+  const insights = (workingSet.recentInsights || []).slice(0, 5).map(i => `• ${i.title}: ${i.summary}`).join('\n');
 
   const recents = recentMessages.slice(-2).map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`).join('\n');
 
@@ -51,14 +55,14 @@ export async function streamLifeCoachReply(params: {
   threadId: string;
   input: string;
   onToken: (delta: string) => void;
-}): Promise<{ finalText: string }>{
+}): Promise<{ finalText: string; cta?: string }>{
   const { userId, threadId, input, onToken } = params;
 
   // Load context
   const [profile, workingSet, recentMessages] = await Promise.all([
     ChatContextService.getProfileCapsule(userId),
     ChatContextService.getWorkingSet(userId),
-    ChatContextService.getRecentMessages(threadId, 2),
+    ChatContextService.getRecentMessages(threadId, 5),
   ]);
   const threadRow = await db.select().from(chatThreads).where(eq(chatThreads.id, threadId)).limit(1);
   const threadSummary = threadRow[0]?.summary ?? null;
@@ -86,7 +90,15 @@ export async function streamLifeCoachReply(params: {
     final = final.slice(0, 400);
   }
 
-  return { finalText: final.trim() };
+  // Extract optional CTA token CTA(label) from the very end
+  let cta: string | undefined;
+  const ctaMatch = final.match(/CTA\(([^)]+)\)\s*$/);
+  if (ctaMatch) {
+    cta = ctaMatch[1].trim();
+    final = final.replace(/CTA\(([^)]+)\)\s*$/, '').trim();
+  }
+
+  return { finalText: final.trim(), cta };
 }
 
 

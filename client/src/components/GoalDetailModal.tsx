@@ -651,17 +651,17 @@ export const GoalDetailModal = ({
         
         // Add multiple habits
         const promises = selectedHabitIds.map(async (habitId) => {
-          const response = await apiRequest(`/api/goals/${goalData.id}/habits`, {
-            method: 'POST',
-            body: JSON.stringify({
+        const response = await apiRequest(`/api/goals/${goalData.id}/habits`, {
+          method: 'POST',
+          body: JSON.stringify({
               habitDefinitionId: habitId,
-              targetValue: targetValue,
-              frequencySettings: {
-                frequency: existingHabitFrequency,
-                perPeriodTarget: existingHabitPerPeriod,
-                periodsCount: existingHabitPeriods,
-              },
-            }),
+            targetValue: targetValue,
+            frequencySettings: {
+              frequency: existingHabitFrequency,
+              perPeriodTarget: existingHabitPerPeriod,
+              periodsCount: existingHabitPeriods,
+            },
+          }),
           });
           return response;
         });
@@ -1097,8 +1097,8 @@ export const GoalDetailModal = ({
                   {selectedHabitIds.length > 0 && (
                     <div className="text-xs font-medium text-gray-500 mb-2">
                       Selected Habits ({selectedHabitIds.length})
-                    </div>
-                  )}
+                      </div>
+                    )}
                     
                     {/* Habit Selection - Single Scroll Container */}
                     <div className="border rounded-md flex-1 overflow-y-auto" style={{ maxHeight: '500px' }}>
@@ -1159,7 +1159,7 @@ export const GoalDetailModal = ({
                             
                             // Also include high-scoring existing habits that aren't already recommended
                             const highScoringExisting = existingHabits
-                              .filter((habit: any) => 
+                              .filter((habit: any) =>
                                 !goalData.habits.some((associatedHabit: any) => associatedHabit.id === habit.id) &&
                                 !relevantDashboardHabits.some((dh: any) => dh.id === habit.id) &&
                                 !semanticHabits.some((sh: any) => sh.id === habit.id) &&
@@ -1204,9 +1204,9 @@ export const GoalDetailModal = ({
                                   )}
                                 </div>
                                 {finalHabits.map((habit: any) => (
-                                  <div
-                                    key={habit.id}
-                                    className={`p-3 border-b cursor-pointer hover:bg-gray-50 ${
+                                <div
+                                  key={habit.id}
+                                  className={`p-3 border-b cursor-pointer hover:bg-gray-50 ${
                                       selectedHabitIds.includes(habit.id) ? 'bg-blue-50 border-blue-200' : ''
                                     }`}
                                     onClick={() => {
@@ -1229,20 +1229,20 @@ export const GoalDetailModal = ({
                                           </div>
                                         )}
                                       </div>
-                                      <div className="flex-1">
+                                    <div className="flex-1">
                                         <div className="font-medium text-sm">{habit.title || habit.name}</div>
-                                        {habit.description && (
-                                          <div className="text-xs text-gray-600 line-clamp-2 mt-1">{habit.description}</div>
-                                        )}
-                                      </div>
-                                      <div className="text-xs text-gray-500 ml-3 flex-shrink-0">
+                                      {habit.description && (
+                                        <div className="text-xs text-gray-600 line-clamp-2 mt-1">{habit.description}</div>
+                                      )}
+                                    </div>
+                                    <div className="text-xs text-gray-500 ml-3 flex-shrink-0">
                                         {newHabits.includes(habit) ? 'New' : 
                                          habit.score ? `Score ${(habit.score*100).toFixed(0)}` : 'Suggested'}
-                                      </div>
                                     </div>
                                   </div>
-                                ))}
-                              </>
+                                </div>
+                              ))}
+                          </>
                             );
                           })()}
 
@@ -1275,24 +1275,24 @@ export const GoalDetailModal = ({
                         
                         {/* Browse All Habits - Always Expanded */}
                         <div className="border-t">
-                          <div className="px-3 py-2 text-xs font-medium text-gray-500 bg-gray-100 border-b">
+                        <div className="px-3 py-2 text-xs font-medium text-gray-500 bg-gray-100 border-b">
                             BROWSE ALL HABITS
-                          </div>
+                        </div>
                           <div>
-                              {existingHabits
-                                .filter((habit: any) =>
-                                  habit.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                                  habit.description?.toLowerCase().includes(searchTerm.toLowerCase())
-                                )
-                                .filter((habit: any) => 
-                                  !goalData.habits.some((associatedHabit: any) => 
-                                    associatedHabit.id === habit.id
-                                  )
-                                )
-                                .map((habit: any) => (
-                                  <div
-                                    key={habit.id}
-                                    className={`p-3 border-b cursor-pointer hover:bg-gray-50 ${
+                        {existingHabits
+                          .filter((habit: any) =>
+                            habit.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                            habit.description?.toLowerCase().includes(searchTerm.toLowerCase())
+                          )
+                          .filter((habit: any) => 
+                            !goalData.habits.some((associatedHabit: any) => 
+                              associatedHabit.id === habit.id
+                            )
+                          )
+                          .map((habit: any) => (
+                            <div
+                              key={habit.id}
+                              className={`p-3 border-b cursor-pointer hover:bg-gray-50 ${
                                       selectedHabitIds.includes(habit.id) ? 'bg-blue-50 border-blue-200' : ''
                                     }`}
                                     onClick={() => {
@@ -1316,22 +1316,22 @@ export const GoalDetailModal = ({
                                         )}
                                       </div>
                                       <div className="flex-1">
-                                        <div className="font-medium text-sm">{habit.title}</div>
-                                        {habit.description && (
-                                          <div className="text-xs text-gray-600 line-clamp-2 mt-1">{habit.description}</div>
-                                        )}
-                                      </div>
+                              <div className="font-medium text-sm">{habit.title}</div>
+                              {habit.description && (
+                                <div className="text-xs text-gray-600 line-clamp-2 mt-1">{habit.description}</div>
+                              )}
+                            </div>
                                       {habit.score && (
                                         <div className="text-xs text-gray-500 ml-3 flex-shrink-0">
                                           Score {(habit.score*100).toFixed(0)}
-                                        </div>
+                      </div>
                                       )}
-                                    </div>
-                                  </div>
+                        </div>
+                        </div>
                                 ))}
-                          </div>
                         </div>
                       </div>
+                    </div>
                   </div>
                 </TabsContent>
 
@@ -1410,7 +1410,7 @@ export const GoalDetailModal = ({
                   </div>
                 </div>
               </TabsContent>
-            </Tabs>
+                          </Tabs>
             </div>
             
             <div className="flex flex-col sm:flex-row justify-end gap-2 pt-6 mt-4">
