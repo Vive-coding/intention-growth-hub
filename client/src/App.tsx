@@ -11,6 +11,7 @@ import ChatHome from "./pages/chat/ChatHome";
 import { Landing } from "./pages/Landing";
 import NotFound from "./pages/NotFound";
 import InsightsPage from "./pages/insights";
+import TestCardsPage from "./pages/TestCards";
 import { HabitsScreen } from "./components/HabitsScreen";
 
 function Router() {
@@ -24,6 +25,9 @@ function Router() {
       {/* New chat-first routes */}
       <Route path="/chat" component={ChatHome} />
       <Route path="/chat/:threadId" component={ChatHome} />
+      
+      {/* Test cards route - accessible from root */}
+      <Route path="/test-cards" component={TestCardsPage} />
 
       {/* Temporary: keep existing index as fallback until we flip default */}
       <Route path="/" component={Index} />

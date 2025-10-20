@@ -3,16 +3,28 @@ import { db } from "../db";
 import { chatThreads } from "../../shared/schema";
 import { eq } from "drizzle-orm";
 import { ChatContextService } from "../services/chatContextService";
+import { and, desc } from "drizzle-orm";
+import { insights, suggestedHabits, lifeMetricDefinitions } from "../../shared/schema";
+import { AgentRouter } from "./agents/agentRouter";
+import { AgentType } from "./agents/types";
 
-const SYSTEM_PROMPT = `You are a supportive AI life coach.
-Style: SMS mode, ≤2 sentences by default, warm and specific. Avoid repetition.
-Goal: Provide exactly one concrete suggestion or reflection that advances the user's goal.
-CTA: If a clear next action exists, append a single token at the very end in the format CTA(<label>) with no other text after it. Examples: CTA(Review habits), CTA(View suggestions), CTA(Optimize).
-Never include more than one CTA. Never include markdown fences.`;
+const SYSTEM_PROMPT = `You are a supportive AI life coach who helps people achieve their goals through focused conversations.
+Style: Conversational, insightful, and action-oriented. Move conversations forward with purpose.
+Goal: Help users clarify their priorities and take concrete steps toward meaningful goals.
+Approach:
+- Listen actively and acknowledge their situation
+- Ask 1-2 insightful questions to understand their context better
+- When appropriate, suggest specific goals or habits that align with their needs
+- Be proactive about identifying opportunities for growth and improvement
+- Avoid endless Q&A - guide toward actionable next steps
+- Focus on high-impact areas where they can make meaningful progress
+CTA: When you suggest goals, habits, or actions, append a single token at the very end in the format CTA(<label>) with no other text after it. Examples: CTA(Review habits), CTA(View suggestions), CTA(Set goals).
+Never include more than one CTA. Never include markdown fences or JSON in your response.`;
 
-function clampTokens(text: string, maxChars = 500): string {
+function clampTokens(text: string, maxChars = 2000): string {
+  // Increased limit significantly - let context be rich
   if (text.length <= maxChars) return text;
-  return text.slice(0, maxChars);
+  return text.slice(0, maxChars) + '...';
 }
 
 function packContext(opts: {
@@ -38,13 +50,18 @@ function packContext(opts: {
 Profile: ${profileLine || 'n/a'}
 Thread: ${threadSummary ? clampTokens(threadSummary, 500) : 'n/a'}
 Recent:
-${recents || 'n/a'}
-Working Set:
-Goals:\n${goals || '-'}
-Habits:\n${habits || '-'}
-Insights:\n${insights || '-'}
+${recents}
 
-User message: ${userMessage}
+Active Goals:
+${goals || 'None'}
+
+Active Habits:
+${habits || 'None'}
+
+Recent Insights:
+${insights || 'None'}
+
+User Message: ${userMessage}
 `;
 
   return { system: SYSTEM_PROMPT, user: composedUser };
@@ -55,8 +72,9 @@ export async function streamLifeCoachReply(params: {
   threadId: string;
   input: string;
   onToken: (delta: string) => void;
-}): Promise<{ finalText: string; cta?: string }>{
-  const { userId, threadId, input, onToken } = params;
+  requestedAgentType?: AgentType;
+}): Promise<{ finalText: string; cta?: string; structuredData?: any }>{
+  const { userId, threadId, input, onToken, requestedAgentType } = params;
 
   // Load context
   const [profile, workingSet, recentMessages] = await Promise.all([
@@ -67,38 +85,32 @@ export async function streamLifeCoachReply(params: {
   const threadRow = await db.select().from(chatThreads).where(eq(chatThreads.id, threadId)).limit(1);
   const threadSummary = threadRow[0]?.summary ?? null;
 
-  const { system, user } = packContext({ profile, workingSet, threadSummary, recentMessages, userMessage: input });
+  // Use the new agent router
+  const agentRouter = new AgentRouter();
+  const agentContext = {
+    userId,
+    threadId,
+    userMessage: input,
+    recentMessages,
+    profile,
+    workingSet,
+    threadSummary,
+  };
 
-  const model = new ChatOpenAI({ model: 'gpt-4o-mini', temperature: 0.6, maxTokens: 90 });
+  const result = await agentRouter.processMessage(agentContext, requestedAgentType);
 
-  let final = '';
-  const stream = await model.stream([
-    { role: 'system', content: system },
-    { role: 'user', content: user },
-  ] as any);
-
-  for await (const chunk of stream) {
-    const delta = typeof chunk?.content === 'string' ? chunk.content : (Array.isArray(chunk?.content) ? chunk.content.map((c: any) => c?.text || '').join('') : '');
-    if (delta) {
-      final += delta;
-      onToken(delta);
-    }
+  // Stream the response
+  const words = result.finalText.split(' ');
+  for (let i = 0; i < words.length; i++) {
+    const word = words[i];
+    onToken(i === 0 ? word : ` ${word}`);
+    // Small delay to simulate streaming
+    await new Promise(resolve => setTimeout(resolve, 50));
   }
 
-  // Enforce short style defensively
-  if (final.split(/\.!?/).join('.').length > 400) {
-    final = final.slice(0, 400);
-  }
-
-  // Extract optional CTA token CTA(label) from the very end
-  let cta: string | undefined;
-  const ctaMatch = final.match(/CTA\(([^)]+)\)\s*$/);
-  if (ctaMatch) {
-    cta = ctaMatch[1].trim();
-    final = final.replace(/CTA\(([^)]+)\)\s*$/, '').trim();
-  }
-
-  return { finalText: final.trim(), cta };
+  return {
+    finalText: result.finalText,
+    cta: result.cta,
+    structuredData: result.structuredData,
+  };
 }
-
-

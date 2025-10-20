@@ -25,8 +25,10 @@ export class ChatThreadService {
 
   static async appendMessage(params: Omit<InsertChatMessage, "id" | "createdAt">) {
     const [msg] = await db.insert(chatMessages).values(params).returning();
-    // Touch thread updatedAt
+    
+    // Just update the timestamp for now - we'll implement smarter title generation later
     await db.update(chatThreads).set({ updatedAt: new Date() }).where(eq(chatThreads.id, params.threadId));
+    
     return msg;
   }
 
@@ -39,6 +41,22 @@ export class ChatThreadService {
       .limit(limit);
     // Return chronological order
     return rows.reverse();
+  }
+
+  static async deleteThread(threadId: string, userId: string) {
+    // First verify the thread belongs to the user
+    const [thread] = await db.select().from(chatThreads).where(eq(chatThreads.id, threadId)).limit(1);
+    if (!thread || thread.userId !== userId) {
+      throw new Error('Thread not found or access denied');
+    }
+    
+    // Delete messages first (due to foreign key constraint)
+    await db.delete(chatMessages).where(eq(chatMessages.threadId, threadId));
+    
+    // Then delete the thread
+    await db.delete(chatThreads).where(eq(chatThreads.id, threadId));
+    
+    return true;
   }
 }
 

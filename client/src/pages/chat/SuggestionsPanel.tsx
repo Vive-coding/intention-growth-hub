@@ -37,6 +37,51 @@ export default function SuggestionsPanel({ open, onClose }: SuggestionsPanelProp
         </div>
 
         <div className="flex-1 overflow-auto p-4 space-y-3">
+          {/* Manual Goal Suggestion Button */}
+          <div className="mb-4">
+            <button
+              className="w-full px-4 py-3 rounded-lg bg-purple-50 border border-purple-200 hover:bg-purple-100 transition-colors"
+              onClick={async () => {
+                try {
+                  // Get current thread ID from URL
+                  const threadId = window.location.pathname.split('/').pop();
+                  if (!threadId) return;
+                  
+                  // Send a message to trigger goal suggestions
+                  const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+                  const url = `${apiBaseUrl}/api/chat/respond`;
+                  const token = localStorage.getItem('token');
+                  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+                  if (token) headers['Authorization'] = `Bearer ${token}`;
+                  
+                  await fetch(url, {
+                    method: 'POST',
+                    headers,
+                    body: JSON.stringify({ 
+                      threadId, 
+                      content: 'Please suggest some goals based on our conversation so far.' 
+                    }),
+                  });
+                  
+                  // Close the panel to show the chat
+                  onClose();
+                } catch (e) {
+                  console.error('Failed to trigger goal suggestions:', e);
+                }
+              }}
+            >
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center">
+                  <Lightbulb className="w-3 h-3" />
+                </div>
+                <div className="text-left">
+                  <div className="font-medium text-purple-800">Suggest Goals</div>
+                  <div className="text-xs text-purple-600">Get AI-powered goal recommendations</div>
+                </div>
+              </div>
+            </button>
+          </div>
+
           {isLoading && (
             <div className="text-sm text-gray-500">Loading suggestions…</div>
           )}

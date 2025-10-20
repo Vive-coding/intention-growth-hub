@@ -7,6 +7,8 @@ import { createUser, authenticateUser, generateToken, verifyToken } from "./auth
 import insightsRouter from "./routes/insights";
 import chatRouter from "./routes/chat";
 import goalsRouter from "./routes/goals";
+import testCardsRouter from "./routes/testCards";
+import myFocusRouter from "./routes/myFocus";
 import { securityMiddleware } from "./middleware/security";
 import { InsightService } from "./services/insightService";
 import { db, ensureUsersTimezoneColumn } from "./db";
@@ -67,6 +69,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const enableChatInDev = process.env.NODE_ENV === 'development';
   if (CHAT_API_ENABLED || enableChatInDev) {
     app.use('/api/chat', authMiddleware, chatRouter);
+    // Only expose test-cards in development
+    if (enableChatInDev) {
+      app.use('/api/test-cards', authMiddleware, testCardsRouter);
+    }
+    app.use('/api/my-focus', authMiddleware, myFocusRouter);
   }
 
   // Feedback capture endpoint (append-only)

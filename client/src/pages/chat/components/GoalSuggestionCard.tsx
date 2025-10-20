@@ -1,0 +1,224 @@
+import { useState } from "react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Trophy, Target, Check, Zap } from "lucide-react";
+
+interface Props {
+  goal: { 
+    id?: string; 
+    title: string; 
+    description?: string; 
+    category?: string;
+    priority?: string;
+  };
+  habits?: Array<{ 
+    id?: string; 
+    title: string; 
+    description?: string; 
+    frequency?: string;
+    effortMinutes?: number;
+    impact?: 'high' | 'medium' | 'low';
+  }>;
+  onAccept?: () => void;
+  onView?: () => void;
+}
+
+export default function GoalSuggestionCard({ goal, habits = [], onAccept, onView }: Props) {
+  const [selected, setSelected] = useState<Record<string, boolean>>(() => {
+    const init: Record<string, boolean> = {};
+    habits.forEach((h, i) => { init[(h.id || String(i))] = true; });
+    return init;
+  });
+  const [accepting, setAccepting] = useState(false);
+  const [accepted, setAccepted] = useState(false);
+
+  const toggle = (key: string) => setSelected(prev => ({ ...prev, [key]: !prev[key] }));
+
+  const handleAccept = async () => {
+    if (accepted) return;
+    if (!confirm(`Add goal "${goal.title}" with selected habits?`)) return;
+    setAccepting(true);
+    try {
+      const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+      const token = localStorage.getItem('token');
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      // 1) Create goal
+      const createGoalResp = await fetch(`${apiBaseUrl}/api/goals`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ title: goal.title, description: goal.description || '' })
+      });
+      const created = await createGoalResp.json();
+      const goalInstanceId = created?.goal?.id || created?.goal?.goalInstance?.id || created?.id;
+      if (!goalInstanceId) throw new Error('Goal creation failed');
+
+      // 2) For each selected habit → create habit definition then associate to goal
+      const selectedHabits = habits.filter((h, i) => selected[h.id || String(i)]);
+      for (let i = 0; i < selectedHabits.length; i++) {
+        const h = selectedHabits[i];
+        const createHabitResp = await fetch(`${apiBaseUrl}/api/goals/habits`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ title: h.title, description: h.description || '' })
+        });
+        const createdHabit = await createHabitResp.json();
+        const habitDefinitionId = createdHabit?.id;
+        if (!habitDefinitionId) continue;
+
+        await fetch(`${apiBaseUrl}/api/goals/${goalInstanceId}/habits`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ habitDefinitionId, frequency: (h.frequency || 'daily'), perPeriodTarget: 1 })
+        });
+      }
+
+      setAccepted(true);
+      onAccept?.();
+    } catch (e) {
+      console.error('Failed to accept goal suggestion', e);
+      alert('Failed to add goal. Please try again.');
+    } finally {
+      setAccepting(false);
+    }
+  };
+
+  return (
+    <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-2xl p-6 shadow-lg">
+      {/* Header */}
+      <div className="flex items-start justify-between mb-4">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full bg-yellow-100 text-yellow-700 flex items-center justify-center">
+            <Trophy className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Suggested Priority Goal</div>
+            <div className="text-lg font-bold text-gray-900 mt-1">{goal.title}</div>
+          </div>
+        </div>
+        {accepted ? (
+          <Badge className="bg-teal-600 text-white text-xs px-3 py-1">Added to My Focus</Badge>
+        ) : goal.priority && (
+          <Badge className="bg-gray-600 text-white text-xs px-3 py-1">
+            {goal.priority}
+          </Badge>
+        )}
+      </div>
+
+      {/* Category */}
+      {goal.category && (
+        <div className="flex items-center gap-2 mb-4">
+          <Target className="w-4 h-4 text-gray-500" />
+          <span className="text-sm text-gray-600">{goal.category}</span>
+        </div>
+      )}
+
+      {/* Description */}
+      {goal.description && (
+        <div className="mb-6">
+          <div className="flex items-start gap-2">
+            <div className="w-4 h-4 rounded-full bg-green-100 flex items-center justify-center mt-0.5">
+              <div className="w-2 h-2 rounded-full bg-green-500"></div>
+            </div>
+            <p className="text-sm text-gray-700 leading-relaxed">{goal.description}</p>
+          </div>
+        </div>
+      )}
+
+      {/* Habits */}
+      {habits.length > 0 && (
+        <div className="mb-6">
+          <div className="text-sm font-semibold text-gray-800 mb-3 uppercase tracking-wide">
+            Habits to Support This Goal
+          </div>
+          <div className="space-y-3">
+            {habits.map((habit, idx) => (
+              <div key={`${habit.id || idx}`} className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
+                <div className="flex items-start gap-3">
+                  <div className="w-6 h-6 rounded-full bg-green-100 flex items-center justify-center mt-0.5">
+                    <Check className="w-3 h-3 text-green-600" />
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="font-semibold text-gray-900">{habit.title}</div>
+                      {habit.impact && (
+                        <Badge 
+                          className={`text-xs px-2 py-1 ${
+                            habit.impact === 'high' ? 'bg-red-100 text-red-700' :
+                            habit.impact === 'medium' ? 'bg-yellow-100 text-yellow-700' :
+                            'bg-gray-100 text-gray-700'
+                          }`}
+                        >
+                          {habit.impact === 'high' ? 'High Impact' :
+                           habit.impact === 'medium' ? 'Medium Impact' : 'Low Impact'}
+                        </Badge>
+                      )}
+                    </div>
+                    {habit.description && (
+                      <p className="text-sm text-gray-600 mb-2">{habit.description}</p>
+                    )}
+                    <div className="flex items-center gap-4 text-xs text-gray-500">
+                      {habit.frequency && (
+                        <div className="flex items-center gap-1">
+                          <Zap className="w-3 h-3" />
+                          {habit.frequency}
+                        </div>
+                      )}
+                      {habit.effortMinutes && (
+                        <div>{habit.effortMinutes} min</div>
+                      )}
+                    </div>
+                  </div>
+                  {!accepted && (
+                    <div className="pl-3">
+                      <input
+                        type="checkbox"
+                        className="w-4 h-4"
+                        checked={selected[habit.id || String(idx)]}
+                        onChange={() => toggle(habit.id || String(idx))}
+                        aria-label="Include habit"
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Action Buttons */}
+      <div className="flex gap-3">
+        {!accepted ? (
+          <>
+            <Button 
+              className="flex-1 bg-teal-600 hover:bg-teal-700 text-white font-semibold py-3 rounded-xl disabled:opacity-60"
+              onClick={handleAccept}
+              disabled={accepting}
+            >
+              {accepting ? 'Adding...' : `Add Goal + ${Object.values(selected).filter(Boolean).length} Habits`}
+            </Button>
+            <Button 
+              variant="outline" 
+              className="px-6 py-3 rounded-xl border-gray-300"
+              onClick={onView}
+            >
+              Dismiss
+            </Button>
+          </>
+        ) : (
+          <Button 
+            variant="outline"
+            className="flex-1 px-6 py-3 rounded-xl border-teal-300 text-teal-700"
+            onClick={() => (window.location.href = '/focus')}
+          >
+            View My Focus
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+

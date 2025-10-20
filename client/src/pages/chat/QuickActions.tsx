@@ -1,12 +1,13 @@
-import { CheckSquare, Lightbulb, Sparkles } from "lucide-react";
+import { CheckSquare, Lightbulb, Sparkles, Zap } from "lucide-react";
 
 interface Props {
   onReviewHabits: () => void;
   onViewSuggestions: () => void;
   onOptimize: () => void;
+  onSurpriseMe: () => void;
 }
 
-export default function QuickActions({ onReviewHabits, onViewSuggestions, onOptimize }: Props) {
+export default function QuickActions({ onReviewHabits, onViewSuggestions, onOptimize, onSurpriseMe }: Props) {
   return (
     <div className="max-w-3xl mx-auto px-0 pb-2">
       <div className="flex flex-wrap gap-2">
@@ -14,10 +15,13 @@ export default function QuickActions({ onReviewHabits, onViewSuggestions, onOpti
           <CheckSquare className="w-4 h-4" /> Review habits
         </button>
         <button onClick={onViewSuggestions} className="text-sm px-3 py-1.5 rounded-xl bg-white border text-gray-700 hover:bg-gray-50 flex items-center gap-1.5">
-          <Lightbulb className="w-4 h-4" /> View suggestions
+          <Lightbulb className="w-4 h-4" /> Suggest goals
         </button>
         <button onClick={onOptimize} className="text-sm px-3 py-1.5 rounded-xl bg-white border text-gray-700 hover:bg-gray-50 flex items-center gap-1.5">
           <Sparkles className="w-4 h-4" /> Optimize
+        </button>
+        <button onClick={onSurpriseMe} className="text-sm px-3 py-1.5 rounded-xl bg-white border text-gray-700 hover:bg-gray-50 flex items-center gap-1.5">
+          <Zap className="w-4 h-4" /> Surprise me
         </button>
       </div>
     </div>
