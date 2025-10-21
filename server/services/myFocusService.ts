@@ -1,5 +1,5 @@
 import { db } from "../db";
-import { eq, desc, and } from "drizzle-orm";
+import { eq, desc, and, inArray } from "drizzle-orm";
 import { 
   goalDefinitions, 
   goalInstances, 
@@ -25,6 +25,8 @@ export interface MyFocusData {
       name: string;
       color: string;
     };
+    rank?: number;
+    reason?: string;
   }>;
   highLeverageHabits: Array<{
     id: string;
@@ -45,9 +47,19 @@ export interface MyFocusData {
     confidence: number;
     lifeMetricIds: string[];
   }>;
+  priorityMeta?: {
+    updatedAt: string;
+    sourceThreadId?: string;
+  };
+  pendingOptimization?: {
+    summary?: string;
+    recommendations: Array<{ type: string; title: string; description: string; targetId?: string }>;
+    createdAt: string;
+  };
 }
 
 export class MyFocusService {
+  private static cache = new Map<string, { ts: number; data: MyFocusData }>();
   static async persistFromAgent(structured: any, opts: { userId: string; threadId?: string }): Promise<void> {
     const { userId, threadId } = opts;
     if (!structured || typeof structured !== 'object') return;
@@ -85,20 +97,34 @@ export class MyFocusService {
     // Goal suggestion and insight are already persisted via existing flows; no-op here
   }
   static async getMyFocus(userId: string): Promise<MyFocusData> {
-    // Get priority goals (top 3-4 active goals)
-    const priorityGoals = await this.getPriorityGoals(userId);
-    
-    // Get high leverage habits
+    const now = Date.now();
+    const cached = this.cache.get(userId);
+    if (cached && now - cached.ts < 30_000) return cached.data;
+
+    // Prefer latest snapshot for ordering/priorities
+    const snapshot = await db
+      .select()
+      .from(myFocusPrioritySnapshots)
+      .where(eq(myFocusPrioritySnapshots.userId, userId))
+      .orderBy(desc(myFocusPrioritySnapshots.createdAt))
+      .limit(1);
+
+    let priorityGoals: MyFocusData["priorityGoals"]; let priorityMeta: MyFocusData["priorityMeta"]|undefined;
+    if (snapshot[0]?.items) {
+      const hydrated = await this.hydrateSnapshotGoals(userId, snapshot[0].items as any[]);
+      priorityGoals = hydrated.goals;
+      priorityMeta = { updatedAt: hydrated.updatedAt, sourceThreadId: (snapshot[0] as any).sourceThreadId || undefined };
+    } else {
+      priorityGoals = await this.getPriorityGoals(userId);
+    }
+
     const highLeverageHabits = await this.getHighLeverageHabits(userId);
-    
-    // Get key insights (upvoted or recent)
     const keyInsights = await this.getKeyInsights(userId);
-    
-    return {
-      priorityGoals,
-      highLeverageHabits,
-      keyInsights,
-    };
+    const pendingOptimization = await this.getPendingOptimization(userId);
+
+    const data: MyFocusData = { priorityGoals, highLeverageHabits, keyInsights, ...(priorityMeta ? { priorityMeta } : {}), ...(pendingOptimization ? { pendingOptimization } : {}) };
+    this.cache.set(userId, { ts: now, data });
+    return data;
   }
 
   private static async getPriorityGoals(userId: string) {
@@ -202,6 +228,46 @@ export class MyFocusService {
       confidence: i.confidence,
       lifeMetricIds: [], // TODO: Add lifeMetricIds to insights schema
     }));
+  }
+
+  private static async hydrateSnapshotGoals(userId: string, items: Array<{ goalInstanceId: string; rank?: number; reason?: string }>): Promise<{ goals: MyFocusData["priorityGoals"]; updatedAt: string; }> {
+    const ids = items.map(i => i.goalInstanceId).filter(Boolean);
+    if (ids.length === 0) return { goals: [], updatedAt: new Date(0).toISOString() } as any;
+    const rows = await db
+      .select({ goalDef: goalDefinitions, goalInst: goalInstances, lifeMetric: lifeMetricDefinitions })
+      .from(goalInstances)
+      .leftJoin(goalDefinitions, eq(goalInstances.goalDefinitionId, goalDefinitions.id))
+      .leftJoin(lifeMetricDefinitions, eq(goalDefinitions.lifeMetricId, lifeMetricDefinitions.id))
+      .where(inArray(goalInstances.id, ids));
+    const byId = new Map<string, any>(); rows.forEach(r => byId.set(r.goalInst.id, r));
+    const ordered = items.map((it, idx) => {
+      const g = byId.get(it.goalInstanceId); if (!g) return null;
+      return {
+        id: g.goalInst.id,
+        title: g.goalDef.title,
+        description: g.goalDef.description || undefined,
+        category: g.goalDef.category || undefined,
+        targetDate: g.goalInst?.targetDate?.toISOString(),
+        progress: g.goalInst?.currentValue || 0,
+        status: g.goalInst?.status || 'active',
+        lifeMetric: g.lifeMetric ? { id: g.lifeMetric.id, name: g.lifeMetric.name, color: g.lifeMetric.color } : undefined,
+        rank: it.rank ?? idx + 1,
+        reason: it.reason,
+      };
+    }).filter(Boolean) as MyFocusData["priorityGoals"];
+    return { goals: ordered, updatedAt: new Date().toISOString() } as any;
+  }
+
+  private static async getPendingOptimization(userId: string): Promise<MyFocusData["pendingOptimization"] | undefined> {
+    const rows = await db
+      .select()
+      .from(myFocusOptimizations)
+      .where(eq(myFocusOptimizations.userId, userId))
+      .orderBy(desc(myFocusOptimizations.createdAt))
+      .limit(1);
+    const row: any = rows[0];
+    if (!row || row.status !== 'open') return undefined;
+    return { summary: row.summary || undefined, recommendations: Array.isArray(row.recommendations) ? row.recommendations : [], createdAt: row.createdAt?.toISOString?.() || new Date().toISOString() };
   }
 
   static async updatePriorityGoals(userId: string, goalIds: string[]): Promise<void> {

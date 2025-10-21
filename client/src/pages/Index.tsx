@@ -9,6 +9,7 @@ import { JournalsScreen } from "@/components/JournalsScreen";
 import { CommunityScreen } from "@/components/CommunityScreen";
 import { ProfileScreen } from "@/components/ProfileScreen";
 import { NavigationBar } from "@/components/NavigationBar";
+import MyFocusDashboard from "@/components/focus/MyFocusDashboard";
 import { ResponsiveSidebar } from "@/components/ResponsiveSidebar";
 import { GPTModal } from "@/components/GPTModal";
 import { useAuth } from "@/hooks/useAuth";
@@ -131,6 +132,8 @@ const Index = () => {
         return <HabitsScreen />;
       case "goals":
         return <GoalsScreen />;
+      case "focus":
+        return <MyFocusDashboard />;
       case "journals":
         return <JournalsScreen />;
       case "community":
@@ -155,7 +158,7 @@ const Index = () => {
       {/* Uniform Header - always visible when authenticated */}
       <div className="relative">
         <UniformHeader 
-          user={typedUser}
+          user={typedUser ? { firstName: typedUser.firstName ?? undefined, lastName: typedUser.lastName ?? undefined, email: typedUser.email ?? undefined } : null}
           onNavigate={setCurrentScreen}
           onReturnToOnboarding={() => {
             // Set localStorage to force onboarding mode
