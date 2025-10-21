@@ -58,7 +58,7 @@ export default function MyFocusDashboard() {
 									<span>{Math.round(Math.min(100, Math.max(0, g.progress || 0)))}%</span>
 								</div>
 								<div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-									<div className="h-full bg-teal-600" style={{ width: `${Math.min(100, Math.max(0, g.progress || 0))}%` }} />
+								<div className="h-full bg-gray-900" style={{ width: `${Math.min(100, Math.max(0, g.progress || 0))}%` }} />
 								</div>
 							</div>
 						</div>

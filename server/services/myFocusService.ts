@@ -18,7 +18,7 @@ export interface MyFocusData {
     description?: string;
     category?: string;
     targetDate?: string;
-    progress: number;
+    progress: number; // percent 0-100
     status: string;
     lifeMetric?: {
       id: string;
@@ -27,6 +27,7 @@ export interface MyFocusData {
     };
     rank?: number;
     reason?: string;
+    habitCount?: number;
   }>;
   highLeverageHabits: Array<{
     id: string;
@@ -148,20 +149,24 @@ export class MyFocusService {
       .orderBy(desc(goalInstances.createdAt))
       .limit(4);
 
-    return goals.map(g => ({
+    return goals.map(g => {
+      const target = g.goalInst?.targetValue || 0;
+      const current = g.goalInst?.currentValue || 0;
+      const percent = target > 0 ? Math.round((current / target) * 100) : Math.min(100, Math.max(0, current));
+      return ({
       id: g.goalInst?.id || '',
       title: g.goalDef.title,
       description: g.goalDef.description || undefined,
       category: g.goalDef.category || undefined,
       targetDate: g.goalInst?.targetDate?.toISOString(),
-      progress: g.goalInst?.currentValue || 0,
+      progress: Math.max(0, Math.min(100, percent)),
       status: g.goalInst?.status || 'active',
       lifeMetric: g.lifeMetric ? {
         id: g.lifeMetric.id,
         name: g.lifeMetric.name,
         color: g.lifeMetric.color,
       } : undefined,
-    }));
+    })});
   }
 
   private static async getHighLeverageHabits(userId: string) {
@@ -242,13 +247,18 @@ export class MyFocusService {
     const byId = new Map<string, any>(); rows.forEach(r => byId.set(r.goalInst.id, r));
     const ordered = items.map((it, idx) => {
       const g = byId.get(it.goalInstanceId); if (!g) return null;
-      return {
+        // Compute percent progress if targetValue is set; else use currentValue as percent clamp
+        const target = g.goalInst?.targetValue || 0;
+        const current = g.goalInst?.currentValue || 0;
+        const percent = target > 0 ? Math.round((current / target) * 100) : Math.min(100, Math.max(0, current));
+
+        return {
         id: g.goalInst.id,
         title: g.goalDef.title,
         description: g.goalDef.description || undefined,
         category: g.goalDef.category || undefined,
         targetDate: g.goalInst?.targetDate?.toISOString(),
-        progress: g.goalInst?.currentValue || 0,
+          progress: Math.max(0, Math.min(100, percent)),
         status: g.goalInst?.status || 'active',
         lifeMetric: g.lifeMetric ? { id: g.lifeMetric.id, name: g.lifeMetric.name, color: g.lifeMetric.color } : undefined,
         rank: it.rank ?? idx + 1,
