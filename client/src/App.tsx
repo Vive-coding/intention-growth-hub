@@ -10,6 +10,7 @@ import Index from "./pages/Index";
 import ChatHome from "./pages/chat/ChatHome";
 import { Landing } from "./pages/Landing";
 import NotFound from "./pages/NotFound";
+import FocusPage from "./pages/Focus";
 import InsightsPage from "./pages/insights";
 import TestCardsPage from "./pages/TestCards";
 import { HabitsScreen } from "./components/HabitsScreen";
@@ -33,6 +34,7 @@ function Router() {
       <Route path="/" component={Index} />
       <Route path="/landing" component={Landing} />
       <Route path="/insights" component={InsightsPage} />
+      <Route path="/focus" component={FocusPage} />
       <Route path="/habits" component={HabitsScreen} />
       {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
       <Route component={NotFound} />
