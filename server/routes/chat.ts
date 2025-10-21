@@ -5,6 +5,7 @@ import { chatThreads, chatMessages } from "../../shared/schema";
 import { ChatThreadService } from "../services/chatThreadService";
 import { streamLifeCoachReply } from "../ai/lifeCoachService";
 import { MyFocusService } from "../services/myFocusService";
+import { generateShortTitle, generateTitleLLM } from "../ai/utils/journal";
 
 const router = Router();
 
@@ -222,6 +223,34 @@ router.post("/respond", async (req: any, res) => {
 
     // Persist user message
     await ChatThreadService.appendMessage({ threadId, role: "user", content, status: "complete" } as any);
+
+    // Attempt EARLY title generation on the user's first substantive message
+    try {
+      const [threadForTitle] = await db.select().from(chatThreads).where(eq(chatThreads.id, threadId)).limit(1);
+      if (threadForTitle && (threadForTitle.title == null || threadForTitle.title === 'Daily Coaching')) {
+        const normalized = String(content || '').trim().toLowerCase();
+        const genericPatterns = /^(hi|hello|hey|how are you|how's it going|what's up|good (morning|afternoon|evening)|thanks|thank you|bye|goodbye)[!.\s]*$/;
+        const hasSubstance = normalized.length > 10 && !genericPatterns.test(normalized);
+        if (hasSubstance) {
+          let titleCandidate = '';
+          try {
+            // Prefer LLM title if available, fallback to deterministic short title
+            titleCandidate = await generateTitleLLM(content);
+          } catch {
+            titleCandidate = generateShortTitle(content);
+          }
+
+          if (titleCandidate && titleCandidate.trim().length > 0) {
+            await db.update(chatThreads)
+              .set({ title: titleCandidate.trim(), updatedAt: new Date() })
+              .where(eq(chatThreads.id, threadId));
+            console.log('[chat] Early thread title set from first user message:', titleCandidate, 'for thread:', threadId);
+          }
+        }
+      }
+    } catch (e) {
+      console.error('[chat] Early title generation failed (non-fatal):', e);
+    }
 
     // Prepare SSE
     res.setHeader("Content-Type", "text/event-stream");
