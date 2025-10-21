@@ -43,8 +43,9 @@ export default function MyFocusDashboard() {
 	const insights = (data.keyInsights || []).slice(0, 3);
 	const optimization = data.pendingOptimization;
 
-	return (
-    <div className="p-8 space-y-8 max-w-6xl mx-auto">
+return (
+    <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-blue-50 p-6 lg:p-8">
+      <div className="space-y-8 max-w-6xl mx-auto">
       <header className="space-y-1">
         <h1 className="text-2xl font-semibold text-gray-900">My Focus</h1>
         <p className="text-sm text-gray-600">Your top priorities and the habits that will help you achieve them</p>
@@ -86,7 +87,7 @@ export default function MyFocusDashboard() {
             </div>
 					))}
 				</div>
-			</section>
+      </section>
 
       <section className="space-y-4">
         <div className="text-base font-semibold text-gray-800">Active Habits</div>
@@ -104,7 +105,7 @@ export default function MyFocusDashboard() {
 						</div>
 					))}
 				</div>
-			</section>
+      </section>
 
       <section className="space-y-4">
         <div className="text-base font-semibold text-gray-800">Key Insights</div>
@@ -119,9 +120,9 @@ export default function MyFocusDashboard() {
 						</div>
 					))}
 				</div>
-			</section>
+      </section>
 
-			{optimization && (
+      {optimization && (
 				<section className="space-y-3">
 					<div className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Optimization Proposal</div>
 					<div className="rounded-xl p-4 bg-white border border-gray-200 shadow-sm">
@@ -134,6 +135,7 @@ export default function MyFocusDashboard() {
 					</div>
 				</section>
 			)}
-		</div>
+    </div>
+    </div>
 	);
 }
