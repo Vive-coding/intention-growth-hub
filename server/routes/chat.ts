@@ -4,6 +4,7 @@ import { eq, desc } from "drizzle-orm";
 import { chatThreads, chatMessages } from "../../shared/schema";
 import { ChatThreadService } from "../services/chatThreadService";
 import { streamLifeCoachReply } from "../ai/lifeCoachService";
+import { MyFocusService } from "../services/myFocusService";
 
 const router = Router();
 
@@ -236,6 +237,12 @@ router.post("/respond", async (req: any, res) => {
       }
       if (result.structuredData) {
         send(JSON.stringify({ type: "structured_data", data: result.structuredData }));
+        // Persist agent outputs into My Focus (best-effort)
+        try {
+          await MyFocusService.persistFromAgent(result.structuredData, { userId, threadId });
+        } catch (e) {
+          console.error('[chat] persist-from-agent failed', e);
+        }
       }
     } catch (e) {
       console.error('[chat] life coach stream failed', e);

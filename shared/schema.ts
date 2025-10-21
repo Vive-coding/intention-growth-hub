@@ -204,6 +204,26 @@ export const suggestionMemory = pgTable("suggestion_memory", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+// My Focus: priority snapshots (immutable history)
+export const myFocusPrioritySnapshots = pgTable("my_focus_priority_snapshots", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  items: jsonb("items").notNull(), // [{ goalInstanceId: string, rank: number, reason?: string }]
+  sourceThreadId: uuid("source_thread_id"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// My Focus: optimization proposals (append-only with status)
+export const myFocusOptimizations = pgTable("my_focus_optimizations", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  summary: text("summary"),
+  recommendations: jsonb("recommendations").notNull(), // [{ type: 'archive'|'modify'|'add', title, description, targetId? }]
+  status: varchar("status", { length: 20 }).default("open").notNull(), // open | applied | dismissed
+  sourceThreadId: uuid("source_thread_id"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 // Habit definitions (global habits)
 export const habitDefinitions = pgTable("habit_definitions", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),

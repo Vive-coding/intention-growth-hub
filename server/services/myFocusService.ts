@@ -6,7 +6,9 @@ import {
   habitDefinitions, 
   habitInstances, 
   insights,
-  lifeMetricDefinitions 
+  lifeMetricDefinitions,
+  myFocusOptimizations,
+  myFocusPrioritySnapshots,
 } from "../../shared/schema";
 
 export interface MyFocusData {
@@ -46,6 +48,42 @@ export interface MyFocusData {
 }
 
 export class MyFocusService {
+  static async persistFromAgent(structured: any, opts: { userId: string; threadId?: string }): Promise<void> {
+    const { userId, threadId } = opts;
+    if (!structured || typeof structured !== 'object') return;
+
+    // Prioritization snapshot (expect { type: 'prioritization', items: [{ goalInstanceId, rank, reason? }] })
+    if (structured.type === 'prioritization' && Array.isArray(structured.items)) {
+      try {
+        await db.insert(myFocusPrioritySnapshots).values({
+          userId,
+          items: structured.items,
+          sourceThreadId: threadId as any,
+        } as any);
+      } catch (e) {
+        console.error('[MyFocus] failed to persist priority snapshot', e);
+      }
+      return;
+    }
+
+    // Optimization proposal (expect { type: 'optimization', summary, recommendations: [...] })
+    if (structured.type === 'optimization' && Array.isArray(structured.recommendations)) {
+      try {
+        await db.insert(myFocusOptimizations).values({
+          userId,
+          summary: structured.summary || null,
+          recommendations: structured.recommendations,
+          status: 'open',
+          sourceThreadId: threadId as any,
+        } as any);
+      } catch (e) {
+        console.error('[MyFocus] failed to persist optimization', e);
+      }
+      return;
+    }
+
+    // Goal suggestion and insight are already persisted via existing flows; no-op here
+  }
   static async getMyFocus(userId: string): Promise<MyFocusData> {
     // Get priority goals (top 3-4 active goals)
     const priorityGoals = await this.getPriorityGoals(userId);
