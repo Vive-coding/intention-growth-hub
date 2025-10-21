@@ -15,7 +15,7 @@ export default function ConversationsList({ currentThreadId }: Props) {
   const { data: threads = [] } = useQuery({
     queryKey: ["/api/chat/threads"],
     queryFn: async () => apiRequest("/api/chat/threads"),
-    staleTime: 30_000,
+    staleTime: 5_000, // Reduced from 30_000 to refresh more frequently
   });
 
 	return (

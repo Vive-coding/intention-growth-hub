@@ -282,7 +282,10 @@ router.post("/respond", async (req: any, res) => {
           const allText = recentMessages.map(m => m.content).join(' ').toLowerCase();
           let title = 'Daily Coaching';
           
-          if (/ai|tech|development|app|build|code|project|programming|software/.test(allText)) {
+          // More specific patterns for better title generation
+          if (/job|interview|career|work|company|position|role|employment|hiring|recruiter|application/.test(allText)) {
+            title = 'Career & Job Search';
+          } else if (/ai|tech|development|app|build|code|project|programming|software|engineering/.test(allText)) {
             title = 'AI Development Focus';
           } else if (/work.*life|balance|stress|overwhelm|busy|schedule|time management/.test(allText)) {
             title = 'Work-Life Balance';
@@ -304,7 +307,9 @@ router.post("/respond", async (req: any, res) => {
             await db.update(chatThreads)
               .set({ title, updatedAt: new Date() })
               .where(eq(chatThreads.id, threadId));
-            console.log('[chat] Generated thread title:', title);
+            console.log('[chat] Generated thread title:', title, 'for thread:', threadId);
+          } else {
+            console.log('[chat] No specific title pattern matched for thread:', threadId, 'content:', allText.substring(0, 100));
           }
         }
       } catch (e) {

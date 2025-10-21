@@ -68,6 +68,8 @@ export default function Composer({ threadId }: Props) {
             (window as any).chatStream?.end?.();
             await queryClient.invalidateQueries({ queryKey: ["/api/chat/threads", tid, "messages"] });
             await queryClient.invalidateQueries({ queryKey: ["/api/chat/threads"] });
+            // Force refresh threads list to pick up any title changes
+            await queryClient.refetchQueries({ queryKey: ["/api/chat/threads"] });
           }
         } catch {}
       }
