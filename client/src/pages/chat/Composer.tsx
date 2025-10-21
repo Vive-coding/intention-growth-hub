@@ -100,11 +100,22 @@ export default function Composer({ threadId }: Props) {
       console.log('[Composer] chatStream available?', !!(window as any).chatStream);
       console.log('[Composer] addUserMessage available?', !!(window as any).chatStream?.addUserMessage);
       
-      if ((window as any).chatStream?.addUserMessage) {
-        (window as any).chatStream.addUserMessage(messageText);
-        console.log('[Composer] Successfully called addUserMessage');
+      // Wait a bit for ConversationStream to mount if we just navigated
+      if (!targetThreadId || targetThreadId === threadId) {
+        if ((window as any).chatStream?.addUserMessage) {
+          (window as any).chatStream.addUserMessage(messageText);
+          console.log('[Composer] Successfully called addUserMessage');
+        } else {
+          console.error('[Composer] chatStream.addUserMessage not available!');
+        }
       } else {
-        console.error('[Composer] chatStream.addUserMessage not available!');
+        // We're navigating to a new thread, wait for it to mount
+        setTimeout(() => {
+          if ((window as any).chatStream?.addUserMessage) {
+            (window as any).chatStream.addUserMessage(messageText);
+            console.log('[Composer] Successfully called addUserMessage after navigation');
+          }
+        }, 100);
       }
 
       // Start thinking state

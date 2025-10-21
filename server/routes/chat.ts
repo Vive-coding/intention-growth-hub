@@ -282,6 +282,13 @@ router.post("/respond", async (req: any, res) => {
           const allText = recentMessages.map(m => m.content).join(' ').toLowerCase();
           let title = 'Daily Coaching';
           
+          console.log('[chat] Analyzing content for title generation:', {
+            threadId,
+            userMessages: userMessages,
+            allText: allText.substring(0, 200),
+            hasSubstantialContent
+          });
+          
           // More specific patterns for better title generation
           if (/job|interview|career|work|company|position|role|employment|hiring|recruiter|application/.test(allText)) {
             title = 'Career & Job Search';
