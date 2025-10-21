@@ -1,7 +1,7 @@
-import { Home, MessageSquare, Target } from "lucide-react";
+import { Home, Target } from "lucide-react";
 import { Link, useLocation } from "wouter";
 
-export default function SharedLeftNav() {
+export default function SharedLeftNav({ children }: { children?: React.ReactNode }) {
 	const [loc] = useLocation();
 	const NavItem = ({ href, icon: Icon, label }: any) => {
 		const active = loc === href || (href !== '/' && loc.startsWith(href));
@@ -21,10 +21,12 @@ export default function SharedLeftNav() {
 			<nav className="px-2 py-2 space-y-1">
 				<NavItem href="/" icon={Home} label="Home" />
 				<NavItem href="/focus" icon={Target} label="My Focus" />
-				<NavItem href="/chat" icon={MessageSquare} label="Conversations" />
 			</nav>
-			<div className="mt-6 px-4 text-[10px] uppercase tracking-wide text-gray-500">Conversations</div>
-			{/* Placeholder for conversation list; chat page will render actual list */}
+			{children && (
+				<div className="mt-6">
+					{children}
+				</div>
+			)}
 		</aside>
 	);
 }
