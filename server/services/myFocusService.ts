@@ -61,6 +61,7 @@ export interface MyFocusData {
 
 export class MyFocusService {
   private static cache = new Map<string, { ts: number; data: MyFocusData }>();
+  private static readonly CACHE_TTL_MS = 0; // disable cache during development to reflect changes immediately
   static async persistFromAgent(structured: any, opts: { userId: string; threadId?: string }): Promise<void> {
     const { userId, threadId } = opts;
     if (!structured || typeof structured !== 'object') return;
@@ -100,7 +101,7 @@ export class MyFocusService {
   static async getMyFocus(userId: string): Promise<MyFocusData> {
     const now = Date.now();
     const cached = this.cache.get(userId);
-    if (cached && now - cached.ts < 30_000) return cached.data;
+    if (this.CACHE_TTL_MS > 0 && cached && now - cached.ts < this.CACHE_TTL_MS) return cached.data;
 
     // Prefer latest snapshot for ordering/priorities
     const snapshot = await db
@@ -124,7 +125,7 @@ export class MyFocusService {
     const pendingOptimization = await this.getPendingOptimization(userId);
 
     const data: MyFocusData = { priorityGoals, highLeverageHabits, keyInsights, ...(priorityMeta ? { priorityMeta } : {}), ...(pendingOptimization ? { pendingOptimization } : {}) };
-    this.cache.set(userId, { ts: now, data });
+    if (this.CACHE_TTL_MS > 0) this.cache.set(userId, { ts: now, data });
     return data;
   }
 
