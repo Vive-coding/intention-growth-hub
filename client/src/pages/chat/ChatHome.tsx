@@ -3,6 +3,7 @@ import { useLocation, useRoute } from "wouter";
 import { apiRequest } from "@/lib/queryClient";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import ConversationStream from "@/pages/chat/ConversationStream";
+import SharedLeftNav from "@/components/layout/SharedLeftNav";
 import Composer from "@/pages/chat/Composer";
 import QuickActions from "@/pages/chat/QuickActions";
 import SuggestionsPanel from "@/pages/chat/SuggestionsPanel";
@@ -100,53 +101,8 @@ export default function ChatHome() {
 
   return (
     <div className="flex h-screen bg-gray-50">
-      {/* Left conversations list */}
-      <aside className="w-72 border-r bg-white hidden md:flex flex-col">
-        <div className="px-4 pt-4 pb-2 flex items-center justify-between">
-          <div className="text-[11px] tracking-wide uppercase text-gray-500">Conversations</div>
-          <button className="text-sm text-teal-600" onClick={handleStartNew}>+ New</button>
-        </div>
-        <div className="border-t" />
-        <div className="overflow-auto py-2">
-          {threads.slice(0, 7).map((t: any) => {
-            const active = t.id === threadId;
-            return (
-              <div
-                key={t.id}
-                className={`group relative w-full text-left px-4 py-3 hover:bg-gray-50 ${active ? "bg-teal-50" : ""}`}
-              >
-                <button
-                  className="w-full text-left"
-                  onClick={() => navigate(`/chat/${t.id}`)}
-                >
-                  <div className="flex items-center gap-2">
-                    <MessageSquare className={`w-4 h-4 ${active ? "text-teal-700" : "text-gray-400"}`} />
-                    <div className={`text-sm font-medium truncate ${active ? "text-teal-800" : "text-gray-800"}`}>{t.title || "Daily Coaching"}</div>
-                  </div>
-                  <div className="text-[11px] text-gray-500 mt-0.5">
-                    {(() => {
-                      const d = new Date(t.createdAt || t.updatedAt || Date.now());
-                      return d.toLocaleDateString();
-                    })()}
-                  </div>
-                </button>
-                <button
-                  className="absolute right-2 top-1/2 transform -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-red-100 rounded"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setDeleteConfirm({
-                      threadId: t.id,
-                      title: t.title || "Daily Coaching"
-                    });
-                  }}
-                >
-                  <Trash2 className="w-3 h-3 text-red-500" />
-                </button>
-              </div>
-            );
-          })}
-        </div>
-      </aside>
+      {/* Shared left nav */}
+      <SharedLeftNav />
 
       {/* Main chat column */}
       <main className="flex-1 flex flex-col">

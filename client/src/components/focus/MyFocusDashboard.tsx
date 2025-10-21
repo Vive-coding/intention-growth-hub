@@ -122,6 +122,24 @@ return (
 				</div>
       </section>
 
+      {/* View All */}
+      <section>
+        <div className="grid gap-3 md:grid-cols-3">
+          <a href="/goals" className="rounded-xl p-4 bg-white/90 backdrop-blur-sm border border-gray-200 shadow-sm hover:shadow-md transition">
+            <div className="text-sm font-semibold text-gray-900">All Goals</div>
+            <div className="text-xs text-gray-600">View & manage</div>
+          </a>
+          <a href="/habits" className="rounded-xl p-4 bg-white/90 backdrop-blur-sm border border-gray-200 shadow-sm hover:shadow-md transition">
+            <div className="text-sm font-semibold text-gray-900">All Habits</div>
+            <div className="text-xs text-gray-600">Track progress</div>
+          </a>
+          <a href="/insights" className="rounded-xl p-4 bg-white/90 backdrop-blur-sm border border-gray-200 shadow-sm hover:shadow-md transition">
+            <div className="text-sm font-semibold text-gray-900">Insights Archive</div>
+            <div className="text-xs text-gray-600">All discoveries</div>
+          </a>
+        </div>
+      </section>
+
       {optimization && (
 				<section className="space-y-3">
 					<div className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Optimization Proposal</div>
