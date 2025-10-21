@@ -268,8 +268,10 @@ router.post("/respond", async (req: any, res) => {
       await ChatThreadService.appendMessage({ threadId, role: "assistant", content: finalText.trim(), status: "complete" } as any);
       
       // Generate smart title if this is still the default title
+      console.log('[chat] Starting title generation check for thread:', threadId);
       try {
         const [thread] = await db.select().from(chatThreads).where(eq(chatThreads.id, threadId)).limit(1);
+        console.log('[chat] Thread found for title generation:', { id: thread?.id, title: thread?.title, userId: thread?.userId });
         if (thread && thread.title === 'Daily Coaching') {
           // Get recent messages to understand conversation theme
           const recentMessages = await db

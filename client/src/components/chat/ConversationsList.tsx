@@ -53,8 +53,13 @@ export default function ConversationsList({ currentThreadId }: Props) {
                     try {
                       if (!confirm('Delete this conversation? This cannot be undone.')) return;
                       await apiRequest(`/api/chat/threads/${t.id}`, { method: 'DELETE' });
+                      // Immediately invalidate and refetch to update the UI
                       await queryClient.invalidateQueries({ queryKey: ["/api/chat/threads"] });
-                      if (currentThreadId === t.id) navigate('/chat');
+                      await queryClient.refetchQueries({ queryKey: ["/api/chat/threads"] });
+                      // If we deleted the active thread, navigate immediately
+                      if (currentThreadId === t.id) {
+                        navigate('/chat');
+                      }
                     } catch (err) {
                       console.error('Failed to delete thread', err);
                     }

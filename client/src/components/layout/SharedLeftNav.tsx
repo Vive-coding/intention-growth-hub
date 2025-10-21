@@ -7,10 +7,10 @@ export default function SharedLeftNav({ children }: { children?: React.ReactNode
 		const active = loc === href || (href !== '/' && loc.startsWith(href));
 		return (
 			<Link href={href}>
-				<a className={`flex items-center gap-3 px-4 py-2 rounded-lg transition-colors ${active ? 'bg-emerald-50 text-emerald-700' : 'text-gray-700 hover:bg-gray-50'}`}>
+				<div className={`flex items-center gap-3 px-4 py-2 rounded-lg transition-colors cursor-pointer ${active ? 'bg-emerald-50 text-emerald-700' : 'text-gray-700 hover:bg-gray-50'}`}>
 					<Icon className={`w-4 h-4 ${active ? 'text-emerald-700' : 'text-gray-500'}`} />
 					<span className="text-sm font-medium">{label}</span>
-				</a>
+				</div>
 			</Link>
 		);
 	};
