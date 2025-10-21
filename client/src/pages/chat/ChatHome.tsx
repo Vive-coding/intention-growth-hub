@@ -11,10 +11,12 @@ import { OptimizeHabitsModal } from "@/components/OptimizeHabitsModal";
 import CompleteHabitsModal from "@/pages/chat/CompleteHabitsModal";
 import { ConfirmationModal } from "@/components/ui/confirmation-modal";
 import { MessageSquare, Trash2 } from "lucide-react";
+import ConversationsList from "@/components/chat/ConversationsList";
 
 export default function ChatHome() {
   const [, navigate] = useLocation();
   const [match, params] = useRoute("/chat/:threadId");
+  const [isNew] = useRoute("/chat");
   const threadId = match ? (params as any).threadId : undefined;
   const queryClient = useQueryClient();
   const autoCreateGuard = useRef(false);
@@ -31,41 +33,28 @@ export default function ChatHome() {
     staleTime: 30_000,
   });
 
-  // Ensure a valid thread is present: select latest or create one
+  // Default behavior: if no thread selected, show empty chat home (do not create a thread)
   useEffect(() => {
     if (threadId) return;
-    if (threads.length > 0) {
-      navigate(`/chat/${threads[0].id}`, { replace: true });
-      return;
-    }
-    // No threads yet – create the first one once
-    if (!autoCreateGuard.current) {
-      autoCreateGuard.current = true;
-      (async () => {
-        try {
-          const t = await apiRequest("/api/chat/threads", { method: "POST" });
-          await queryClient.invalidateQueries({ queryKey: ["/api/chat/threads"] });
-          const newId = (t.id || t.threadId) as string;
-          navigate(`/chat/${newId}`, { replace: true });
-        } catch (e) {
-          console.error("Failed to auto-create chat thread", e);
-        }
-      })();
-    }
-  }, [threadId, threads, navigate, queryClient]);
+    // If URL has ?new=1 (initiated from +), stay blank even if threads exist
+    const urlHasNew = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('new') === '1';
+    if (urlHasNew) return;
+    if (threads.length > 0) navigate(`/chat/${threads[0].id}`, { replace: true });
+  }, [threadId, threads, navigate]);
 
-  // Create new thread when user clicks Home or + (simple handler)
+  // Defer creation; creation happens when sending first message
   const handleStartNew = async () => {
-    const t = await apiRequest("/api/chat/threads", { method: "POST" });
-    await queryClient.invalidateQueries({ queryKey: ["/api/chat/threads"] });
-    // Some backends return {threadId}; normalize
-    const newId = (t.id || t.threadId) as string;
-    navigate(`/chat/${newId}`);
+    navigate('/chat');
   };
 
   // Helper to send a quick action message and route to a special agent
   const sendAction = async (text: string, agent: 'review_progress' | 'suggest_goals' | 'prioritize_optimize' | 'surprise_me') => {
-    if (!threadId || actionPendingRef.current) return;
+    if (actionPendingRef.current) return;
+    if (!threadId) {
+      // Blank state: let the composer lazily create the thread and send
+      (window as any).composeAndSend?.(text);
+      return;
+    }
     actionPendingRef.current = true;
     try {
       // Show optimistic user message and thinking state just like Composer
@@ -103,49 +92,7 @@ export default function ChatHome() {
     <div className="flex h-screen bg-gray-50">
       {/* Shared left nav + conversations list */}
       <SharedLeftNav>
-        <div className="px-4 text-[10px] uppercase tracking-wide text-gray-500">Conversations</div>
-        <div className="overflow-auto py-2">
-          {threads.slice(0, 7).map((t: any) => {
-            const active = t.id === threadId;
-            return (
-              <div
-                key={t.id}
-                className={`group relative w-full text-left px-4 py-3 hover:bg-gray-50 ${active ? "bg-teal-50" : ""}`}
-              >
-                <button
-                  className="w-full text-left"
-                  onClick={() => navigate(`/chat/${t.id}`)}
-                >
-                  <div className="flex items-center gap-2">
-                    <MessageSquare className={`w-4 h-4 ${active ? "text-teal-700" : "text-gray-400"}`} />
-                    <div className={`text-sm font-medium truncate ${active ? "text-teal-800" : "text-gray-800"}`}>{t.title || "Daily Coaching"}</div>
-                  </div>
-                  <div className="text-[11px] text-gray-500 mt-0.5">
-                    {(() => {
-                      const d = new Date(t.createdAt || t.updatedAt || Date.now());
-                      return d.toLocaleDateString();
-                    })()}
-                  </div>
-                </button>
-                <button
-                  className="absolute right-2 top-1/2 transform -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-red-100 rounded"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setDeleteConfirm({
-                      threadId: t.id,
-                      title: t.title || "Daily Coaching"
-                    });
-                  }}
-                >
-                  <Trash2 className="w-3 h-3 text-red-500" />
-                </button>
-              </div>
-            );
-          })}
-        </div>
-        <div className="px-4 py-2">
-          <button className="text-sm text-teal-600" onClick={handleStartNew}>+ New</button>
-        </div>
+        <ConversationsList currentThreadId={threadId} />
       </SharedLeftNav>
 
       {/* Main chat column */}
@@ -153,26 +100,32 @@ export default function ChatHome() {
         <div className="px-6 py-4 border-b bg-white">
           <div className="flex items-center justify-between">
             <div className="text-base md:text-lg font-semibold text-gray-800">Daily Coaching</div>
-            <button
-              onClick={async () => {
-                try {
-                  // Home should only navigate to /chat; new thread is created when user sends first message
-                  navigate('/chat');
-                } catch (e) {
-                  console.error('Failed to create test cards thread', e);
-                }
-              }}
-              className="text-sm text-blue-600 hover:text-blue-800 font-medium"
-            >
-              New Chat
-            </button>
+            {/* Removed top-right New Chat; use + within Conversations header */}
           </div>
         </div>
 
         <div className="flex-1 overflow-auto">
-          <ConversationStream threadId={threadId} />
+          {threadId ? (
+            <ConversationStream threadId={threadId} />
+          ) : (
+            <div className="max-w-3xl mx-auto px-4 py-16">
+              <div className="text-center text-gray-600 mb-6">Start a conversation with your coach</div>
+              <div className="mb-3">
+                <QuickActions
+                  onReviewHabits={() => sendAction('Let me review my habits and progress.', 'review_progress')}
+                  onViewSuggestions={() => sendAction('Please suggest some goals based on our conversation so far.', 'suggest_goals')}
+                  onOptimize={() => sendAction('Help me optimize and prioritize my focus.', 'prioritize_optimize')}
+                  onSurpriseMe={() => sendAction('Surprise me with some insights about myself.', 'surprise_me')}
+                />
+              </div>
+              <div className="border rounded-2xl p-4 bg-white shadow-sm">
+                <Composer threadId={undefined as any} />
+              </div>
+            </div>
+          )}
         </div>
 
+        {threadId && (
         <div className="border-t bg-white px-4 py-3">
           <div className="mb-2">
             <QuickActions
@@ -184,6 +137,7 @@ export default function ChatHome() {
           </div>
           <Composer threadId={threadId} />
         </div>
+        )}
       </main>
 
       <SuggestionsPanel open={showSuggestions} onClose={() => setShowSuggestions(false)} />

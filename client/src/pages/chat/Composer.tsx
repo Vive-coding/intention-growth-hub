@@ -1,6 +1,8 @@
 import { useCallback, useState, useRef, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Send } from "lucide-react";
+import { useLocation } from "wouter";
+import { apiRequest } from "@/lib/queryClient";
 
 interface Props {
   threadId?: string;
@@ -11,6 +13,7 @@ export default function Composer({ threadId }: Props) {
   const [sending, setSending] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const queryClient = useQueryClient();
+  const [, navigate] = useLocation();
 
   // Auto-resize textarea based on content
   useEffect(() => {
@@ -73,13 +76,22 @@ export default function Composer({ threadId }: Props) {
 
   const send = useCallback(async () => {
     if (!text.trim()) return;
-    if (!threadId) return;
     setSending(true);
 
     try {
       // Clear text immediately when starting to send
       const messageText = text;
       setText("");
+
+      // If no thread yet, create one lazily
+      let targetThreadId = threadId;
+      if (!targetThreadId) {
+        const t = await apiRequest("/api/chat/threads", { method: "POST" } as any);
+        await queryClient.invalidateQueries({ queryKey: ["/api/chat/threads"] });
+        targetThreadId = (t.id || (t as any).threadId) as string;
+        // Navigate to the new thread view
+        navigate(`/chat/${targetThreadId}`, { replace: true });
+      }
 
       // Show user message immediately by adding it to the stream
       console.log('[Composer] Calling addUserMessage with:', messageText);
@@ -96,14 +108,21 @@ export default function Composer({ threadId }: Props) {
       // Start thinking state
       (window as any).chatStream?.begin?.();
 
-      await (window as any).sendServerStream({ threadId, content: messageText });
+      await (window as any).sendServerStream({ threadId: targetThreadId as string, content: messageText });
             } catch (e) {
               console.error('Chat stream error', e);
               (window as any).chatStream?.end?.();
             } finally {
               setSending(false);
             }
-  }, [text, threadId]);
+  }, [text, threadId, navigate, queryClient]);
+
+  // Expose a helper so QuickActions can trigger a send in blank state
+  (window as any).composeAndSend = async (preset: string) => {
+    setText(preset);
+    await new Promise((r) => setTimeout(r, 0));
+    await send();
+  };
 
   return (
     <div className="max-w-3xl mx-auto flex items-start gap-2">
@@ -119,12 +138,12 @@ export default function Composer({ threadId }: Props) {
             send();
           }
         }}
-        style={{ height: '44px' }}
+        style={{ height: threadId ? '88px' : '96px' }}
       />
       <button
         className="w-11 h-11 rounded-2xl bg-teal-600 text-white disabled:opacity-50 flex items-center justify-center self-start"
         onClick={send}
-        disabled={!text.trim() || sending || !threadId}
+        disabled={!text.trim() || sending}
         aria-label="Send"
         title="Send"
       >
