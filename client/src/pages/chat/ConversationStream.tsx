@@ -34,12 +34,12 @@ export default function ConversationStream({ threadId }: Props) {
     staleTime: 5_000,
   });
 
-  // Clear optimistic message when we get fresh messages
+  // Clear optimistic message when we get fresh messages, but only if we're not currently streaming
   useEffect(() => {
-    if (messages.length > 0) {
+    if (messages.length > 0 && !isStreaming && !isThinking) {
       setOptimisticUserMessage(undefined);
     }
-  }, [messages]);
+  }, [messages, isStreaming, isThinking]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });

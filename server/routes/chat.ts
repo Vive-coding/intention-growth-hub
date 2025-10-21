@@ -265,20 +265,39 @@ router.post("/respond", async (req: any, res) => {
             .orderBy(desc(chatMessages.createdAt))
             .limit(6);
           
-          // Simple title generation based on conversation content
+          // Skip title generation if messages are just generic greetings
+          const userMessages = recentMessages.filter(m => m.role === 'user').map(m => m.content.toLowerCase().trim());
+          const hasSubstantialContent = userMessages.some(msg => {
+            // Skip generic greetings and small talk
+            const genericPatterns = /^(hi|hello|hey|how are you|how's it going|what's up|good morning|good afternoon|good evening|thanks|thank you|bye|goodbye)$/;
+            return !genericPatterns.test(msg) && msg.length > 10;
+          });
+          
+          if (!hasSubstantialContent) {
+            console.log('[chat] Skipping title generation - only generic greetings detected');
+            return;
+          }
+          
+          // Generate title based on conversation content
           const allText = recentMessages.map(m => m.content).join(' ').toLowerCase();
           let title = 'Daily Coaching';
           
-          if (/ai|tech|development|app|build|code|project/.test(allText)) {
+          if (/ai|tech|development|app|build|code|project|programming|software/.test(allText)) {
             title = 'AI Development Focus';
-          } else if (/work.*life|balance|stress|overwhelm|busy/.test(allText)) {
+          } else if (/work.*life|balance|stress|overwhelm|busy|schedule|time management/.test(allText)) {
             title = 'Work-Life Balance';
-          } else if (/focus|distraction|procrastination|deadline|overwhelm/.test(allText)) {
+          } else if (/focus|distraction|procrastination|deadline|overwhelm|productivity|efficiency/.test(allText)) {
             title = 'Focus & Productivity';
-          } else if (/goal|achieve|progress|growth/.test(allText)) {
+          } else if (/goal|achieve|progress|growth|ambition|career|success/.test(allText)) {
             title = 'Goal Setting';
-          } else if (/habit|routine|daily|consistency/.test(allText)) {
+          } else if (/habit|routine|daily|consistency|behavior|change|improve/.test(allText)) {
             title = 'Building Habits';
+          } else if (/health|fitness|exercise|wellness|mental health|anxiety|depression/.test(allText)) {
+            title = 'Health & Wellness';
+          } else if (/relationship|family|friends|social|communication/.test(allText)) {
+            title = 'Relationships';
+          } else if (/finance|money|budget|investment|financial|saving/.test(allText)) {
+            title = 'Financial Planning';
           }
           
           if (title !== 'Daily Coaching') {
