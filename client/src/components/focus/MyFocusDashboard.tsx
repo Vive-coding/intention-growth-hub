@@ -71,16 +71,16 @@ return (
                   </div>
                   <div className="font-semibold text-gray-900 truncate">{g.title}</div>
                   {g.reason && (
-                    <div className="mt-2 text-xs text-gray-700 bg-gray-50 border border-gray-200 rounded-lg p-3 flex items-start gap-2">
-                      <Sparkles className="w-3.5 h-3.5 text-gray-500 mt-0.5" />
+                    <div className="mt-2 text-xs text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg p-3 flex items-start gap-2">
+                      <Sparkles className="w-3.5 h-3.5 text-emerald-500 mt-0.5" />
                       <span className="leading-relaxed">{g.reason}</span>
                     </div>
                   )}
                 </div>
                 <div className="shrink-0 w-28 text-right">
                   <div className="text-xs text-gray-600 mb-1">{Math.round(Math.min(100, Math.max(0, g.progress || 0)))}%</div>
-                  <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                    <div className="h-full bg-gray-900" style={{ width: `${Math.min(100, Math.max(0, g.progress || 0))}%` }} />
+                  <div className="h-2 bg-emerald-100 rounded-full overflow-hidden">
+                    <div className="h-full bg-emerald-600" style={{ width: `${Math.min(100, Math.max(0, g.progress || 0))}%` }} />
                   </div>
                 </div>
               </div>
