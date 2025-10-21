@@ -272,7 +272,7 @@ router.post("/respond", async (req: any, res) => {
       try {
         const [thread] = await db.select().from(chatThreads).where(eq(chatThreads.id, threadId)).limit(1);
         console.log('[chat] Thread found for title generation:', { id: thread?.id, title: thread?.title, userId: thread?.userId });
-        if (thread && thread.title === 'Daily Coaching') {
+        if (thread && (thread.title === 'Daily Coaching' || thread.title === null)) {
           // Get recent messages to understand conversation theme
           const recentMessages = await db
             .select({ content: chatMessages.content, role: chatMessages.role })

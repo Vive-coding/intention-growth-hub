@@ -29,9 +29,23 @@ export default function ConversationStream({ threadId }: Props) {
     enabled: !!threadId,
     queryFn: async () => {
       if (!threadId) return [];
-      return apiRequest(`/api/chat/threads/${threadId}/messages`);
+      try {
+        return await apiRequest(`/api/chat/threads/${threadId}/messages`);
+      } catch (error: any) {
+        // If thread not found (404), it was probably deleted
+        if (error?.status === 404) {
+          console.log('[ConversationStream] Thread not found, probably deleted:', threadId);
+          return [];
+        }
+        throw error;
+      }
     },
     staleTime: 5_000,
+    retry: (failureCount, error: any) => {
+      // Don't retry on 404 errors (deleted threads)
+      if (error?.status === 404) return false;
+      return failureCount < 3;
+    },
   });
 
   // Clear optimistic message when we get fresh messages, but only if we're not currently streaming
@@ -40,6 +54,14 @@ export default function ConversationStream({ threadId }: Props) {
       setOptimisticUserMessage(undefined);
     }
   }, [messages, isStreaming, isThinking]);
+
+  // Navigate away if thread was deleted (no messages and not streaming)
+  useEffect(() => {
+    if (threadId && messages.length === 0 && !isStreaming && !isThinking && !optimisticUserMessage) {
+      console.log('[ConversationStream] Thread appears to be deleted, navigating to /chat');
+      navigate('/chat');
+    }
+  }, [threadId, messages.length, isStreaming, isThinking, optimisticUserMessage, navigate]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
