@@ -118,8 +118,10 @@ export default function ChatHome() {
                   onSurpriseMe={() => sendAction('Surprise me with some insights about myself.', 'surprise_me')}
                 />
               </div>
-              <div className="border rounded-2xl p-4 bg-white shadow-sm">
-                <Composer threadId={undefined as any} />
+              <div className="border-2 border-transparent bg-gradient-to-r from-purple-500 to-blue-500 p-[2px] rounded-2xl">
+                <div className="bg-white rounded-2xl p-4">
+                  <Composer threadId={undefined as any} />
+                </div>
               </div>
             </div>
           )}
