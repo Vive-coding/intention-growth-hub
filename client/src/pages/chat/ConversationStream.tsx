@@ -54,6 +54,7 @@ export default function ConversationStream({ threadId }: Props) {
       console.log('[ConversationStream] Optimistic message state set to:', message);
     },
     begin: () => {
+      console.log('[ConversationStream] Beginning stream');
       setStreamingText("");
       setIsThinking(true);
       setIsStreaming(false);
@@ -66,6 +67,7 @@ export default function ConversationStream({ threadId }: Props) {
       setStreamingText((s) => s + token);
     },
     end: () => {
+      console.log('[ConversationStream] Ending stream');
       setIsStreaming(false);
       setIsThinking(false);
       // Don't clear optimistic message here - let the query refresh handle it

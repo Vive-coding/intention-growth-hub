@@ -133,6 +133,8 @@ router.post("/threads", async (req: any, res) => {
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
     const { title, isTest, privacyScope } = req.body || {};
+    console.log('[chat] Creating thread for user:', userId, 'title:', title);
+    
     const thread = await ChatThreadService.createThread({
       userId,
       title: typeof title === "string" ? title : null,
@@ -140,6 +142,8 @@ router.post("/threads", async (req: any, res) => {
       privacyScope: privacyScope ?? null,
       summary: null,
     } as any);
+    
+    console.log('[chat] Created thread:', { id: thread.id, userId: thread.userId, title: thread.title });
     res.status(201).json({ threadId: thread.id, title: thread.title });
   } catch (e) {
     console.error("[chat] create thread failed", e);
@@ -167,10 +171,20 @@ router.get("/threads/:id/messages", async (req: any, res) => {
     const userId = req.user?.id || req.user?.claims?.sub;
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
     const threadId = req.params.id;
+    
+    console.log('[chat] Fetching messages for thread:', threadId, 'user:', userId);
+    
     const [own] = await db.select().from(chatThreads).where(eq(chatThreads.id, threadId)).limit(1);
-    if (!own || own.userId !== userId) return res.status(404).json({ message: "Thread not found" });
+    console.log('[chat] Thread lookup result:', { threadId, found: !!own, userId: own?.userId, matches: own?.userId === userId });
+    
+    if (!own || own.userId !== userId) {
+      console.log('[chat] Thread not found or access denied:', { threadId, userId, found: !!own, threadUserId: own?.userId });
+      return res.status(404).json({ message: "Thread not found" });
+    }
+    
     const limit = Math.min(200, parseInt(String(req.query.limit || "50")) || 50);
     const messages = await ChatThreadService.getMessages(threadId, limit);
+    console.log('[chat] Retrieved', messages.length, 'messages for thread:', threadId);
     res.json(messages);
   } catch (e) {
     console.error("[chat] list messages failed", e);
