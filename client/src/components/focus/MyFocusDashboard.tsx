@@ -54,21 +54,21 @@ export default function MyFocusDashboard() {
   const isEmpty = priorityGoals.length === 0 && activeHabits.length === 0 && insights.length === 0;
 
 return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-blue-50 p-6 lg:p-8">
-      <div className="space-y-8 max-w-6xl mx-auto">
+    <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-blue-50 p-3 sm:p-6 lg:p-8">
+      <div className="space-y-6 sm:space-y-8 max-w-6xl mx-auto">
       <header className="space-y-1">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-semibold text-gray-900">My Focus</h1>
-            <p className="text-sm text-gray-600">Your top priorities and the habits that will help you achieve them</p>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="min-w-0">
+            <h1 className="text-xl sm:text-2xl font-semibold text-gray-900">My Focus</h1>
+            <p className="text-xs sm:text-sm text-gray-600">Your top priorities and the habits that will help you achieve them</p>
           </div>
           <div className="flex items-center gap-3">
             <button
-              className="hidden md:inline-flex items-center px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-sm hover:bg-emerald-700"
+              className="inline-flex items-center px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs sm:text-sm hover:bg-emerald-700 whitespace-nowrap"
               title="Start chat to Optimize My Focus"
               onClick={() => { window.location.href = '/chat?new=1&optimize=1'; }}
             >
-              Start chat to Optimize My Focus
+              Optimize My Focus
             </button>
           </div>
         </div>
@@ -91,35 +91,29 @@ return (
       )}
 
       {/* Compact two-column layout: Goals and Habits side by side */}
-      <section className="grid gap-6 md:grid-cols-2">
+      <section className="grid gap-4 sm:gap-6 md:grid-cols-2">
         {/* Priority Goals */}
-        <div className="space-y-4">
-          <div className="text-base font-semibold text-gray-800">Priority Goals</div>
-          <div className="grid gap-4">
+        <div className="space-y-3 sm:space-y-4 min-w-0">
+          <div className="text-sm sm:text-base font-semibold text-gray-800">Priority Goals</div>
+          <div className="grid gap-3 sm:gap-4">
             {priorityGoals.length === 0 && (
-              <div className="text-sm text-gray-600">No priorities yet. Start a chat to set your top 3 goals.</div>
+              <div className="text-xs sm:text-sm text-gray-600">No priorities yet. Start a chat to set your top 3 goals.</div>
             )}
             {priorityGoals.map((g: any) => (
-              <div key={g.id} className="rounded-2xl p-5 bg-white border border-gray-200 shadow-sm">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2 mb-2">
+              <div key={g.id} className="rounded-2xl p-3 sm:p-5 bg-white border border-gray-200 shadow-sm min-w-0">
+                <div className="flex items-start gap-2 sm:gap-4">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5 sm:gap-2 mb-2 flex-wrap">
                       {typeof g.rank === 'number' && (
-                        <span className="text-[11px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">Priority {g.rank}</span>
+                        <span className="text-[10px] sm:text-[11px] px-1.5 sm:px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 whitespace-nowrap">Priority {g.rank}</span>
                       )}
                       {g.lifeMetric?.name && (
-                        <span className={`text-[11px] px-2 py-0.5 rounded-full border ${getPillBg(g.lifeMetric.name)}`}>{g.lifeMetric.name}</span>
+                        <span className={`text-[10px] sm:text-[11px] px-1.5 sm:px-2 py-0.5 rounded-full border ${getPillBg(g.lifeMetric.name)} whitespace-nowrap`}>{g.lifeMetric.name}</span>
                       )}
                     </div>
-                    <div className="font-semibold text-gray-900 truncate">{g.title}</div>
-                    {g.reason && (
-                      <div className="mt-2 text-xs text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg p-3 flex items-start gap-2">
-                        <Sparkles className="w-3.5 h-3.5 text-emerald-500 mt-0.5" />
-                        <span className="leading-relaxed">{g.reason}</span>
-                      </div>
-                    )}
+                    <div className="font-semibold text-sm sm:text-base text-gray-900 break-words">{g.title}</div>
                   </div>
-                  <div className="shrink-0 w-28 text-right">
+                  <div className="shrink-0 w-16 sm:w-20 text-right">
                     <div className="text-xs text-gray-600 mb-1">{Math.round(Math.min(100, Math.max(0, g.progress || 0)))}%</div>
                     <div className="h-2 bg-emerald-100 rounded-full overflow-hidden">
                       <div className="h-full bg-emerald-600" style={{ width: `${Math.min(100, Math.max(0, g.progress || 0))}%` }} />
@@ -132,35 +126,35 @@ return (
         </div>
 
         {/* Active Habits */}
-        <div className="space-y-4">
-          <div className="text-base font-semibold text-gray-800">Active Habits</div>
-          <div className="grid gap-3">
+        <div className="space-y-3 sm:space-y-4 min-w-0">
+          <div className="text-sm sm:text-base font-semibold text-gray-800">Active Habits</div>
+          <div className="grid gap-2 sm:gap-3">
             {activeHabits.length === 0 && (
-              <div className="text-sm text-gray-600">No habits yet. Choose 2–3 high-leverage habits to track.</div>
+              <div className="text-xs sm:text-sm text-gray-600">No habits yet. Choose 2–3 high-leverage habits to track.</div>
             )}
             {activeHabits.map((h: any) => (
-              <div key={h.id} className="rounded-xl p-3 bg-white border border-gray-200 shadow-sm flex items-center justify-between">
-                <div className="min-w-0">
-                  <div className="font-medium text-gray-900 truncate">{h.title}</div>
+              <div key={h.id} className="rounded-xl p-3 bg-white border border-gray-200 shadow-sm flex items-center justify-between gap-2 min-w-0">
+                <div className="min-w-0 flex-1">
+                  <div className="font-medium text-sm sm:text-base text-gray-900 truncate">{h.title}</div>
                   <div className="text-xs text-gray-600">Streak: {h.streak}d</div>
                 </div>
-                <CheckCircle2 className="w-4 h-4 text-gray-300" />
+                <CheckCircle2 className="w-4 h-4 text-gray-300 shrink-0" />
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      <section className="space-y-4">
-        <div className="text-base font-semibold text-gray-800">Key Insights</div>
+      <section className="space-y-3 sm:space-y-4">
+        <div className="text-sm sm:text-base font-semibold text-gray-800">Key Insights</div>
 				<div className="grid gap-2">
 					{insights.length === 0 && (
-						<div className="text-sm text-gray-600">No insights yet. Chat with your coach to generate insights.</div>
+						<div className="text-xs sm:text-sm text-gray-600">No insights yet. Chat with your coach to generate insights.</div>
 					)}
 					{insights.map((i: any) => (
-						<div key={i.id} className="rounded-xl p-3 bg-white border border-gray-200 shadow-sm">
-							<div className="font-medium text-gray-900">{i.title}</div>
-							<div className="text-xs text-gray-600 mt-1">{i.explanation}</div>
+						<div key={i.id} className="rounded-xl p-3 bg-white border border-gray-200 shadow-sm min-w-0">
+							<div className="font-medium text-sm sm:text-base text-gray-900 break-words">{i.title}</div>
+							<div className="text-xs text-gray-600 mt-1 break-words">{i.explanation}</div>
 						</div>
 					))}
 				</div>
@@ -168,30 +162,30 @@ return (
 
       {/* View All */}
       <section>
-        <div className="grid gap-3 md:grid-cols-3">
-          <a href="/goals" className="rounded-xl p-4 bg-white/90 backdrop-blur-sm border border-gray-200 shadow-sm hover:shadow-md transition">
-            <div className="text-sm font-semibold text-gray-900">All Goals</div>
-            <div className="text-xs text-gray-600">View & manage</div>
+        <div className="grid gap-2 sm:gap-3 grid-cols-3">
+          <a href="/goals" className="rounded-xl p-2 sm:p-4 bg-white/90 backdrop-blur-sm border border-gray-200 shadow-sm hover:shadow-md transition">
+            <div className="text-xs sm:text-sm font-semibold text-gray-900">All Goals</div>
+            <div className="text-[10px] sm:text-xs text-gray-600">View & manage</div>
           </a>
-          <a href="/habits" className="rounded-xl p-4 bg-white/90 backdrop-blur-sm border border-gray-200 shadow-sm hover:shadow-md transition">
-            <div className="text-sm font-semibold text-gray-900">All Habits</div>
-            <div className="text-xs text-gray-600">Track progress</div>
+          <a href="/habits" className="rounded-xl p-2 sm:p-4 bg-white/90 backdrop-blur-sm border border-gray-200 shadow-sm hover:shadow-md transition">
+            <div className="text-xs sm:text-sm font-semibold text-gray-900">All Habits</div>
+            <div className="text-[10px] sm:text-xs text-gray-600">Track progress</div>
           </a>
-          <a href="/insights" className="rounded-xl p-4 bg-white/90 backdrop-blur-sm border border-gray-200 shadow-sm hover:shadow-md transition">
-            <div className="text-sm font-semibold text-gray-900">Insights Archive</div>
-            <div className="text-xs text-gray-600">All discoveries</div>
+          <a href="/insights" className="rounded-xl p-2 sm:p-4 bg-white/90 backdrop-blur-sm border border-gray-200 shadow-sm hover:shadow-md transition">
+            <div className="text-xs sm:text-sm font-semibold text-gray-900">Insights Archive</div>
+            <div className="text-[10px] sm:text-xs text-gray-600">All discoveries</div>
           </a>
         </div>
       </section>
 
       {optimization && (
-				<section className="space-y-3">
-					<div className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Optimization Proposal</div>
-					<div className="rounded-xl p-4 bg-white border border-gray-200 shadow-sm">
-						{optimization.summary && <div className="text-sm text-gray-700 mb-2">{optimization.summary}</div>}
-						<ul className="list-disc list-inside text-sm text-gray-700 space-y-1">
+				<section className="space-y-2 sm:space-y-3">
+					<div className="text-[10px] sm:text-xs font-semibold text-gray-500 uppercase tracking-wide">Optimization Proposal</div>
+					<div className="rounded-xl p-3 sm:p-4 bg-white border border-gray-200 shadow-sm min-w-0">
+						{optimization.summary && <div className="text-xs sm:text-sm text-gray-700 mb-2 break-words">{optimization.summary}</div>}
+						<ul className="list-disc list-inside text-xs sm:text-sm text-gray-700 space-y-1">
 							{optimization.recommendations.map((r: any, idx: number) => (
-								<li key={idx}><span className="uppercase text-[11px] text-gray-500">{r.type}:</span> {r.title} — {r.description}</li>
+								<li key={idx} className="break-words"><span className="uppercase text-[10px] sm:text-[11px] text-gray-500">{r.type}:</span> {r.title} — {r.description}</li>
 							))}
 						</ul>
 					</div>

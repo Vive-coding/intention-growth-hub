@@ -12,6 +12,10 @@ import CompleteHabitsModal from "@/pages/chat/CompleteHabitsModal";
 import { ConfirmationModal } from "@/components/ui/confirmation-modal";
 import { MessageSquare, Trash2 } from "lucide-react";
 import ConversationsList from "@/components/chat/ConversationsList";
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { Menu, Home, Target } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 export default function ChatHome() {
   const [, navigate] = useLocation();
@@ -25,6 +29,7 @@ export default function ChatHome() {
   const [showComplete, setShowComplete] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<{threadId: string, title: string} | null>(null);
   const actionPendingRef = useRef(false);
+  const { user } = useAuth();
 
   // Fetch threads for left-nav list (top 5-7)
   const { data: threads = [] } = useQuery({
@@ -32,6 +37,7 @@ export default function ChatHome() {
     queryFn: async () => apiRequest("/api/chat/threads"),
     staleTime: 30_000,
   });
+  const activeThread = useMemo(() => threads.find((t: any) => t.id === threadId), [threads, threadId]);
 
   // Default behavior: if no thread selected, show empty chat home (do not create a thread)
   useEffect(() => {
@@ -85,16 +91,12 @@ export default function ChatHome() {
   // Handle thread deletion
   const handleDeleteThread = async () => {
     if (!deleteConfirm) return;
-    
     try {
       await apiRequest(`/api/chat/threads/${deleteConfirm.threadId}`, { method: "DELETE" });
       await queryClient.invalidateQueries({ queryKey: ["/api/chat/threads"] });
-      
-      // If we're currently viewing the deleted thread, navigate to a new one
       if (threadId === deleteConfirm.threadId) {
         navigate("/chat");
       }
-      
       setDeleteConfirm(null);
     } catch (error) {
       console.error("Failed to delete thread:", error);
@@ -103,17 +105,83 @@ export default function ChatHome() {
 
   return (
     <div className="flex h-screen bg-gray-50">
-      {/* Shared left nav + conversations list */}
+      {/* Desktop left nav + conversations list */}
       <SharedLeftNav>
         <ConversationsList currentThreadId={threadId} />
       </SharedLeftNav>
 
       {/* Main chat column */}
       <main className="flex-1 flex flex-col">
-        <div className="px-6 py-4 border-b bg-white">
+        {/* Mobile header: hamburger + logo, sticky */}
+        <div className="px-4 sm:px-6 py-3 border-b bg-white sticky top-0 z-30">
           <div className="flex items-center justify-between">
-            <div className="text-base md:text-lg font-semibold text-gray-800">Daily Coaching</div>
-            {/* Removed top-right New Chat; use + within Conversations header */}
+            <div className="flex items-center gap-2 min-w-0 flex-1">
+              <div className="lg:hidden">
+                <Sheet>
+                  <SheetTrigger asChild>
+                    <button aria-label="Open menu" className="w-9 h-9 rounded-lg border flex items-center justify-center text-gray-700 shrink-0">
+                      <Menu className="w-5 h-5" />
+                    </button>
+                  </SheetTrigger>
+                  <SheetContent side="left" className="p-0 w-80">
+                    <div className="flex flex-col h-full">
+                      <div className="px-4 py-4 border-b">
+                        <img src="/goodhabit.ai(200 x 40 px).png" alt="GoodHabit" className="h-6" />
+                      </div>
+                      <nav className="px-2 py-2 space-y-1 flex-1 overflow-y-auto">
+                        <a href="/chat?new=1" className="flex items-center gap-3 px-4 py-2 rounded-lg bg-emerald-50 text-emerald-700">
+                          <Home className="w-4 h-4 text-emerald-700" />
+                          <span className="text-sm font-medium">Home</span>
+                        </a>
+                        <a href="/focus" className="flex items-center gap-3 px-4 py-2 rounded-lg text-gray-700 hover:bg-gray-50">
+                          <Target className="w-4 h-4 text-gray-500" />
+                          <span className="text-sm font-medium">My Focus</span>
+                        </a>
+                        <div className="mt-4 px-2">
+                          <ConversationsList currentThreadId={threadId} />
+                        </div>
+                      </nav>
+                      <div className="p-3 border-t">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <button className="w-full text-left px-3 py-2 rounded-lg hover:bg-gray-50">
+                              <div className="text-sm font-semibold text-gray-900">{(user as any)?.firstName || 'User'} {(user as any)?.lastName || ''}</div>
+                              <div className="text-xs text-gray-500">{(user as any)?.email || ''}</div>
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="start" className="w-56">
+                            <DropdownMenuItem onClick={() => window.location.assign('/profile')}>Your account</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => { localStorage.removeItem('user'); localStorage.removeItem('token'); window.location.reload(); }}>Log Out</DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                    </div>
+                  </SheetContent>
+                </Sheet>
+              </div>
+              {/* Chat title */}
+              <div className="text-base md:text-lg font-semibold text-gray-800 truncate">
+                {activeThread?.title || 'Daily Coaching'}
+              </div>
+            </div>
+            {/* Mobile profile icon */}
+            <div className="lg:hidden shrink-0">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button className="w-9 h-9 rounded-full border-2 border-black bg-white flex items-center justify-center text-xs font-bold">
+                    {`${((user as any)?.firstName?.[0] || 'U').toUpperCase()}${((user as any)?.lastName?.[0] || '').toUpperCase()}`}
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  <div className="px-2 py-2">
+                    <div className="text-sm font-semibold">{(user as any)?.firstName || ''} {(user as any)?.lastName || ''}</div>
+                    <div className="text-xs text-gray-500">{(user as any)?.email}</div>
+                  </div>
+                  <DropdownMenuItem onClick={() => window.location.assign('/profile')}>Your account</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => { localStorage.removeItem('user'); localStorage.removeItem('token'); window.location.reload(); }}>Log Out</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           </div>
         </div>
 
@@ -123,8 +191,10 @@ export default function ChatHome() {
           ) : (
             <div className="max-w-3xl mx-auto px-4 py-16">
               <div className="text-center text-gray-600 mb-6">Start a conversation with your coach</div>
+              {/* New chat: show full agent buttons directly */}
               <div className="mb-3">
                 <QuickActions
+                  mode="full"
                   onReviewHabits={() => sendAction('Let me review my habits and progress.', 'review_progress')}
                   onViewSuggestions={() => sendAction('Please suggest some goals based on our conversation so far.', 'suggest_goals')}
                   onOptimize={() => sendAction('Help me optimize and prioritize my focus.', 'prioritize_optimize')}
@@ -141,16 +211,32 @@ export default function ChatHome() {
         </div>
 
         {threadId && (
-        <div className="border-t bg-white px-4 py-3">
-          <div className="mb-2">
+        <div className="border-t bg-white px-4 py-3 sticky bottom-0">
+          {/* Desktop: full actions above composer */}
+          <div className="hidden lg:block mb-2">
             <QuickActions
+              mode="full"
               onReviewHabits={() => sendAction('Let me review my habits and progress.', 'review_progress')}
               onViewSuggestions={() => sendAction('Please suggest some goals based on our conversation so far.', 'suggest_goals')}
               onOptimize={() => sendAction('Help me optimize and prioritize my focus.', 'prioritize_optimize')}
               onSurpriseMe={() => sendAction('Surprise me with some insights about myself.', 'surprise_me')}
             />
           </div>
-          <Composer threadId={threadId} />
+          <div className="flex items-center gap-2">
+            {/* Mobile: show "+" next to composer */}
+            <div className="lg:hidden">
+              <QuickActions
+                mode="plus"
+                onReviewHabits={() => sendAction('Let me review my habits and progress.', 'review_progress')}
+                onViewSuggestions={() => sendAction('Please suggest some goals based on our conversation so far.', 'suggest_goals')}
+                onOptimize={() => sendAction('Help me optimize and prioritize my focus.', 'prioritize_optimize')}
+                onSurpriseMe={() => sendAction('Surprise me with some insights about myself.', 'surprise_me')}
+              />
+            </div>
+            <div className="flex-1">
+              <Composer threadId={threadId} />
+            </div>
+          </div>
         </div>
         )}
       </main>
