@@ -18,7 +18,7 @@ const PRIORITIZE_OPTIMIZE_AGENT_SYSTEM_PROMPT = `You are a specialized prioritiz
 - Provide clear reasoning for recommendations
 - Help them see the bigger picture
 
-**Context about the user:**
+**Context about the user (for your reasoning only; do NOT echo this back):**
 {profile}
 {workingSet}
 {currentGoals}
@@ -27,7 +27,12 @@ const PRIORITIZE_OPTIMIZE_AGENT_SYSTEM_PROMPT = `You are a specialized prioritiz
 **Recent conversation:**
 {recentMessages}
 
-Your goal is to help them optimize their current goals and habits for maximum impact, then suggest new priorities if needed.`;
+Your goal is to help them optimize their current goals and habits for maximum impact, then suggest new priorities if needed.
+
+CRITICAL OUTPUT RULES:
+- Do NOT enumerate or restate current goals or current habits.
+- Focus ONLY on the optimization strategy and final proposal.
+- Keep the narrative concise (<= 8 short bullets).`;
 
 export class PrioritizeOptimizeAgent {
   private model: ChatOpenAI;
@@ -36,7 +41,7 @@ export class PrioritizeOptimizeAgent {
     this.model = new ChatOpenAI({
       model: "gpt-4o-mini",
       temperature: 0.6,
-      maxTokens: 500,
+      maxTokens: 8000,
     });
   }
 
@@ -67,10 +72,15 @@ export class PrioritizeOptimizeAgent {
       { role: 'user', content: userMessage }
     ]);
 
-    const finalText = response.content as string;
+    const finalText = (response.content as string) || '';
 
-    // Generate optimization data for card rendering
-    const optimizationData = this.generateOptimizationData(currentGoals, currentHabits);
+    // Gate: don't immediately produce a proposal on the very first optimize request
+    const lower = userMessage.toLowerCase();
+    const wantsImmediateProposal = /\b(show|proposal|ready|proceed|go ahead|generate|create)\b/.test(lower);
+    const isInitialOptimizeAsk = /optimi[zs]e/.test(lower) && /prioriti[sz]e/.test(lower) && !wantsImmediateProposal && (recentMessages?.length ?? 0) < 2;
+
+    // Build structured optimization proposal for card rendering only when user signals readiness
+    const optimizationData = isInitialOptimizeAsk ? undefined : this.buildOptimizationProposal(currentGoals, currentHabits);
 
     // If we have optimization data, append it to the response for persistence
     let finalResponse = finalText;
@@ -110,37 +120,38 @@ export class PrioritizeOptimizeAgent {
     return habitsData;
   }
 
-  private generateOptimizationData(currentGoals: any[], currentHabits: any[]): OptimizationData {
-    // Generate optimization recommendations based on current goals and habits
-    const recommendations = [];
+  private buildOptimizationProposal(currentGoals: any[], currentHabits: any[]) {
+    try {
+      // Prioritization: top 3-4 by progress/momentum
+      const rankedGoals = [...currentGoals]
+        .filter((g: any) => g?.goalInst?.id && (g?.goalDef?.title || '').trim().length > 0)
+        .sort((a: any, b: any) => (b.goalInst?.currentValue || 0) - (a.goalInst?.currentValue || 0))
+        .slice(0, 3);
 
-    // Example optimization logic - can be enhanced with more sophisticated analysis
-    if (currentHabits.length > 8) {
-      recommendations.push({
-        type: 'archive' as const,
-        title: 'Archive low-impact habits',
-        description: 'You have many habits. Consider archiving 2-3 that have lower impact to focus on your most important ones.'
-      });
+      const prioritization = rankedGoals.map((g: any, idx: number) => ({
+        goalInstanceId: g.goalInst.id,
+        rank: idx + 1,
+        reason: `High leverage and momentum (progress: ${Math.round(g.goalInst?.currentValue || 0)}%)`
+      }));
+
+      // Optimized habits: pick up to 5 higher-impact habits (placeholder scoring)
+      const topHabits = [...currentHabits].slice(0, 5);
+      const optimizedHabits = topHabits.map((h: any, i: number) => ({
+        goalInstanceId: prioritization[0]?.goalInstanceId || rankedGoals[0]?.goalInst?.id,
+        action: 'replace',
+        habitDefinitionId: h.id,
+        rationale: 'Focus on fewer, higher-impact habits to maximize progress',
+        newHabit: {
+          title: h.name,
+          description: h.description || '',
+          targetValue: h.targetValue || 1,
+          frequencySettings: h.frequencySettings || null
+        }
+      }));
+
+      return { type: 'optimization', prioritization, optimizedHabits };
+    } catch {
+      return null;
     }
-
-    if (currentGoals.length > 5) {
-      recommendations.push({
-        type: 'modify' as const,
-        title: 'Consolidate similar goals',
-        description: 'You have multiple goals in similar areas. Consider consolidating them into 2-3 focused objectives.'
-      });
-    }
-
-    recommendations.push({
-      type: 'add' as const,
-      title: 'Add energy management habit',
-      description: 'Consider adding a daily energy check-in to optimize your performance across all goals.'
-    });
-
-    return {
-      type: 'optimization',
-      summary: `Based on your ${currentGoals.length} goals and ${currentHabits.length} habits, here are strategic optimizations to maximize your impact:`,
-      recommendations
-    };
   }
 }

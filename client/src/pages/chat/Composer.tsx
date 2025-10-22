@@ -14,6 +14,7 @@ export default function Composer({ threadId }: Props) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const queryClient = useQueryClient();
   const [, navigate] = useLocation();
+  const pendingAgentTypeRef = useRef<string | undefined>(undefined);
 
   // Auto-resize textarea based on content
   useEffect(() => {
@@ -66,6 +67,9 @@ export default function Composer({ threadId }: Props) {
             (window as any).chatStream?.structuredData?.(evt.data);
           } else if (evt.type === 'end') {
             (window as any).chatStream?.end?.();
+            // Cancel and remove any cached messages for this thread in case it was deleted
+            await queryClient.cancelQueries({ queryKey: ["/api/chat/threads", tid, "messages"] });
+            await queryClient.removeQueries({ queryKey: ["/api/chat/threads", tid, "messages"], exact: true });
             await queryClient.invalidateQueries({ queryKey: ["/api/chat/threads", tid, "messages"] });
             await queryClient.invalidateQueries({ queryKey: ["/api/chat/threads"] });
             // Force refresh threads list to pick up any title changes
@@ -115,13 +119,18 @@ export default function Composer({ threadId }: Props) {
             (window as any).chatStream.addUserMessage(messageText);
             console.log('[Composer] Successfully called addUserMessage after navigation');
           }
-        }, 100);
+          // Ensure thinking state begins only after ConversationStream is mounted
+          (window as any).chatStream?.begin?.();
+        }, 120);
       }
 
-      // Start thinking state
-      (window as any).chatStream?.begin?.();
+      // Start thinking state immediately when staying on same thread
+      if (targetThreadId === threadId) {
+        (window as any).chatStream?.begin?.();
+      }
 
-      await (window as any).sendServerStream({ threadId: targetThreadId as string, content: messageText });
+      await (window as any).sendServerStream({ threadId: targetThreadId as string, content: messageText, requestedAgentType: pendingAgentTypeRef.current });
+      pendingAgentTypeRef.current = undefined;
             } catch (e) {
               console.error('Chat stream error', e);
               (window as any).chatStream?.end?.();
@@ -131,8 +140,9 @@ export default function Composer({ threadId }: Props) {
   }, [text, threadId, navigate, queryClient]);
 
   // Expose a helper so QuickActions can trigger a send in blank state
-  (window as any).composeAndSend = async (preset: string) => {
+  (window as any).composeAndSend = async (preset: string, agentType?: string) => {
     setText(preset);
+    pendingAgentTypeRef.current = agentType;
     await new Promise((r) => setTimeout(r, 0));
     await send();
   };

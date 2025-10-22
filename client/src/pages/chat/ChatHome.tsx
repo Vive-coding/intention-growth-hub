@@ -37,10 +37,23 @@ export default function ChatHome() {
   useEffect(() => {
     if (threadId) return;
     // If URL has ?new=1 (initiated from +), stay blank even if threads exist
-    const urlHasNew = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('new') === '1';
+    const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : undefined;
+    const urlHasNew = !!urlParams && urlParams.get('new') === '1';
     if (urlHasNew) return;
     if (threads.length > 0) navigate(`/chat/${threads[0].id}`, { replace: true });
   }, [threadId, threads.length, navigate]);
+
+  // If optimize=1 on blank state, auto-send optimize prompt to agent after mount
+  useEffect(() => {
+    if (threadId) return;
+    const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : undefined;
+    if (!params) return;
+    const optimize = params.get('optimize') === '1';
+    const isNewChat = params.get('new') === '1';
+    if (optimize && isNewChat) {
+      (window as any).composeAndSend?.('Help me optimize and prioritize my focus.', 'prioritize_optimize');
+    }
+  }, [threadId]);
 
   // Defer creation; creation happens when sending first message
   const handleStartNew = async () => {

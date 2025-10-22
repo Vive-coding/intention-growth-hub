@@ -36,6 +36,7 @@ export default function ConversationStream({ threadId }: Props) {
       if (error?.status === 404) return false;
       return failureCount < 3;
     },
+    gcTime: 0,
   });
 
   // Navigate away promptly on 404 without causing setState loops
@@ -228,21 +229,24 @@ export default function ConversationStream({ threadId }: Props) {
                     }
                     if (type === 'optimization') {
                       return (
-                        <div className="bg-gradient-to-br from-purple-50 to-indigo-50 border border-purple-200 rounded-xl p-4 shadow-sm">
-                          <div className="text-sm font-semibold text-gray-800 mb-3 uppercase tracking-wide">Optimization Suggestions</div>
-                          <div className="text-sm text-gray-700 mb-4">{payload.summary}</div>
-                          <div className="space-y-2">
-                            {(payload.recommendations || []).map((rec: any, idx: number) => (
-                              <div key={idx} className="flex items-start gap-2 p-2 bg-white rounded-lg">
-                                <div className={`w-2 h-2 rounded-full mt-2 ${rec.type === 'archive' ? 'bg-red-500' : rec.type === 'modify' ? 'bg-yellow-500' : 'bg-green-500'}`}></div>
-                                <div>
-                                  <div className="font-medium text-gray-900">{rec.title}</div>
-                                  <div className="text-sm text-gray-600">{rec.description}</div>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
+                        <OptimizationCard
+                          proposal={payload}
+                          threadId={threadId}
+                          onApplied={async () => {
+                            try {
+                              if (threadId) {
+                                await apiRequest(`/api/chat/threads/${threadId}/system-message`, {
+                                  method: 'POST',
+                                  body: JSON.stringify({ content: 'Optimization applied to My Focus.' })
+                                } as any);
+                                await Promise.all([
+                                  apiRequest(`/api/chat/threads/${threadId}/messages`),
+                                ]);
+                              }
+                            } catch {}
+                          }}
+                          onDiscard={() => {}}
+                        />
                       );
                     }
                     if (type === 'insight') {
@@ -354,7 +358,29 @@ export default function ConversationStream({ threadId }: Props) {
                   />
                 )}
                 {streamingStructuredData.type === 'optimization' && (
-                  <OptimizationCard summary={streamingStructuredData.summary} onOpenOptimize={() => (window.location.href = '/habits')} />
+                  <OptimizationCard
+                    proposal={streamingStructuredData}
+                    threadId={threadId}
+                    onApplied={async () => {
+                      try {
+                        if (threadId) {
+                          await apiRequest(`/api/chat/threads/${threadId}/system-message`, {
+                            method: 'POST',
+                            body: JSON.stringify({ content: 'Optimization applied to My Focus.' })
+                          } as any);
+                          // Refresh messages and clear transient streaming state
+                          await Promise.all([
+                            apiRequest(`/api/chat/threads/${threadId}/messages`),
+                          ]);
+                        }
+                      } catch {}
+                      setStreamingStructuredData(undefined);
+                      setStreamingText("");
+                    }}
+                    onDiscard={() => {
+                      setStreamingStructuredData(undefined);
+                    }}
+                  />
                 )}
               </div>
             )}

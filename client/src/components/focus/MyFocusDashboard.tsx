@@ -34,22 +34,61 @@ export default function MyFocusDashboard() {
 		);
 	}
 
-	if (isError || !data) {
-		return <div className="p-6 text-sm text-red-600">Failed to load My Focus.</div>;
-	}
+  if (isError || !data) {
+    return (
+      <div className="p-6">
+        <div className="max-w-3xl mx-auto rounded-2xl p-6 bg-white border border-gray-200 shadow-sm">
+          <div className="text-base font-semibold text-gray-900 mb-1">My Focus</div>
+          <div className="text-sm text-gray-600 mb-4">We couldn’t load your focus yet.</div>
+          <div className="text-sm text-gray-700">Please refresh the page or try again later.</div>
+        </div>
+      </div>
+    );
+  }
 
   const priorityGoals = (data.priorityGoals || []).slice(0, 3);
 	const activeHabits = (data.highLeverageHabits || []).slice(0, 6);
 	const insights = (data.keyInsights || []).slice(0, 3);
 	const optimization = data.pendingOptimization;
 
+  const isEmpty = priorityGoals.length === 0 && activeHabits.length === 0 && insights.length === 0;
+
 return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-blue-50 p-6 lg:p-8">
       <div className="space-y-8 max-w-6xl mx-auto">
       <header className="space-y-1">
-        <h1 className="text-2xl font-semibold text-gray-900">My Focus</h1>
-        <p className="text-sm text-gray-600">Your top priorities and the habits that will help you achieve them</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-semibold text-gray-900">My Focus</h1>
+            <p className="text-sm text-gray-600">Your top priorities and the habits that will help you achieve them</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              className="hidden md:inline-flex items-center px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-sm hover:bg-emerald-700"
+              title="Start chat to Optimize My Focus"
+              onClick={() => { window.location.href = '/chat?new=1&optimize=1'; }}
+            >
+              Start chat to Optimize My Focus
+            </button>
+          </div>
+        </div>
       </header>
+
+      {/* Empty state for first-time users */}
+      {isEmpty && (
+        <section className="mb-8">
+          <div className="rounded-2xl p-6 bg-white border border-gray-200 shadow-sm">
+            <div className="text-base font-semibold text-gray-900 mb-1">Set up your Focus</div>
+            <div className="text-sm text-gray-600 mb-4">Optimize and prioritize to populate your priority goals, active habits, and key insights.</div>
+            <button
+              className="inline-flex items-center px-4 py-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700"
+              onClick={() => (window as any).composeAndSend?.('Help me optimize and prioritize my focus.', 'prioritize_optimize')}
+            >
+              Optimize
+            </button>
+          </div>
+        </section>
+      )}
 
       {/* Compact two-column layout: Goals and Habits side by side */}
       <section className="grid gap-6 md:grid-cols-2">

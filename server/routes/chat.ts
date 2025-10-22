@@ -127,6 +127,28 @@ router.post("/threads/test-cards", async (req: any, res) => {
   }
 });
 
+// Append a system message to a thread (no streaming)
+router.post("/threads/:id/system-message", async (req: any, res) => {
+  try {
+    const userId = req.user?.id || req.user?.claims?.sub;
+    if (!userId) return res.status(401).json({ message: "Unauthorized" });
+    const threadId = req.params.id;
+    const { content } = req.body || {};
+    if (!content || typeof content !== 'string') {
+      return res.status(400).json({ message: 'content is required' });
+    }
+
+    const [own] = await db.select().from(chatThreads).where(eq(chatThreads.id, threadId)).limit(1);
+    if (!own || own.userId !== userId) return res.status(404).json({ message: "Thread not found" });
+
+    await ChatThreadService.appendMessage({ threadId, role: 'system', content, status: 'complete' } as any);
+    res.status(201).json({ ok: true });
+  } catch (e) {
+    console.error('[chat] system-message failed', e);
+    res.status(500).json({ message: 'Failed to append system message' });
+  }
+});
+
 // Create a new chat thread
 router.post("/threads", async (req: any, res) => {
   try {
