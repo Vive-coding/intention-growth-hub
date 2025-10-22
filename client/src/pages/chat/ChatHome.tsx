@@ -99,7 +99,13 @@ export default function ChatHome() {
       <main className="flex-1 flex flex-col">
         <div className="px-6 py-4 border-b bg-white">
           <div className="flex items-center justify-between">
-            <div className="text-base md:text-lg font-semibold text-gray-800">Daily Coaching</div>
+            <div className="text-base md:text-lg font-semibold text-gray-800">
+              {(() => {
+                if (!threadId) return 'Daily Coaching';
+                const active = (threads as any[]).find((t: any) => t.id === threadId);
+                return active?.title || 'Daily Coaching';
+              })()}
+            </div>
             {/* Removed top-right New Chat; use + within Conversations header */}
           </div>
         </div>
