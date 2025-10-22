@@ -14,6 +14,8 @@ import FocusPage from "./pages/Focus";
 import InsightsPage from "./pages/insights";
 import TestCardsPage from "./pages/TestCards";
 import { HabitsScreen } from "./components/HabitsScreen";
+import JournalPage from "@/pages/Journal";
+import OldHomePage from "@/pages/OldHome";
 
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -30,8 +32,12 @@ function Router() {
       {/* Test cards route - accessible from root */}
       <Route path="/test-cards" component={TestCardsPage} />
 
-      {/* Temporary: keep existing index as fallback until we flip default */}
-      <Route path="/" component={Index} />
+      {/* Hidden preview routes (no left-nav links) */}
+      <Route path="/journal" component={JournalPage} />
+      <Route path="/old_home" component={OldHomePage} />
+
+      {/* Make chat the homepage */}
+      <Route path="/" component={ChatHome} />
       <Route path="/landing" component={Landing} />
       <Route path="/insights" component={InsightsPage} />
       <Route path="/focus" component={FocusPage} />
