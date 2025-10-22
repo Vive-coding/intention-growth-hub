@@ -101,6 +101,9 @@ export function HabitsScreen() {
     return (
       <div className="p-4 lg:p-8 pb-24 lg:pb-8">
         <div className="max-w-7xl mx-auto space-y-6">
+          <div>
+            <a href="/focus" className="inline-flex items-center text-sm text-emerald-700 hover:text-emerald-900">← Back to My Focus</a>
+          </div>
           {/* Header */}
           <PageHeader
             title={metricFilter ? `${metricFilter} Habits` : "Habits"}
@@ -151,6 +154,9 @@ export function HabitsScreen() {
   return (
     <div className="p-4 lg:p-8 pb-24 lg:pb-8">
       <div className="max-w-7xl mx-auto space-y-6">
+        <div>
+          <a href="/focus" className="inline-flex items-center text-sm text-emerald-700 hover:text-emerald-900">← Back to My Focus</a>
+        </div>
         {/* Header */}
       <PageHeader
         title={metricFilter ? `${metricFilter} Habits` : "Habits"}

@@ -457,6 +457,9 @@ export const GoalsScreen = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-blue-50 p-4 lg:p-8 pb-24 lg:pb-8">
       <div className="max-w-7xl mx-auto space-y-6">
+        <div>
+          <a href="/focus" className="inline-flex items-center text-sm text-emerald-700 hover:text-emerald-900">← Back to My Focus</a>
+        </div>
         {/* Header */}
         <PageHeader
           title="Your Goals"

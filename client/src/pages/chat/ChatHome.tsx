@@ -40,7 +40,7 @@ export default function ChatHome() {
     const urlHasNew = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('new') === '1';
     if (urlHasNew) return;
     if (threads.length > 0) navigate(`/chat/${threads[0].id}`, { replace: true });
-  }, [threadId, threads, navigate]);
+  }, [threadId, threads.length, navigate]);
 
   // Defer creation; creation happens when sending first message
   const handleStartNew = async () => {
@@ -99,13 +99,7 @@ export default function ChatHome() {
       <main className="flex-1 flex flex-col">
         <div className="px-6 py-4 border-b bg-white">
           <div className="flex items-center justify-between">
-            <div className="text-base md:text-lg font-semibold text-gray-800">
-              {(() => {
-                if (!threadId) return 'Daily Coaching';
-                const active = (threads as any[]).find((t: any) => t.id === threadId);
-                return active?.title || 'Daily Coaching';
-              })()}
-            </div>
+            <div className="text-base md:text-lg font-semibold text-gray-800">Daily Coaching</div>
             {/* Removed top-right New Chat; use + within Conversations header */}
           </div>
         </div>

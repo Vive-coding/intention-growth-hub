@@ -150,24 +150,51 @@ export class MyFocusService {
       .orderBy(desc(goalInstances.createdAt))
       .limit(4);
 
-    return goals.map(g => {
-      const target = g.goalInst?.targetValue || 0;
-      const current = g.goalInst?.currentValue || 0;
-      const percent = target > 0 ? Math.round((current / target) * 100) : Math.min(100, Math.max(0, current));
-      return ({
-      id: g.goalInst?.id || '',
-      title: g.goalDef.title,
-      description: g.goalDef.description || undefined,
-      category: g.goalDef.category || undefined,
-      targetDate: g.goalInst?.targetDate?.toISOString(),
-      progress: Math.max(0, Math.min(100, percent)),
-      status: g.goalInst?.status || 'active',
-      lifeMetric: g.lifeMetric ? {
-        id: g.lifeMetric.id,
-        name: g.lifeMetric.name,
-        color: g.lifeMetric.color,
-      } : undefined,
-    })});
+    // Compute progress the same way as the Goals page: habit-based (avg, max 90%) + manual offset
+    const results: any[] = [];
+    for (const g of goals) {
+      let habitBasedProgress = 0;
+      try {
+        const associatedHabits = await db
+          .select({ habitInst: habitInstances, habitDef: habitDefinitions })
+          .from(habitInstances)
+          .leftJoin(habitDefinitions, eq(habitInstances.habitDefinitionId, habitDefinitions.id))
+          .where(and(eq(habitInstances.goalInstanceId, g.goalInst!.id)));
+
+        if (associatedHabits.length > 0) {
+          let total = 0;
+          for (const hi of associatedHabits) {
+            const target = (hi as any).habitInst?.targetValue || 0;
+            const current = (hi as any).habitInst?.currentValue || 0;
+            const p = target > 0 ? Math.min((current / target) * 100, 100) : 0;
+            total += p;
+          }
+          const average = total / associatedHabits.length;
+          habitBasedProgress = Math.min(average, 90);
+        }
+      } catch {}
+
+      const manualOffset = g.goalInst?.currentValue || 0;
+      const combined = Math.max(0, Math.min(100, habitBasedProgress + manualOffset));
+      const finalProgress = (g.goalInst?.status === 'completed') ? 100 : Math.round(combined);
+
+      results.push({
+        id: g.goalInst?.id || '',
+        title: g.goalDef.title,
+        description: g.goalDef.description || undefined,
+        category: g.goalDef.category || undefined,
+        targetDate: g.goalInst?.targetDate?.toISOString(),
+        progress: finalProgress,
+        status: g.goalInst?.status || 'active',
+        lifeMetric: g.lifeMetric ? {
+          id: g.lifeMetric.id,
+          name: g.lifeMetric.name,
+          color: g.lifeMetric.color,
+        } : undefined,
+      });
+    }
+
+    return results;
   }
 
   private static async getHighLeverageHabits(userId: string) {
@@ -246,12 +273,32 @@ export class MyFocusService {
       .leftJoin(lifeMetricDefinitions, eq(goalDefinitions.lifeMetricId, lifeMetricDefinitions.id))
       .where(inArray(goalInstances.id, ids));
     const byId = new Map<string, any>(); rows.forEach(r => byId.set(r.goalInst.id, r));
-    const ordered = items.map((it, idx) => {
+    const ordered = await Promise.all(items.map(async (it, idx) => {
       const g = byId.get(it.goalInstanceId); if (!g) return null;
-        // Compute percent progress if targetValue is set; else use currentValue as percent clamp
-        const target = g.goalInst?.targetValue || 0;
-        const current = g.goalInst?.currentValue || 0;
-        const percent = target > 0 ? Math.round((current / target) * 100) : Math.min(100, Math.max(0, current));
+        // Compute progress same as Goals page: habit avg (cap 90) + manual offset
+        let habitBasedProgress = 0;
+        try {
+          const associatedHabits = await db
+            .select({ habitInst: habitInstances, habitDef: habitDefinitions })
+            .from(habitInstances)
+            .leftJoin(habitDefinitions, eq(habitInstances.habitDefinitionId, habitDefinitions.id))
+            .where(and(eq(habitInstances.goalInstanceId, g.goalInst.id)));
+          if (associatedHabits.length > 0) {
+            let total = 0;
+            for (const hi of associatedHabits) {
+              const target = (hi as any).habitInst?.targetValue || 0;
+              const current = (hi as any).habitInst?.currentValue || 0;
+              const p = target > 0 ? Math.min((current / target) * 100, 100) : 0;
+              total += p;
+            }
+            const average = total / associatedHabits.length;
+            habitBasedProgress = Math.min(average, 90);
+          }
+        } catch {}
+
+        const manualOffset = g.goalInst?.currentValue || 0;
+        const combined = Math.max(0, Math.min(100, habitBasedProgress + manualOffset));
+        const finalProgress = (g.goalInst?.status === 'completed') ? 100 : Math.round(combined);
 
         return {
         id: g.goalInst.id,
@@ -259,13 +306,13 @@ export class MyFocusService {
         description: g.goalDef.description || undefined,
         category: g.goalDef.category || undefined,
         targetDate: g.goalInst?.targetDate?.toISOString(),
-          progress: Math.max(0, Math.min(100, percent)),
+          progress: finalProgress,
         status: g.goalInst?.status || 'active',
         lifeMetric: g.lifeMetric ? { id: g.lifeMetric.id, name: g.lifeMetric.name, color: g.lifeMetric.color } : undefined,
         rank: it.rank ?? idx + 1,
         reason: it.reason,
       };
-    }).filter(Boolean) as MyFocusData["priorityGoals"];
+    })).then(arr => arr.filter(Boolean) as MyFocusData["priorityGoals"]);
     return { goals: ordered, updatedAt: new Date().toISOString() } as any;
   }
 

@@ -11,11 +11,10 @@ import ChatHome from "./pages/chat/ChatHome";
 import { Landing } from "./pages/Landing";
 import NotFound from "./pages/NotFound";
 import FocusPage from "./pages/Focus";
-import InsightsPage from "./pages/insights";
+import { InsightsScreen } from "./components/InsightsScreen";
+import { GoalsScreen } from "./components/GoalsScreen";
 import TestCardsPage from "./pages/TestCards";
 import { HabitsScreen } from "./components/HabitsScreen";
-import JournalPage from "@/pages/Journal";
-import OldHomePage from "@/pages/OldHome";
 
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -32,14 +31,11 @@ function Router() {
       {/* Test cards route - accessible from root */}
       <Route path="/test-cards" component={TestCardsPage} />
 
-      {/* Hidden preview routes (no left-nav links) */}
-      <Route path="/journal" component={JournalPage} />
-      <Route path="/old_home" component={OldHomePage} />
-
-      {/* Make chat the homepage */}
-      <Route path="/" component={ChatHome} />
+      {/* Temporary: keep existing index as fallback until we flip default */}
+      <Route path="/" component={Index} />
       <Route path="/landing" component={Landing} />
-      <Route path="/insights" component={InsightsPage} />
+      <Route path="/insights" component={InsightsScreen} />
+      <Route path="/goals" component={GoalsScreen} />
       <Route path="/focus" component={FocusPage} />
       <Route path="/habits" component={HabitsScreen} />
       {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

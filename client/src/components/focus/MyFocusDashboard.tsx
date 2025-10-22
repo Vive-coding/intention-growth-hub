@@ -51,60 +51,65 @@ return (
         <p className="text-sm text-gray-600">Your top priorities and the habits that will help you achieve them</p>
       </header>
 
-      <section className="space-y-4">
-        <div className="text-base font-semibold text-gray-800">Priority Goals</div>
-        <div className="grid gap-4">
-					{priorityGoals.length === 0 && (
-						<div className="text-sm text-gray-600">No priorities yet. Start a chat to set your top 3 goals.</div>
-					)}
-					{priorityGoals.map((g: any) => (
-            <div key={g.id} className="rounded-2xl p-5 bg-white border border-gray-200 shadow-sm">
-              <div className="flex items-start justify-between gap-4">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2 mb-2">
-                    {typeof g.rank === 'number' && (
-                      <span className="text-[11px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">Priority {g.rank}</span>
-                    )}
-                    {g.lifeMetric?.name && (
-                      <span className={`text-[11px] px-2 py-0.5 rounded-full border ${getPillBg(g.lifeMetric.name)}`}>{g.lifeMetric.name}</span>
-                    )}
-                  </div>
-                  <div className="font-semibold text-gray-900 truncate">{g.title}</div>
-                  {g.reason && (
-                    <div className="mt-2 text-xs text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg p-3 flex items-start gap-2">
-                      <Sparkles className="w-3.5 h-3.5 text-emerald-500 mt-0.5" />
-                      <span className="leading-relaxed">{g.reason}</span>
+      {/* Compact two-column layout: Goals and Habits side by side */}
+      <section className="grid gap-6 md:grid-cols-2">
+        {/* Priority Goals */}
+        <div className="space-y-4">
+          <div className="text-base font-semibold text-gray-800">Priority Goals</div>
+          <div className="grid gap-4">
+            {priorityGoals.length === 0 && (
+              <div className="text-sm text-gray-600">No priorities yet. Start a chat to set your top 3 goals.</div>
+            )}
+            {priorityGoals.map((g: any) => (
+              <div key={g.id} className="rounded-2xl p-5 bg-white border border-gray-200 shadow-sm">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 mb-2">
+                      {typeof g.rank === 'number' && (
+                        <span className="text-[11px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">Priority {g.rank}</span>
+                      )}
+                      {g.lifeMetric?.name && (
+                        <span className={`text-[11px] px-2 py-0.5 rounded-full border ${getPillBg(g.lifeMetric.name)}`}>{g.lifeMetric.name}</span>
+                      )}
                     </div>
-                  )}
-                </div>
-                <div className="shrink-0 w-28 text-right">
-                  <div className="text-xs text-gray-600 mb-1">{Math.round(Math.min(100, Math.max(0, g.progress || 0)))}%</div>
-                  <div className="h-2 bg-emerald-100 rounded-full overflow-hidden">
-                    <div className="h-full bg-emerald-600" style={{ width: `${Math.min(100, Math.max(0, g.progress || 0))}%` }} />
+                    <div className="font-semibold text-gray-900 truncate">{g.title}</div>
+                    {g.reason && (
+                      <div className="mt-2 text-xs text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg p-3 flex items-start gap-2">
+                        <Sparkles className="w-3.5 h-3.5 text-emerald-500 mt-0.5" />
+                        <span className="leading-relaxed">{g.reason}</span>
+                      </div>
+                    )}
+                  </div>
+                  <div className="shrink-0 w-28 text-right">
+                    <div className="text-xs text-gray-600 mb-1">{Math.round(Math.min(100, Math.max(0, g.progress || 0)))}%</div>
+                    <div className="h-2 bg-emerald-100 rounded-full overflow-hidden">
+                      <div className="h-full bg-emerald-600" style={{ width: `${Math.min(100, Math.max(0, g.progress || 0))}%` }} />
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-					))}
-				</div>
-      </section>
+            ))}
+          </div>
+        </div>
 
-      <section className="space-y-4">
-        <div className="text-base font-semibold text-gray-800">Active Habits</div>
-        <div className="grid gap-3 md:grid-cols-2">
-					{activeHabits.length === 0 && (
-						<div className="text-sm text-gray-600">No habits yet. Choose 2–3 high-leverage habits to track.</div>
-					)}
-					{activeHabits.map((h: any) => (
-            <div key={h.id} className="rounded-xl p-3 bg-white border border-gray-200 shadow-sm flex items-center justify-between">
-              <div className="min-w-0">
-                <div className="font-medium text-gray-900 truncate">{h.title}</div>
-                <div className="text-xs text-gray-600">Streak: {h.streak}d</div>
+        {/* Active Habits */}
+        <div className="space-y-4">
+          <div className="text-base font-semibold text-gray-800">Active Habits</div>
+          <div className="grid gap-3">
+            {activeHabits.length === 0 && (
+              <div className="text-sm text-gray-600">No habits yet. Choose 2–3 high-leverage habits to track.</div>
+            )}
+            {activeHabits.map((h: any) => (
+              <div key={h.id} className="rounded-xl p-3 bg-white border border-gray-200 shadow-sm flex items-center justify-between">
+                <div className="min-w-0">
+                  <div className="font-medium text-gray-900 truncate">{h.title}</div>
+                  <div className="text-xs text-gray-600">Streak: {h.streak}d</div>
+                </div>
+                <CheckCircle2 className="w-4 h-4 text-gray-300" />
               </div>
-              <CheckCircle2 className="w-4 h-4 text-gray-300" />
-						</div>
-					))}
-				</div>
+            ))}
+          </div>
+        </div>
       </section>
 
       <section className="space-y-4">

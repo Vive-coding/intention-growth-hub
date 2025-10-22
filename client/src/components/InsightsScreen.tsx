@@ -288,6 +288,9 @@ export const InsightsScreen = () => {
   return (
     <div className="p-4 lg:p-8 pb-24 lg:pb-8">
       <div className="max-w-7xl mx-auto">
+        <div className="mb-3">
+          <a href="/focus" className="inline-flex items-center text-sm text-emerald-700 hover:text-emerald-900">← Back to My Focus</a>
+        </div>
         {/* Header */}
         <PageHeader
           title={metricFilter ? `${metricFilter} Insights` : "Your Insights"}

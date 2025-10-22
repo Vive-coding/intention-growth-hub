@@ -19,7 +19,7 @@ export default function SharedLeftNav({ children }: { children?: React.ReactNode
 		<aside className="hidden lg:flex lg:flex-col lg:w-64 border-r bg-white/90 backdrop-blur-sm">
 			<div className="px-4 py-4 text-lg font-semibold text-gray-900">GoodHabit</div>
 			<nav className="px-2 py-2 space-y-1">
-				<NavItem href="/" icon={Home} label="Home" />
+				<NavItem href="/chat?new=1" icon={Home} label="Home" />
 				<NavItem href="/focus" icon={Target} label="My Focus" />
 			</nav>
 			{children && (
