@@ -147,6 +147,13 @@ export default function Composer({ threadId }: Props) {
     await send();
   };
 
+  // Expose sendMessage for habit cards and other components
+  (window as any).sendMessage = async (message: string) => {
+    setText(message);
+    await new Promise((r) => setTimeout(r, 0));
+    await send();
+  };
+
   return (
     <div className="max-w-3xl mx-auto flex items-start gap-2">
       <textarea

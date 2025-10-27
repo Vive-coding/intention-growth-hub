@@ -933,6 +933,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get today's habit completions count (for header)
+  app.get('/api/habits/today-completions', authMiddleware, async (req: any, res) => {
+    try {
+      const userId = req.user.id || req.user.claims.sub;
+      
+      // Get today's date in UTC (to match habitCompletions date filter)
+      const today = new Date();
+      const dateStr = today.toISOString().split('T')[0]; // YYYY-MM-DD
+      
+      // Get My Focus high-leverage habits (priority habits only)
+      // Match the UI display limit of 6 habits
+      const { MyFocusService } = await import('./services/myFocusService');
+      const myFocus = await MyFocusService.getMyFocus(userId);
+      const focusHabitIds = (myFocus.highLeverageHabits || []).slice(0, 6).map((h: any) => h.id).filter(Boolean);
+      
+      if (focusHabitIds.length === 0) {
+        return res.json({ completed: 0, total: 0 });
+      }
+      
+      // Count total focus habits
+      const total = focusHabitIds.length;
+      
+      // Count completed habits today
+      const completedRows = await db
+        .select({ habitDefinitionId: habitCompletions.habitDefinitionId })
+        .from(habitCompletions)
+        .where(and(
+          eq(habitCompletions.userId, userId),
+          inArray(habitCompletions.habitDefinitionId, focusHabitIds as any),
+          eq(dsql`to_char(${habitCompletions.completedAt}, 'YYYY-MM-DD')`, dateStr as any)
+        ));
+      
+      // Use a Set to count unique habits completed (in case of duplicates)
+      const uniqueCompleted = new Set(completedRows.map(r => r.habitDefinitionId).filter(Boolean));
+      const completed = uniqueCompleted.size;
+      
+      res.json({ completed, total });
+    } catch (error) {
+      console.error("Error fetching today's habit completions:", error);
+      res.status(500).json({ message: "Failed to fetch habit completions" });
+    }
+  });
+
 
 
 

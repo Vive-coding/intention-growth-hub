@@ -39,6 +39,23 @@ export default function ChatHome() {
   });
   const activeThread = useMemo(() => threads.find((t: any) => t.id === threadId), [threads, threadId]);
 
+  // Fetch today's habit completions for header counter
+  const { data: todayCompletions } = useQuery({
+    queryKey: ["/api/habits/today-completions"],
+    queryFn: async () => {
+      try {
+        const resp = await apiRequest("/api/habits/today-completions");
+        return resp || { completed: 0, total: 0 };
+      } catch {
+        return { completed: 0, total: 0 };
+      }
+    },
+    staleTime: 0, // Always consider stale so it refetches
+    refetchInterval: 10_000, // Refresh every 10s
+    refetchOnMount: true,
+    refetchOnWindowFocus: true,
+  });
+
   // Default behavior: if no thread selected, show empty chat home (do not create a thread)
   useEffect(() => {
     if (threadId) return;
@@ -163,6 +180,12 @@ export default function ChatHome() {
               <div className="text-base md:text-lg font-semibold text-gray-800 truncate">
                 {activeThread?.title || 'Daily Coaching'}
               </div>
+              {/* Habits completed counter */}
+              {todayCompletions && todayCompletions.total > 0 && (
+                <div className="ml-2 px-2 py-1 bg-teal-100 text-teal-700 rounded-full text-xs font-medium shrink-0">
+                  {todayCompletions.completed}/{todayCompletions.total} ✓
+                </div>
+              )}
             </div>
             {/* Mobile profile icon */}
             <div className="lg:hidden shrink-0">

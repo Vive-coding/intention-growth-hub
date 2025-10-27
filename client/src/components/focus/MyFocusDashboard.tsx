@@ -1,6 +1,8 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { CheckCircle2, Sparkles } from "lucide-react";
+import { GoalDetailModal } from "@/components/GoalDetailModal";
 
 // Simple color helpers to keep chips consistent with the rest of the app
 const getPillBg = (metricName?: string) => {
@@ -15,6 +17,8 @@ const getPillBg = (metricName?: string) => {
 };
 
 export default function MyFocusDashboard() {
+	const [selectedGoalId, setSelectedGoalId] = useState<string | null>(null);
+	
 	const { data, isLoading, isError } = useQuery({
 		queryKey: ["/api/my-focus"],
 		queryFn: async () => apiRequest("/api/my-focus"),
@@ -100,7 +104,11 @@ return (
               <div className="text-xs sm:text-sm text-gray-600">No priorities yet. Start a chat to set your top 3 goals.</div>
             )}
             {priorityGoals.map((g: any) => (
-              <div key={g.id} className="rounded-2xl p-3 sm:p-5 bg-white border border-gray-200 shadow-sm min-w-0">
+              <button
+                key={g.id}
+                onClick={() => setSelectedGoalId(g.id)}
+                className="rounded-2xl p-3 sm:p-5 bg-white border border-gray-200 shadow-sm min-w-0 hover:shadow-md hover:border-emerald-300 transition-all cursor-pointer text-left w-full"
+              >
                 <div className="flex items-start gap-2 sm:gap-4">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5 sm:gap-2 mb-2 flex-wrap">
@@ -120,7 +128,7 @@ return (
                     </div>
                   </div>
                 </div>
-              </div>
+              </button>
             ))}
           </div>
         </div>
@@ -133,13 +141,17 @@ return (
               <div className="text-xs sm:text-sm text-gray-600">No habits yet. Choose 2–3 high-leverage habits to track.</div>
             )}
             {activeHabits.map((h: any) => (
-              <div key={h.id} className="rounded-xl p-3 bg-white border border-gray-200 shadow-sm flex items-center justify-between gap-2 min-w-0">
+              <a
+                key={h.id}
+                href="/habits"
+                className="rounded-xl p-3 bg-white border border-gray-200 shadow-sm flex items-center justify-between gap-2 min-w-0 hover:shadow-md hover:border-emerald-300 transition-all cursor-pointer text-left w-full"
+              >
                 <div className="min-w-0 flex-1">
                   <div className="font-medium text-sm sm:text-base text-gray-900 truncate">{h.title}</div>
                   <div className="text-xs text-gray-600">Streak: {h.streak}d</div>
                 </div>
                 <CheckCircle2 className="w-4 h-4 text-gray-300 shrink-0" />
-              </div>
+              </a>
             ))}
           </div>
         </div>
@@ -190,6 +202,14 @@ return (
 						</ul>
 					</div>
 				</section>
+			)}
+			
+			{/* Modal for Goal Details */}
+			{selectedGoalId && (
+				<GoalDetailModal
+					goal={selectedGoalId}
+					onClose={() => setSelectedGoalId(null)}
+				/>
 			)}
     </div>
     </div>

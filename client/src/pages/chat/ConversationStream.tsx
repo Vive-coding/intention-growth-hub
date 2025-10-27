@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { Check } from "lucide-react";
 import GoalSuggestionCard from "@/pages/chat/components/GoalSuggestionCard";
@@ -13,6 +13,7 @@ interface Props {
 }
 
 export default function ConversationStream({ threadId }: Props) {
+  const queryClient = useQueryClient();
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const [streamingText, setStreamingText] = useState<string>("");
   const [isStreaming, setIsStreaming] = useState(false);
@@ -22,6 +23,7 @@ export default function ConversationStream({ threadId }: Props) {
   const [optimisticUserMessage, setOptimisticUserMessage] = useState<string | undefined>(undefined);
   const [, navigate] = useLocation();
   const [recentlyCompleted, setRecentlyCompleted] = useState<Record<string, boolean>>({});
+  const [habitCardSubmitted, setHabitCardSubmitted] = useState<Record<string, boolean>>({});
 
   // Fetch messages for the thread
   const { data: messages = [], error: messagesError } = useQuery({
@@ -160,60 +162,105 @@ export default function ConversationStream({ threadId }: Props) {
                       );
                     }
                     if (type === 'habit_review') {
+                      const cardId = `habit_review_${m.id}`;
+                      const isSubmitted = habitCardSubmitted[cardId];
+                      
                       return (
                         <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
                           <div className="text-sm font-semibold text-gray-800 mb-3 uppercase tracking-wide">Review Today's Habits</div>
-                          <div className="space-y-3">
-                            {(payload.habits || []).map((habit: any, idx: number) => (
-                              <button
-                                key={habit.id || idx}
-                                className={`w-full text-left flex items-center gap-3 p-3 rounded-lg border ${
-                                  habit.completed || recentlyCompleted[habit.id || idx]
-                                    ? 'bg-teal-50 border-teal-200'
-                                    : 'bg-gray-50 border-gray-200 hover:bg-gray-100'
-                                }`}
-                                onClick={async () => {
-                                  try {
-                                    const id = habit.id;
-                                    if (!id) return;
-                                    const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-                                    const url = `${apiBaseUrl}/api/goals/habits/${id}/complete`;
-                                    const token = localStorage.getItem('token');
-                                    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-                                    if (token) headers['Authorization'] = `Bearer ${token}`;
-                                    await fetch(url, { method: 'POST', headers, body: JSON.stringify({ completedAt: new Date().toISOString() }) });
-                                    setRecentlyCompleted((s) => ({ ...s, [id]: true }));
-                                  } catch (e) {
-                                    console.error('Failed to mark habit complete', e);
-                                  }
-                                }}
-                              >
-                                <div className={`w-6 h-6 rounded-full flex items-center justify-center ${
-                                  habit.completed || recentlyCompleted[habit.id || idx] ? 'bg-teal-600' : 'bg-gray-200'
-                                }`}>
-                                  {(habit.completed || recentlyCompleted[habit.id || idx]) && <Check className="w-4 h-4 text-white" />}
+                          {!isSubmitted ? (
+                            <>
+                              <div className="space-y-3">
+                                <div className="text-xs text-gray-600 mb-1">
+                                  {(() => {
+                                    const list = Array.isArray(payload.habits) ? payload.habits : [];
+                                    const completed = list.filter((h: any, idx: number) => h.completed || recentlyCompleted[h.id || idx]).length;
+                                    return `(${completed}/${list.length}) habits completed today`;
+                                  })()}
                                 </div>
-                                <div className="flex-1">
-                                  <div className="font-medium text-gray-900">{habit.title}</div>
-                                  {habit.description && <div className="text-sm text-gray-600">{habit.description}</div>}
-                                  <div className="text-xs text-gray-500 mt-1">{habit.streak} day streak • {habit.points} point{habit.points !== 1 ? 's' : ''}</div>
-                                </div>
-                              </button>
-                            ))}
-                          </div>
-                          <div className="mt-3">
-                            <button
-                              className="text-sm px-3 py-1.5 rounded-xl bg-teal-600 text-white hover:bg-teal-700"
-                              onClick={() => {
-                                if (!threadId) return;
-                                // Tell the master agent to continue the conversation after marking completions
-                                (window as any).chatStream?.begin?.();
-                                (window as any).sendServerStream?.({ threadId, content: 'I have marked today\'s completed habits.', requestedAgentType: 'master' });
-                              }}
-                            >
-                              Mark complete
-                            </button>
-                          </div>
+                                {(payload.habits || []).map((habit: any, idx: number) => (
+                                  <button
+                                    key={habit.id || idx}
+                                    className={`w-full text-left flex items-center gap-3 p-3 rounded-lg border ${
+                                      habit.completed || recentlyCompleted[habit.id || idx]
+                                        ? 'bg-teal-50 border-teal-200'
+                                        : 'bg-gray-50 border-gray-200 hover:bg-gray-100'
+                                    }`}
+                                    onClick={async () => {
+                                      try {
+                                        const id = habit.id;
+                                        if (!id) return;
+                                        const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+                                        const url = `${apiBaseUrl}/api/goals/habits/${id}/complete`;
+                                        const token = localStorage.getItem('token');
+                                        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+                                        if (token) headers['Authorization'] = `Bearer ${token}`;
+                                        await fetch(url, { method: 'POST', headers, body: JSON.stringify({ completedAt: new Date().toISOString() }) });
+                                        setRecentlyCompleted((s) => ({ ...s, [id]: true }));
+                                        // Refresh header counter
+                                        queryClient.invalidateQueries({ queryKey: ["/api/habits/today-completions"] });
+                                      } catch (e) {
+                                        console.error('Failed to mark habit complete', e);
+                                      }
+                                    }}
+                                  >
+                                    <div className={`w-6 h-6 rounded-full flex items-center justify-center ${
+                                      habit.completed || recentlyCompleted[habit.id || idx] ? 'bg-teal-600' : 'bg-gray-200'
+                                    }`}>
+                                      {(habit.completed || recentlyCompleted[habit.id || idx]) && <Check className="w-4 h-4 text-white" />}
+                                    </div>
+                                    <div className="flex-1">
+                                      <div className="font-medium text-gray-900">{habit.title}</div>
+                                      {habit.description && <div className="text-sm text-gray-600 mt-0.5">{habit.description}</div>}
+                                      <div className="text-xs text-gray-500 mt-1">{habit.streak} day streak • {habit.points} point{habit.points !== 1 ? 's' : ''}</div>
+                                    </div>
+                                  </button>
+                                ))}
+                              </div>
+                              <div className="mt-3 flex gap-2">
+                                <button
+                                  className="text-sm px-4 py-2 rounded-xl bg-teal-600 text-white hover:bg-teal-700 font-medium"
+                                  onClick={async () => {
+                                    const list = Array.isArray(payload.habits) ? payload.habits : [];
+                                    const completedCount = list.filter((h: any, idx: number) => h.completed || recentlyCompleted[h.id || idx]).length;
+                                    
+                                    // Mark as submitted
+                                    setHabitCardSubmitted((s) => ({ ...s, [cardId]: true }));
+                                    
+                                    // Auto-send message to agent
+                                    const completedHabits = list
+                                      .filter((h: any, idx: number) => h.completed || recentlyCompleted[h.id || idx])
+                                      .map((h: any) => h.title);
+                                    
+                                    const message = completedCount > 0 
+                                      ? `I completed ${completedCount} habit${completedCount !== 1 ? 's' : ''} today: ${completedHabits.join(', ')}`
+                                      : "I haven't completed any habits yet today";
+                                    
+                                    // Send message via composer
+                                    if ((window as any).sendMessage) {
+                                      (window as any).sendMessage(message);
+                                    }
+                                  }}
+                                >
+                                  Mark Completed
+                                </button>
+                              </div>
+                            </>
+                          ) : (
+                            <div className="flex items-center gap-2 text-teal-700 py-2">
+                              <Check className="w-5 h-5" />
+                              <span className="font-medium">
+                                ✅ Added {(() => {
+                                  const list = Array.isArray(payload.habits) ? payload.habits : [];
+                                  return list.filter((h: any, idx: number) => h.completed || recentlyCompleted[h.id || idx]).length;
+                                })()} habit{(() => {
+                                  const list = Array.isArray(payload.habits) ? payload.habits : [];
+                                  const count = list.filter((h: any, idx: number) => h.completed || recentlyCompleted[h.id || idx]).length;
+                                  return count !== 1 ? 's' : '';
+                                })()}
+                              </span>
+                            </div>
+                          )}
                           {Array.isArray(payload.goalsProgressed) && payload.goalsProgressed.length > 0 && (
                             <div className="mt-4 border-t pt-3">
                               <div className="text-xs font-semibold text-gray-700 mb-2 uppercase tracking-wide">Goals progressed today</div>
@@ -356,6 +403,86 @@ export default function ConversationStream({ threadId }: Props) {
                       }
                     }}
                   />
+                )}
+                {streamingStructuredData.type === 'habit_review' && (
+                  <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+                    <div className="text-sm font-semibold text-gray-800 mb-3 uppercase tracking-wide">Review Today's Habits</div>
+                    <div className="space-y-3">
+                      <div className="text-xs text-gray-600 mb-1">
+                        {(() => {
+                          const list = Array.isArray(streamingStructuredData.habits) ? streamingStructuredData.habits : [];
+                          const completed = list.filter((h: any, idx: number) => h.completed || recentlyCompleted[h.id || idx]).length;
+                          return `(${completed}/${list.length}) habits completed today`;
+                        })()}
+                      </div>
+                      {(streamingStructuredData.habits || []).map((habit: any, idx: number) => (
+                        <button
+                          key={habit.id || idx}
+                          className={`w-full text-left flex items-center gap-3 p-3 rounded-lg border ${
+                            habit.completed || recentlyCompleted[habit.id || idx]
+                              ? 'bg-teal-50 border-teal-200'
+                              : 'bg-gray-50 border-gray-200 hover:bg-gray-100'
+                          }`}
+                          onClick={async () => {
+                            try {
+                              const id = habit.id;
+                              if (!id) return;
+                              const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+                              const url = `${apiBaseUrl}/api/goals/habits/${id}/complete`;
+                              const token = localStorage.getItem('token');
+                              const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+                              if (token) headers['Authorization'] = `Bearer ${token}`;
+                              await fetch(url, { method: 'POST', headers, body: JSON.stringify({ completedAt: new Date().toISOString() }) });
+                              setRecentlyCompleted((s) => ({ ...s, [id]: true }));
+                              // Refresh header counter
+                              queryClient.invalidateQueries({ queryKey: ["/api/habits/today-completions"] });
+                            } catch (e) {
+                              console.error('Failed to mark habit complete', e);
+                            }
+                          }}
+                        >
+                          <div className={`w-6 h-6 rounded-full flex items-center justify-center ${
+                            habit.completed || recentlyCompleted[habit.id || idx] ? 'bg-teal-600' : 'bg-gray-200'
+                          }`}>
+                            {(habit.completed || recentlyCompleted[habit.id || idx]) && <Check className="w-4 h-4 text-white" />}
+                          </div>
+                          <div className="flex-1">
+                            <div className="font-medium text-gray-900">{habit.title}</div>
+                            {habit.description && <div className="text-sm text-gray-600 mt-0.5">{habit.description}</div>}
+                            <div className="text-xs text-gray-500 mt-1">{habit.streak} day streak • {habit.points} point{habit.points !== 1 ? 's' : ''}</div>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                    <div className="mt-3 flex gap-2">
+                      <button
+                        className="text-sm px-4 py-2 rounded-xl bg-teal-600 text-white hover:bg-teal-700 font-medium"
+                        onClick={async () => {
+                          const list = Array.isArray(streamingStructuredData.habits) ? streamingStructuredData.habits : [];
+                          const completedCount = list.filter((h: any, idx: number) => h.completed || recentlyCompleted[h.id || idx]).length;
+                          
+                          // Auto-send message to agent
+                          const completedHabits = list
+                            .filter((h: any, idx: number) => h.completed || recentlyCompleted[h.id || idx])
+                            .map((h: any) => h.title);
+                          
+                          const message = completedCount > 0 
+                            ? `I completed ${completedCount} habit${completedCount !== 1 ? 's' : ''} today: ${completedHabits.join(', ')}`
+                            : "I haven't completed any habits yet today";
+                          
+                          // Send message via composer
+                          if ((window as any).sendMessage) {
+                            (window as any).sendMessage(message);
+                          }
+                          
+                          // Clear streaming data to prevent duplicate cards
+                          setStreamingStructuredData(undefined);
+                        }}
+                      >
+                        Mark Completed
+                      </button>
+                    </div>
+                  </div>
                 )}
                 {streamingStructuredData.type === 'optimization' && (
                   <OptimizationCard

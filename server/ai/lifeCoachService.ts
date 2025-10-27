@@ -7,6 +7,12 @@ import { and, desc } from "drizzle-orm";
 import { insights, suggestedHabits, lifeMetricDefinitions } from "../../shared/schema";
 import { AgentRouter } from "./agents/agentRouter";
 import { AgentType } from "./agents/types";
+import { processWithToolAgent } from "./singleAgent";
+
+// Feature flag: Use new tool-based agent
+const USE_TOOL_AGENT = process.env.USE_TOOL_AGENT === 'true';
+console.log('[lifeCoachService] USE_TOOL_AGENT env var:', process.env.USE_TOOL_AGENT);
+console.log('[lifeCoachService] USE_TOOL_AGENT flag:', USE_TOOL_AGENT);
 
 const SYSTEM_PROMPT = `You are a supportive AI life coach who helps people achieve their goals through focused conversations.
 Style: Conversational, insightful, and action-oriented. Move conversations forward with purpose.
@@ -85,8 +91,6 @@ export async function streamLifeCoachReply(params: {
   const threadRow = await db.select().from(chatThreads).where(eq(chatThreads.id, threadId)).limit(1);
   const threadSummary = threadRow[0]?.summary ?? null;
 
-  // Use the new agent router
-  const agentRouter = new AgentRouter();
   const agentContext = {
     userId,
     threadId,
@@ -97,7 +101,33 @@ export async function streamLifeCoachReply(params: {
     threadSummary,
   };
 
-  const result = await agentRouter.processMessage(agentContext, requestedAgentType);
+  let result: { finalText: string; cta?: string; structuredData?: any };
+
+  // Choose agent system based on feature flag
+  if (USE_TOOL_AGENT) {
+    console.log('[lifeCoachService] Using NEW tool-based agent');
+    
+    try {
+      // Use new tool-based single agent
+      result = await processWithToolAgent(agentContext);
+      console.log('[lifeCoachService] Tool agent result:', {
+        textLength: result.finalText.length,
+        hasStructuredData: !!result.structuredData,
+        structuredDataType: result.structuredData?.type
+      });
+    } catch (error) {
+      console.error('[lifeCoachService] Tool agent error:', error);
+      // Fallback to old system on error
+      console.log('[lifeCoachService] Falling back to old agent router');
+      const agentRouter = new AgentRouter();
+      result = await agentRouter.processMessage(agentContext, requestedAgentType);
+    }
+  } else {
+    console.log('[lifeCoachService] Using OLD agent router');
+    // Use old agent router
+    const agentRouter = new AgentRouter();
+    result = await agentRouter.processMessage(agentContext, requestedAgentType);
+  }
 
   // Stream the response
   const words = result.finalText.split(' ');

@@ -285,6 +285,7 @@ router.post("/respond", async (req: any, res) => {
 
     send(JSON.stringify({ type: "start" }));
     let finalText = "";
+    let structuredPayload: any = null;
     try {
       const result = await streamLifeCoachReply({
         userId,
@@ -302,6 +303,7 @@ router.post("/respond", async (req: any, res) => {
       }
       if (result.structuredData) {
         send(JSON.stringify({ type: "structured_data", data: result.structuredData }));
+        structuredPayload = result.structuredData;
         // Persist agent outputs into My Focus (best-effort)
         try {
           await MyFocusService.persistFromAgent(result.structuredData, { userId, threadId });
@@ -316,7 +318,13 @@ router.post("/respond", async (req: any, res) => {
     send(JSON.stringify({ type: "end" }));
 
     if (finalText?.trim().length > 0) {
-      await ChatThreadService.appendMessage({ threadId, role: "assistant", content: finalText.trim(), status: "complete" } as any);
+      let saveContent = finalText.trim();
+      try {
+        if (structuredPayload && typeof structuredPayload === 'object') {
+          saveContent += `\n---json---\n${JSON.stringify(structuredPayload)}`;
+        }
+      } catch {}
+      await ChatThreadService.appendMessage({ threadId, role: "assistant", content: saveContent, status: "complete" } as any);
       
       // Generate smart title if this is still the default title
       console.log('[chat] Starting title generation check for thread:', threadId);
