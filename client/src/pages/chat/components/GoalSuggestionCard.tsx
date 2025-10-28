@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Trophy, Target, Check, Zap } from "lucide-react";
@@ -24,6 +25,7 @@ interface Props {
 }
 
 export default function GoalSuggestionCard({ goal, habits = [], onAccept, onView }: Props) {
+  const queryClient = useQueryClient();
   const [selected, setSelected] = useState<Record<string, boolean>>(() => {
     const init: Record<string, boolean> = {};
     habits.forEach((h, i) => { init[(h.id || String(i))] = true; });
@@ -31,6 +33,19 @@ export default function GoalSuggestionCard({ goal, habits = [], onAccept, onView
   });
   const [accepting, setAccepting] = useState(false);
   const [accepted, setAccepted] = useState(false);
+  const [needsPrioritization, setNeedsPrioritization] = useState(false);
+  
+  // Persist accepted state
+  useEffect(() => {
+    const saved = localStorage.getItem(`goal_accepted_${goal.id || goal.title}`);
+    if (saved === 'true') setAccepted(true);
+  }, [goal.id, goal.title]);
+  
+  useEffect(() => {
+    if (accepted) {
+      localStorage.setItem(`goal_accepted_${goal.id || goal.title}`, 'true');
+    }
+  }, [accepted, goal.id, goal.title]);
 
   const toggle = (key: string) => setSelected(prev => ({ ...prev, [key]: !prev[key] }));
 
@@ -44,7 +59,12 @@ export default function GoalSuggestionCard({ goal, habits = [], onAccept, onView
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
-      // 1) Create goal
+      // 1) Count existing active goals BEFORE creating new one
+      const countResp = await fetch(`${apiBaseUrl}/api/goals/count/active`, { headers });
+      const countData = await countResp.json();
+      const activeGoalCount = countData.count || 0;
+
+      // 2) Create goal
       const createGoalResp = await fetch(`${apiBaseUrl}/api/goals`, {
         method: 'POST',
         headers,
@@ -54,7 +74,7 @@ export default function GoalSuggestionCard({ goal, habits = [], onAccept, onView
       const goalInstanceId = created?.goal?.id || created?.goal?.goalInstance?.id || created?.id;
       if (!goalInstanceId) throw new Error('Goal creation failed');
 
-      // 2) For each selected habit → create habit definition then associate to goal
+      // 3) For each selected habit → create habit definition then associate to goal
       const selectedHabits = habits.filter((h, i) => selected[h.id || String(i)]);
       for (let i = 0; i < selectedHabits.length; i++) {
         const h = selectedHabits[i];
@@ -75,6 +95,23 @@ export default function GoalSuggestionCard({ goal, habits = [], onAccept, onView
       }
 
       setAccepted(true);
+      
+      // 4) Check if prioritization needed and trigger if so
+      const newGoalCount = activeGoalCount + 1;
+      if (newGoalCount > 3) {
+        // Need to trigger prioritization
+        setNeedsPrioritization(true);
+        // Send message to agent to trigger prioritize_optimize
+        if ((window as any).sendMessage) {
+          (window as any).sendMessage('I just added a new goal. Please help me prioritize my focus.');
+        }
+      }
+      
+      // Invalidate queries to refresh "My Focus"
+      queryClient.invalidateQueries({ queryKey: ['/api/my-focus'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/goals'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/chat/threads'] });
+      
       onAccept?.();
     } catch (e) {
       console.error('Failed to accept goal suggestion', e);
@@ -97,9 +134,13 @@ export default function GoalSuggestionCard({ goal, habits = [], onAccept, onView
             <div className="text-lg font-bold text-gray-900 mt-1">{goal.title}</div>
           </div>
         </div>
-        {accepted ? (
+        {accepted && !needsPrioritization && (
           <Badge className="bg-teal-600 text-white text-xs px-3 py-1">Added to My Focus</Badge>
-        ) : goal.priority && (
+        )}
+        {accepted && needsPrioritization && (
+          <Badge className="bg-orange-600 text-white text-xs px-3 py-1">Needs Prioritization</Badge>
+        )}
+        {!accepted && goal.priority && (
           <Badge className="bg-gray-600 text-white text-xs px-3 py-1">
             {goal.priority}
           </Badge>
@@ -207,6 +248,10 @@ export default function GoalSuggestionCard({ goal, habits = [], onAccept, onView
               Dismiss
             </Button>
           </>
+        ) : needsPrioritization ? (
+          <div className="flex-1 bg-orange-50 border border-orange-200 rounded-xl p-3 text-sm text-orange-800">
+            You have 4+ active goals. Reprioritization is being triggered. This goal is not yet in "My Focus".
+          </div>
         ) : (
           <Button 
             variant="outline"

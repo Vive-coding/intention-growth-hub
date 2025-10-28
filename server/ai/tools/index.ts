@@ -23,10 +23,11 @@ import {
 } from "./habitTools";
 import { shareInsightTool, voteOnInsightTool } from "./insightTool";
 import { showProgressSummaryTool } from "./progressTool";
+import { prioritizeGoalsTool } from "./prioritizeTools";
 
 /**
  * All tools available to the life coach agent
- * Total: 11 core tools
+ * Total: 12 core tools (added prioritize_goals)
  */
 export const allTools = [
   // Context (1 tool)
@@ -48,6 +49,9 @@ export const allTools = [
   
   // Progress (1 tool)
   showProgressSummaryTool,
+  
+  // Prioritization (1 tool)
+  prioritizeGoalsTool,
 ];
 
 /**

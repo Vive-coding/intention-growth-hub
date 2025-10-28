@@ -63,6 +63,22 @@ export default function ConversationStream({ threadId }: Props) {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, streamingText, optimisticUserMessage, isThinking]);
 
+  // Debug: Log when payloads are detected
+  useEffect(() => {
+    messages.forEach((m: any) => {
+      if (m.role === 'assistant' && typeof m.content === 'string') {
+        const marker = '\n---json---\n';
+        const idx = m.content.indexOf(marker);
+        if (idx !== -1) {
+          try {
+            const payload = JSON.parse(m.content.slice(idx + marker.length).trim());
+            console.log('[ConversationStream] 📊 Card payload detected:', payload.type);
+          } catch (e) {}
+        }
+      }
+    });
+  }, [messages]);
+
   // Expose a tiny API for Composer to start/stop streaming
   // We keep this local for Phase 3.1; later can lift to context if needed
   (window as any).chatStream = {
@@ -318,19 +334,20 @@ export default function ConversationStream({ threadId }: Props) {
                     if (type === 'prioritization') {
                       return (
                         <PrioritizationCard
+                          messageId={m.id} // Unique ID for this message/card instance
                           items={payload.items || []}
-                          onOpenReview={() => (window.location.href = '/habits')}
-                          onLog={async (habitId: string) => {
+                          onAccept={async () => {
                             try {
-                              const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-                              const url = `${apiBaseUrl}/api/goals/habits/${habitId}/complete`;
-                              const token = localStorage.getItem('token');
-                              const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-                              if (token) headers['Authorization'] = `Bearer ${token}`;
-                              await fetch(url, { method: 'POST', headers, body: JSON.stringify({ completedAt: new Date().toISOString() }) });
+                              // The prioritization was already persisted by the tool
+                              // We just need to invalidate the My Focus cache to show updated data
+                              queryClient.invalidateQueries({ queryKey: ['/api/my-focus'] });
+                              console.log('Priorities accepted - My Focus should update');
                             } catch (e) {
-                              console.error('Failed to log habit from card', e);
+                              console.error('Failed to accept priorities', e);
                             }
+                          }}
+                          onReject={() => {
+                            console.log('User declined the prioritization proposal');
                           }}
                         />
                       );
@@ -388,19 +405,20 @@ export default function ConversationStream({ threadId }: Props) {
                 )}
                 {streamingStructuredData.type === 'prioritization' && (
                   <PrioritizationCard
+                    messageId={`streaming_${Date.now()}`} // Temporary ID for streaming card
                     items={streamingStructuredData.items || []}
-                    onOpenReview={() => (window.location.href = '/habits')}
-                    onLog={async (habitId: string) => {
+                    onAccept={async () => {
                       try {
-                        const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-                        const url = `${apiBaseUrl}/api/goals/habits/${habitId}/complete`;
-                        const token = localStorage.getItem('token');
-                        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-                        if (token) headers['Authorization'] = `Bearer ${token}`;
-                        await fetch(url, { method: 'POST', headers, body: JSON.stringify({ completedAt: new Date().toISOString() }) });
+                        // The prioritization was already persisted by the tool
+                        // We just need to invalidate the My Focus cache to show updated data
+                        queryClient.invalidateQueries({ queryKey: ['/api/my-focus'] });
+                        console.log('Priorities accepted - My Focus should update');
                       } catch (e) {
-                        console.error('Failed to log habit from card', e);
+                        console.error('Failed to accept priorities', e);
                       }
+                    }}
+                    onReject={() => {
+                      console.log('User declined the prioritization proposal');
                     }}
                   />
                 )}

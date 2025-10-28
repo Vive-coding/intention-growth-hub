@@ -72,7 +72,7 @@ return (
               title="Start chat to Optimize My Focus"
               onClick={() => { window.location.href = '/chat?new=1&optimize=1'; }}
             >
-              Optimize My Focus
+              Optimize focus
             </button>
           </div>
         </div>
@@ -88,7 +88,7 @@ return (
               className="inline-flex items-center px-4 py-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700"
               onClick={() => (window as any).composeAndSend?.('Help me optimize and prioritize my focus.', 'prioritize_optimize')}
             >
-              Optimize
+              Optimize focus
             </button>
           </div>
         </section>

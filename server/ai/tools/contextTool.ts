@@ -129,11 +129,11 @@ ${myFocus.keyInsights.map((i: any) => `- ${i.title}: ${i.explanation.substring(0
             })
           );
           
-          return {
+          return JSON.stringify({
             success: true,
             data: goalsWithInstances,
             summary: `Found ${goalsWithInstances.length} goals with status: ${status}`
-          };
+          });
         }
         
         case "habits": {
@@ -177,11 +177,11 @@ ${myFocus.keyInsights.map((i: any) => `- ${i.title}: ${i.explanation.substring(0
             })
           );
           
-          return {
+          return JSON.stringify({
             success: true,
             data: habitsWithHistory,
             summary: `${habitsWithHistory.length} active habits over last ${days} days`
-          };
+          });
         }
         
         case "insights": {
@@ -199,7 +199,7 @@ ${myFocus.keyInsights.map((i: any) => `- ${i.title}: ${i.explanation.substring(0
             ? allInsights.filter(i => i.lifeMetricIds?.includes(lifeMetric))
             : allInsights;
           
-          return {
+          return JSON.stringify({
             success: true,
             data: filtered.map(i => ({
               id: i.id,
@@ -210,7 +210,7 @@ ${myFocus.keyInsights.map((i: any) => `- ${i.title}: ${i.explanation.substring(0
               votes: i.votes || 0
             })),
             summary: `${filtered.length} insights${lifeMetric ? ` for ${lifeMetric}` : ""}`
-          };
+          });
         }
         
         case "life_metrics": {
@@ -249,11 +249,11 @@ ${myFocus.keyInsights.map((i: any) => `- ${i.title}: ${i.explanation.substring(0
             })
           );
           
-          return {
+          return JSON.stringify({
             success: true,
             data: metricsWithCounts,
             summary: `${metricsWithCounts.length} life metric categories`
-          };
+          });
         }
         
         default:
@@ -261,11 +261,11 @@ ${myFocus.keyInsights.map((i: any) => `- ${i.title}: ${i.explanation.substring(0
       }
     } catch (error) {
       console.error(`[getContextTool] Error fetching ${scope}:`, error);
-      return {
+      return JSON.stringify({
         success: false,
-        error: error.message,
+        error: (error as any).message,
         summary: `Failed to fetch ${scope}`
-      };
+      });
     }
   }
 });

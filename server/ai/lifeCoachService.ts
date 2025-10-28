@@ -104,12 +104,15 @@ export async function streamLifeCoachReply(params: {
   let result: { finalText: string; cta?: string; structuredData?: any };
 
   // Choose agent system based on feature flag
+  console.log('[lifeCoachService] USE_TOOL_AGENT flag:', USE_TOOL_AGENT);
+  console.log('[lifeCoachService] requestedAgentType:', requestedAgentType);
+  
   if (USE_TOOL_AGENT) {
     console.log('[lifeCoachService] Using NEW tool-based agent');
     
     try {
       // Use new tool-based single agent
-      result = await processWithToolAgent(agentContext);
+      result = await processWithToolAgent(agentContext, requestedAgentType);
       console.log('[lifeCoachService] Tool agent result:', {
         textLength: result.finalText.length,
         hasStructuredData: !!result.structuredData,

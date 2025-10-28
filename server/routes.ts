@@ -8,6 +8,7 @@ import insightsRouter from "./routes/insights";
 import chatRouter from "./routes/chat";
 import goalsRouter from "./routes/goals";
 import testCardsRouter from "./routes/testCards";
+
 import myFocusRouter from "./routes/myFocus";
 import { securityMiddleware } from "./middleware/security";
 import { InsightService } from "./services/insightService";

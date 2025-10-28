@@ -286,6 +286,11 @@ router.post("/respond", async (req: any, res) => {
     send(JSON.stringify({ type: "start" }));
     let finalText = "";
     let structuredPayload: any = null;
+    console.log('[chat/respond] Starting response', { 
+      requestedAgentType, 
+      contentPreview: content.substring(0, 100) 
+    });
+    
     try {
       const result = await streamLifeCoachReply({
         userId,
@@ -298,10 +303,18 @@ router.post("/respond", async (req: any, res) => {
         requestedAgentType,
       });
       finalText = result.finalText || finalText;
+      
+      console.log('[chat/respond] Response complete', {
+        hasCTA: !!result.cta,
+        hasStructuredData: !!result.structuredData,
+        structuredDataType: result.structuredData?.type
+      });
+      
       if (result.cta) {
         send(JSON.stringify({ type: "cta", label: result.cta }));
       }
       if (result.structuredData) {
+        console.log('[chat/respond] 🎴 SENDING CARD TO FRONTEND:', result.structuredData.type);
         send(JSON.stringify({ type: "structured_data", data: result.structuredData }));
         structuredPayload = result.structuredData;
         // Persist agent outputs into My Focus (best-effort)

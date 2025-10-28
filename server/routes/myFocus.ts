@@ -173,6 +173,42 @@ router.post("/optimization/apply", async (req: any, res) => {
   }
 });
 
+// Apply a prioritization snapshot directly (respect user-selected items)
+router.post("/priorities/apply", async (req: any, res) => {
+  try {
+    const userId = req.user?.id || req.user?.claims?.sub;
+    if (!userId) return res.status(401).json({ message: "Unauthorized" });
+
+    const { items, sourceThreadId } = req.body || {};
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ message: "Invalid payload: items[] required" });
+    }
+
+    const normalized = items
+      .map((it: any, idx: number) => ({
+        goalInstanceId: it.goalInstanceId || it.id, // support either field from client
+        rank: it.rank || idx + 1,
+        reason: it.reason || null,
+      }))
+      .filter((it: any) => !!it.goalInstanceId);
+
+    if (normalized.length === 0) {
+      return res.status(400).json({ message: "No valid goalInstanceId in items" });
+    }
+
+    await db.insert(myFocusPrioritySnapshots).values({
+      userId,
+      items: normalized as any,
+      sourceThreadId: sourceThreadId || null,
+    } as any);
+
+    res.json({ success: true });
+  } catch (e) {
+    console.error('[my-focus] priorities apply failed', e);
+    res.status(500).json({ message: 'Failed to apply priorities' });
+  }
+});
+
 export default router;
 
 // Helper: compute habit-based progress (avg of habit instance progress, capped at 90)

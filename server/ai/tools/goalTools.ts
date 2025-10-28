@@ -109,8 +109,9 @@ export const createGoalWithHabitsTool = new DynamicStructuredTool({
     })).optional().describe("Custom habit suggestions (auto-generated if not provided)")
   }),
   
-  func: async ({ goal_data, habit_suggestions }, config) => {
-    const userId = config?.configurable?.userId;
+  func: async ({ goal_data, habit_suggestions }) => {
+    const userId = (global as any).__TOOL_USER_ID__;
+    const threadId = (global as any).__TOOL_THREAD_ID__;
     if (!userId) {
       throw new Error("User ID required");
     }
@@ -125,7 +126,7 @@ export const createGoalWithHabitsTool = new DynamicStructuredTool({
       
       // Return structured data for frontend card rendering
       // This matches your existing GoalSuggestionCard format!
-      return {
+      const result = {
         type: "goal_suggestion",
         goal: {
           title: goal_data.title,
@@ -142,6 +143,10 @@ export const createGoalWithHabitsTool = new DynamicStructuredTool({
           impact: "high"
         }))
       };
+      
+      // IMPORTANT: Return as JSON string for LangChain
+      console.log("[createGoalWithHabitsTool] ✅ Returning goal suggestion:", result.type);
+      return JSON.stringify(result);
     } catch (error) {
       console.error("[createGoalWithHabitsTool] Error:", error);
       throw error;

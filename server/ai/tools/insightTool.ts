@@ -65,13 +65,16 @@ export const shareInsightTool = new DynamicStructuredTool({
         .returning();
       
       // Return card data matching existing insight card format
-      return {
+      const result = {
         type: "insight",
         id: newInsight.id,
         title: insight_text.slice(0, 100),
         explanation: insight_text,
         confidence: 80
       };
+      
+      console.log("[shareInsightTool] ✅ Returning insight data:", result.type);
+      return JSON.stringify(result);
     } catch (error) {
       console.error("[shareInsightTool] Error:", error);
       throw error;

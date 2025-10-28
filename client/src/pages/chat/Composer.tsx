@@ -64,6 +64,7 @@ export default function Composer({ threadId }: Props) {
           } else if (evt.type === 'cta' && typeof evt.label === 'string') {
             (window as any).chatStream?.cta?.(evt.label);
           } else if (evt.type === 'structured_data' && typeof evt.data === 'object') {
+            console.log('[Composer] 🎴 RECEIVED CARD FROM SERVER:', evt.data.type);
             (window as any).chatStream?.structuredData?.(evt.data);
           } else if (evt.type === 'end') {
             (window as any).chatStream?.end?.();

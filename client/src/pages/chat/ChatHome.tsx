@@ -88,15 +88,23 @@ export default function ChatHome() {
     if (actionPendingRef.current) return;
     if (!threadId) {
       // Blank state: let the composer lazily create the thread and send
-      (window as any).composeAndSend?.(text);
+      (window as any).composeAndSend?.(text, agent);
       return;
     }
     actionPendingRef.current = true;
     try {
+      // For these actions, don't show the user message - let the agent initiate
+      // Instead, send a simple trigger message that the agent will interpret
+      const triggerMessage = agent === 'suggest_goals' ? 'Let\'s plan ahead' : 
+                            agent === 'review_progress' ? 'Let\'s review my progress' :
+                            agent === 'prioritize_optimize' ? 'Help me optimize my focus' :
+                            'Surprise me with insights';
+      
       // Show optimistic user message and thinking state just like Composer
-      (window as any).chatStream?.addUserMessage?.(text);
+      (window as any).chatStream?.addUserMessage?.(triggerMessage);
       (window as any).chatStream?.begin?.();
-      await (window as any).sendServerStream({ threadId, content: text, requestedAgentType: agent });
+      console.log('[ChatHome] Sending action:', { triggerMessage, agent });
+      await (window as any).sendServerStream({ threadId, content: triggerMessage, requestedAgentType: agent });
     } catch (e) {
       console.error('Quick action failed', e);
       (window as any).chatStream?.end?.();
@@ -218,10 +226,10 @@ export default function ChatHome() {
               <div className="mb-3">
                 <QuickActions
                   mode="full"
-                  onReviewHabits={() => sendAction('Let me review my habits and progress.', 'review_progress')}
-                  onViewSuggestions={() => sendAction('Please suggest some goals based on our conversation so far.', 'suggest_goals')}
-                  onOptimize={() => sendAction('Help me optimize and prioritize my focus.', 'prioritize_optimize')}
-                  onSurpriseMe={() => sendAction('Surprise me with some insights about myself.', 'surprise_me')}
+                  onReviewHabits={() => sendAction('Review progress', 'review_progress')}
+                  onViewSuggestions={() => sendAction('Plan ahead', 'suggest_goals')}
+                  onOptimize={() => sendAction('Optimize focus', 'prioritize_optimize')}
+                  onSurpriseMe={() => sendAction('Surprise me', 'surprise_me')}
                 />
               </div>
               <div className="border-2 border-transparent bg-gradient-to-r from-purple-500 to-blue-500 p-[2px] rounded-2xl">
@@ -239,10 +247,10 @@ export default function ChatHome() {
           <div className="hidden lg:block mb-2">
             <QuickActions
               mode="full"
-              onReviewHabits={() => sendAction('Let me review my habits and progress.', 'review_progress')}
-              onViewSuggestions={() => sendAction('Please suggest some goals based on our conversation so far.', 'suggest_goals')}
-              onOptimize={() => sendAction('Help me optimize and prioritize my focus.', 'prioritize_optimize')}
-              onSurpriseMe={() => sendAction('Surprise me with some insights about myself.', 'surprise_me')}
+              onReviewHabits={() => sendAction('Review progress', 'review_progress')}
+              onViewSuggestions={() => sendAction('Plan ahead', 'suggest_goals')}
+              onOptimize={() => sendAction('Optimize focus', 'prioritize_optimize')}
+              onSurpriseMe={() => sendAction('Surprise me', 'surprise_me')}
             />
           </div>
           <div className="flex items-center gap-2">

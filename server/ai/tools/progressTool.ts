@@ -91,7 +91,7 @@ export const showProgressSummaryTool = new DynamicStructuredTool({
           ? goalsWithProgress.filter(g => goalIds.includes(g.id))
           : goalsWithProgress;
         
-        return {
+        const result = {
           type: "progress_summary",
           scope: "goals",
           summary: {
@@ -102,6 +102,8 @@ export const showProgressSummaryTool = new DynamicStructuredTool({
           },
           goals: filtered
         };
+        
+        return JSON.stringify(result);
       }
       
       if (scope === "habits") {
@@ -149,7 +151,7 @@ export const showProgressSummaryTool = new DynamicStructuredTool({
           })
         );
         
-        return {
+        const result = {
           type: "progress_summary",
           scope: "habits",
           timeframe: timeframe,
@@ -163,6 +165,8 @@ export const showProgressSummaryTool = new DynamicStructuredTool({
           },
           habits: habitsWithStats
         };
+        
+        return JSON.stringify(result);
       }
       
       if (scope === "life_metric") {
@@ -219,7 +223,7 @@ export const showProgressSummaryTool = new DynamicStructuredTool({
           })
         );
         
-        return {
+        const result = {
           type: "progress_summary",
           scope: "life_metric",
           life_metric: lifeMetricName,
@@ -232,6 +236,8 @@ export const showProgressSummaryTool = new DynamicStructuredTool({
           },
           goals: goalsWithProgress
         };
+        
+        return JSON.stringify(result);
       }
       
       throw new Error(`Unknown scope: ${scope}`);

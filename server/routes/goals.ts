@@ -2792,4 +2792,32 @@ router.post("/:id/archive", async (req: Request, res: Response) => {
   }
 });
 
+// Count active goals for a user
+router.get("/count/active", async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user?.id;
+    
+    if (!userId) {
+      return res.status(401).json({ message: "User not authenticated" });
+    }
+
+    // Count active, non-archived goals
+    const results = await db
+      .select({ id: goalInstances.id })
+      .from(goalInstances)
+      .innerJoin(goalDefinitions, eq(goalInstances.goalDefinitionId, goalDefinitions.id))
+      .where(and(
+        eq(goalInstances.userId, userId),
+        eq(goalInstances.status, "active"),
+        eq(goalInstances.archived, false),
+        eq(goalDefinitions.archived, false)
+      ));
+
+    res.json({ count: results.length });
+  } catch (error) {
+    console.error("Error counting active goals:", error);
+    res.status(500).json({ error: "Failed to count goals" });
+  }
+});
+
 export default router; 
