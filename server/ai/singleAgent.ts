@@ -15,6 +15,7 @@ import { OpenAIFunctionsAgentOutputParser } from "langchain/agents/openai/output
 import { RunnableSequence } from "@langchain/core/runnables";
 import { convertToOpenAIFunction } from "@langchain/core/utils/function_calling";
 import { HumanMessage, AIMessage, SystemMessage } from "@langchain/core/messages";
+import { MyFocusService } from "../services/myFocusService";
 
 const LIFE_COACH_PROMPT = `You are an experienced life coach helping the user make steady, meaningful progress through intentional goals and consistent habits.
 
@@ -402,29 +403,60 @@ export async function processWithToolAgent(context: AgentContext, requestedAgent
     console.log("[processWithToolAgent] Thread:", context.threadId);
     console.log("[processWithToolAgent] Message:", userMessage);
     
+    // Pre-load "My Focus" context for new threads (no chat history yet)
+    let myFocusContext = "";
+    if (recentMessages.length === 0) {
+      console.log("[processWithToolAgent] New thread detected - pre-loading My Focus context");
+      try {
+        const myFocus = await MyFocusService.getMyFocus(userId);
+        myFocusContext = `\n\n## USER'S CURRENT FOCUS (as of now):
+
+Priority Goals (${myFocus.priorityGoals.length}):
+${myFocus.priorityGoals.map((g: any, i: number) => 
+  `${i + 1}. ${g.title} (${g.lifeMetric}) - ${g.progress}% complete${g.status === 'completed' ? ' ✓ COMPLETED' : ''}`
+).join('\n') || '(No priority goals set yet)'}
+
+Active Habits (${myFocus.highLeverageHabits.length}):
+${myFocus.highLeverageHabits.map((h: any) => `- ${h.title}`).join('\n') || '(No active habits yet)'}
+
+Key Insights (${myFocus.keyInsights.length}):
+${myFocus.keyInsights.map((i: any) => `- ${i.title}: ${i.explanation.substring(0, 100)}...`).join('\n') || '(No insights yet)'}
+
+Note: You have this context for the start of the conversation. For updates, call get_context("my_focus").`;
+        console.log("[processWithToolAgent] ✅ My Focus context loaded for new thread");
+      } catch (e) {
+        console.error("[processWithToolAgent] Failed to pre-load My Focus:", e);
+      }
+    }
+    
     // Create tools with userId and threadId baked in
     const toolsForUser = createToolsForUser(userId, context.threadId);
     console.log("[processWithToolAgent] Created tools for user:", userId);
     
-    // Create agent with user-specific tools
-    const agentExecutor = await createLifeCoachAgentWithTools(toolsForUser, mode, contextInstructions);
+    // Create agent with user-specific tools, including pre-loaded context if available
+    const agentExecutor = await createLifeCoachAgentWithTools(
+      toolsForUser, 
+      mode, 
+      contextInstructions + myFocusContext
+    );
     
-    // TEMPORARY: Skip chat history to diagnose LangChain error
+    // Build chat history from recent messages (convert to LangChain message format)
     const chatHistory: any[] = [];
-    console.log("[processWithToolAgent] Skipping chat history to debug LangChain error");
-    
-    // Build context string for agent
-    const contextString = `
-Profile: ${profile?.firstName || 'User'}
-Thread: ${threadSummary || 'New conversation'}
-
-Recent context:
-${recentMessages.slice(-2).map(m => `${m.role}: ${m.content}`).join('\n')}
-`;
+    for (const msg of recentMessages) {
+      try {
+        if (msg.role === 'user' || msg.role === 'human') {
+          chatHistory.push(new HumanMessage(msg.content || ''));
+        } else if (msg.role === 'assistant' || msg.role === 'ai') {
+          chatHistory.push(new AIMessage(msg.content || ''));
+        }
+      } catch (e) {
+        console.error("[processWithToolAgent] Error converting message to LangChain format:", e);
+      }
+    }
     
     console.log("[processWithToolAgent] Invoking agent...");
     console.log("[processWithToolAgent] Input:", userMessage);
-    console.log("[processWithToolAgent] Chat history:", JSON.stringify(chatHistory, null, 2));
+    console.log("[processWithToolAgent] Chat history length:", chatHistory.length);
     
     // Invoke agent with tools
     // Pass userId and threadId via config for tools to access

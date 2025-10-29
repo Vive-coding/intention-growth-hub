@@ -86,7 +86,7 @@ export async function streamLifeCoachReply(params: {
   const [profile, workingSet, recentMessages] = await Promise.all([
     ChatContextService.getProfileCapsule(userId),
     ChatContextService.getWorkingSet(userId),
-    ChatContextService.getRecentMessages(threadId, 5),
+    ChatContextService.getRecentMessages(threadId, 10),
   ]);
   const threadRow = await db.select().from(chatThreads).where(eq(chatThreads.id, threadId)).limit(1);
   const threadSummary = threadRow[0]?.summary ?? null;
