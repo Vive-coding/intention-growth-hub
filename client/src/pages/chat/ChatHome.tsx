@@ -31,6 +31,61 @@ export default function ChatHome() {
   const actionPendingRef = useRef(false);
   const { user } = useAuth();
 
+  // Calculate actual viewport height (excluding mobile browser UI)
+  const [viewportHeight, setViewportHeight] = useState(() => {
+    if (typeof window !== 'undefined') {
+      // Use visualViewport if available (more accurate for mobile browsers)
+      const visualViewport = (window as any).visualViewport;
+      if (visualViewport) {
+        return visualViewport.height;
+      }
+      return window.innerHeight;
+    }
+    return 100;
+  });
+
+  useEffect(() => {
+    const updateViewportHeight = () => {
+      if (typeof window !== 'undefined') {
+        // Use visualViewport if available (more accurate for mobile browsers)
+        const visualViewport = (window as any).visualViewport;
+        if (visualViewport) {
+          setViewportHeight(visualViewport.height);
+        } else {
+          setViewportHeight(window.innerHeight);
+        }
+      }
+    };
+
+    // Set initial height
+    updateViewportHeight();
+
+    // Use visualViewport API if available (better for mobile browsers)
+    const visualViewport = typeof window !== 'undefined' ? (window as any).visualViewport : null;
+    if (visualViewport) {
+      visualViewport.addEventListener('resize', updateViewportHeight);
+      visualViewport.addEventListener('scroll', updateViewportHeight);
+    } else if (typeof window !== 'undefined') {
+      // Fallback to regular resize events
+      window.addEventListener('resize', updateViewportHeight);
+      window.addEventListener('orientationchange', updateViewportHeight);
+    }
+
+    // Also update after a short delay to catch browser UI changes
+    const timeoutId = setTimeout(updateViewportHeight, 100);
+
+    return () => {
+      if (visualViewport) {
+        visualViewport.removeEventListener('resize', updateViewportHeight);
+        visualViewport.removeEventListener('scroll', updateViewportHeight);
+      } else if (typeof window !== 'undefined') {
+        window.removeEventListener('resize', updateViewportHeight);
+        window.removeEventListener('orientationchange', updateViewportHeight);
+      }
+      clearTimeout(timeoutId);
+    };
+  }, []);
+
   // Fetch threads for left-nav list (top 5-7)
   const { data: threads = [] } = useQuery({
     queryKey: ["/api/chat/threads"],
@@ -129,7 +184,10 @@ export default function ChatHome() {
   };
 
   return (
-    <div className="flex h-screen bg-gray-50 overflow-x-hidden">
+    <div 
+      className="flex bg-gray-50 overflow-x-hidden"
+      style={{ height: `${viewportHeight}px` }}
+    >
       {/* Desktop left nav + conversations list */}
       <SharedLeftNav>
         <ConversationsList currentThreadId={threadId} />
