@@ -111,7 +111,7 @@ export default function ConversationStream({ threadId }: Props) {
   };
 
   return (
-    <div className="max-w-3xl mx-auto px-3 sm:px-4 py-6 space-y-4 overflow-x-hidden">
+    <div className="max-w-3xl mx-auto px-2 sm:px-3 md:px-4 py-6 space-y-4 overflow-x-hidden w-full">
       {messages.map((m: any) => {
         const isAssistant = m.role === 'assistant';
         const marker = '\n---json---\n';
@@ -131,7 +131,7 @@ export default function ConversationStream({ threadId }: Props) {
           <div key={m.id} className="space-y-2">
             {pre && (
               <div className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-[88%] sm:max-w-[85%] w-full min-w-0 rounded-2xl px-3 sm:px-4 py-3 shadow-sm ${m.role === 'user' ? 'bg-teal-600 text-white rounded-br-md' : 'bg-white text-gray-800 border rounded-bl-md'}`}>
+                <div className={`max-w-[95%] sm:max-w-[88%] md:max-w-[85%] w-full min-w-0 rounded-2xl px-3 sm:px-4 py-3 shadow-sm ${m.role === 'user' ? 'bg-teal-600 text-white rounded-br-md' : 'bg-white text-gray-800 border rounded-bl-md'}`}>
                   <div className="text-xs opacity-70 mb-1">
                     {m.role === 'user' ? 'You' : 'Coach'} • {(() => {
                       try {
@@ -149,7 +149,7 @@ export default function ConversationStream({ threadId }: Props) {
 
             {isAssistant && payload && (
               <div className="flex justify-start">
-                <div className="max-w-[88%] sm:max-w-[85%] w-full min-w-0">
+                <div className="max-w-[95%] sm:max-w-[88%] md:max-w-[85%] w-full min-w-0">
                   {(() => {
                     const type = String(payload.type || '').toLowerCase();
                     if (type === 'goal_suggestion') {
@@ -364,7 +364,7 @@ export default function ConversationStream({ threadId }: Props) {
       {/* Show optimistic user message if it exists, after historical messages */}
       {optimisticUserMessage && (
         <div className="flex justify-end">
-          <div className="max-w-[88%] sm:max-w-[85%] w-full min-w-0 rounded-2xl px-3 sm:px-4 py-3 bg-teal-600 text-white rounded-br-md shadow-sm">
+          <div className="max-w-[95%] sm:max-w-[88%] md:max-w-[85%] w-full min-w-0 rounded-2xl px-3 sm:px-4 py-3 bg-teal-600 text-white rounded-br-md shadow-sm">
             <div className="text-xs opacity-70 mb-1">You • now</div>
             <div className="whitespace-pre-wrap break-words leading-relaxed">{optimisticUserMessage}</div>
           </div>
@@ -374,7 +374,7 @@ export default function ConversationStream({ threadId }: Props) {
 
       {(isThinking || isStreaming) && (
         <div className="flex justify-start">
-          <div className="max-w-[88%] sm:max-w-[85%] w-full min-w-0 rounded-2xl px-3 sm:px-4 py-3 bg-white border rounded-bl-md shadow-sm">
+          <div className="max-w-[95%] sm:max-w-[88%] md:max-w-[85%] w-full min-w-0 rounded-2xl px-3 sm:px-4 py-3 bg-white border rounded-bl-md shadow-sm">
             <div className="text-xs text-gray-500 mb-1">Coach • now</div>
             {isThinking ? (
               <div className="flex items-center gap-2 text-gray-600">

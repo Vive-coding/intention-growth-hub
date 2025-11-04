@@ -143,35 +143,39 @@ export default function PrioritizationCard({ items, messageId, onAccept, onRejec
 					</div>
 				))}
 			</div>
-			                        <div className="flex gap-2 sm:gap-3 mt-4 flex-col sm:flex-row">
-				<Button 
-					className="flex-1 bg-teal-600 hover:bg-teal-700 text-white font-semibold py-3 rounded-xl"
-					onClick={handleAccept}
-				>
-					Accept Selected ({Object.values(selectedItems).filter(Boolean).length} of {items.length})
-				</Button>
-				<Button 
-					variant="outline"
-					className="px-4 py-3 rounded-xl border-gray-300 text-sm"
-					onClick={handleReject}
-				>
-					Decline
-				</Button>
-				<Button 
-					variant="outline"
-					className="px-4 py-3 rounded-xl border-amber-300 text-amber-700 text-sm"
-					onClick={() => {
-						setReprioritizing(true);
-						// Send message to agent to re-prioritize
-						if ((window as any).sendMessage) {
-							(window as any).sendMessage('I want to see different priorities. Can you re-prioritize my goals?');
-						}
-					}}
-					disabled={reprioritizing}
-				>
-					{reprioritizing ? 'Re-prioritizing...' : 'Re-prioritize'}
-				</Button>
-			</div>
+			                                                        <div className="flex gap-2 sm:gap-3 mt-4 flex-col sm:flex-row">
+                                <Button 
+                                        className="flex-1 bg-teal-600 hover:bg-teal-700 text-white font-semibold py-3 rounded-xl text-xs sm:text-sm min-w-0"                               
+                                        onClick={handleAccept}
+                                >
+                                        <span className="truncate">
+                                                Accept ({Object.values(selectedItems).filter(Boolean).length}/{items.length})
+                                        </span>
+                                </Button>
+                                <Button 
+                                        variant="outline"
+                                        className="px-3 sm:px-4 py-3 rounded-xl border-gray-300 text-xs sm:text-sm shrink-0"                                                                
+                                        onClick={handleReject}
+                                >
+                                        Decline
+                                </Button>
+                                <Button 
+                                        variant="outline"
+                                        className="px-3 sm:px-4 py-3 rounded-xl border-amber-300 text-amber-700 text-xs sm:text-sm shrink-0"                                                
+                                        onClick={() => {
+                                                setReprioritizing(true);
+                                                // Send message to agent to re-prioritize                                                                       
+                                                if ((window as any).sendMessage) {                                                                              
+                                                        (window as any).sendMessage('I want to see different priorities. Can you re-prioritize my goals?');     
+                                                }
+                                        }}
+                                        disabled={reprioritizing}
+                                >
+                                        <span className="whitespace-nowrap">
+                                                {reprioritizing ? 'Re-prioritizing...' : 'Re-prioritize'}
+                                        </span>
+                                </Button>
+                        </div>
 		</div>
 	);
 }

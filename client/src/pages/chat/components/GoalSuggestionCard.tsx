@@ -238,7 +238,9 @@ export default function GoalSuggestionCard({ goal, habits = [], onAccept, onView
               onClick={handleAccept}
               disabled={accepting}
             >
-              {accepting ? 'Adding...' : `Add Goal + ${Object.values(selected).filter(Boolean).length} Habits`}
+              <span className="truncate">
+                {accepting ? 'Adding...' : `Add Goal + ${Object.values(selected).filter(Boolean).length} Habit${Object.values(selected).filter(Boolean).length !== 1 ? 's' : ''}`}
+              </span>
             </Button>
             <Button 
               variant="outline" 

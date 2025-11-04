@@ -136,10 +136,10 @@ export default function ChatHome() {
       </SharedLeftNav>
 
       {/* Main chat column */}
-      <main className="flex-1 flex flex-col">
+      <main className="flex-1 flex flex-col min-h-0 overflow-hidden">
         {/* Mobile header: hamburger + logo, sticky */}
-        <div className="px-4 sm:px-6 py-3 border-b bg-white sticky top-0 z-30">
-          <div className="flex items-center justify-between">
+        <div className="px-3 sm:px-4 py-3 border-b bg-white sticky top-0 z-30 overflow-x-hidden shrink-0">
+          <div className="flex items-center justify-between gap-2 min-w-0">
             <div className="flex items-center gap-2 min-w-0 flex-1">
               <div className="lg:hidden">
                 <Sheet>
@@ -185,7 +185,7 @@ export default function ChatHome() {
                 </Sheet>
               </div>
               {/* Chat title */}
-              <div className="text-base md:text-lg font-semibold text-gray-800 truncate">
+              <div className="text-sm sm:text-base md:text-lg font-semibold text-gray-800 truncate min-w-0">
                 {activeThread?.title || 'Daily Coaching'}
               </div>
               {/* Habits completed counter */}
@@ -216,7 +216,7 @@ export default function ChatHome() {
           </div>
         </div>
 
-        <div className="flex-1 overflow-auto overflow-x-hidden">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden min-h-0">
           {threadId ? (
             <ConversationStream threadId={threadId} />
           ) : (
@@ -242,7 +242,7 @@ export default function ChatHome() {
         </div>
 
         {threadId && (
-        <div className="border-t bg-white px-4 py-3 sticky bottom-0">
+        <div className="border-t bg-white px-3 sm:px-4 py-3 sticky bottom-0 shrink-0 overflow-x-hidden">
           {/* Desktop: full actions above composer */}
           <div className="hidden lg:block mb-2">
             <QuickActions
