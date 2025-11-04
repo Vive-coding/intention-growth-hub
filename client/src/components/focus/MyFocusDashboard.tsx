@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { CheckCircle2, Sparkles } from "lucide-react";
 import { GoalDetailModal } from "@/components/GoalDetailModal";
+import { EditHabitWizardModal } from "@/components/EditHabitWizardModal";
 
 // Simple color helpers to keep chips consistent with the rest of the app
 const getPillBg = (metricName?: string) => {
@@ -17,7 +18,20 @@ const getPillBg = (metricName?: string) => {
 };
 
 export default function MyFocusDashboard() {
-	const [selectedGoalId, setSelectedGoalId] = useState<string | null>(null);
+        const [selectedGoal, setSelectedGoal] = useState<any | null>(null);
+        const [selectedHabit, setSelectedHabit] = useState<any | null>(null);
+        const queryClient = useQueryClient();
+
+        const handleGoalClick = async (goal: any) => {
+                try {
+                        const goalResponse = await apiRequest(`/api/goals/${goal.id}`, { credentials: 'include' });
+                        setSelectedGoal(goalResponse);
+                } catch (error) {
+                        console.error('Error fetching goal details:', error);
+                        // Fallback to the goal data we have
+                        setSelectedGoal(goal);
+                }
+        };
 	
 	const { data, isLoading, isError } = useQuery({
 		queryKey: ["/api/my-focus"],
@@ -98,7 +112,10 @@ return (
       <section className="grid gap-4 sm:gap-6 md:grid-cols-2">
         {/* Priority Goals */}
         <div className="space-y-3 sm:space-y-4 min-w-0">
-          <div className="text-sm sm:text-base font-semibold text-gray-800">Priority Goals</div>
+          <div className="flex items-center justify-between">
+            <div className="text-sm sm:text-base font-semibold text-gray-800">Priority Goals</div>
+            <a href="/goals" className="text-xs text-emerald-600 hover:text-emerald-700 hover:underline">All Goals →</a>
+          </div>
           <div className="grid gap-3 sm:gap-4">
             {priorityGoals.length === 0 && (
               <div className="text-xs sm:text-sm text-gray-600">No priorities yet. Start a chat to set your top 3 goals.</div>
@@ -106,7 +123,7 @@ return (
             {priorityGoals.map((g: any) => (
               <button
                 key={g.id}
-                onClick={() => setSelectedGoalId(g.id)}
+                onClick={() => handleGoalClick(g)}
                 className="rounded-2xl p-3 sm:p-5 bg-white border border-gray-200 shadow-sm min-w-0 hover:shadow-md hover:border-emerald-300 transition-all cursor-pointer text-left w-full"
               >
                 <div className="flex items-start gap-2 sm:gap-4">
@@ -135,30 +152,36 @@ return (
 
         {/* Active Habits */}
         <div className="space-y-3 sm:space-y-4 min-w-0">
-          <div className="text-sm sm:text-base font-semibold text-gray-800">Active Habits</div>
+          <div className="flex items-center justify-between">
+            <div className="text-sm sm:text-base font-semibold text-gray-800">Active Habits</div>
+            <a href="/habits" className="text-xs text-emerald-600 hover:text-emerald-700 hover:underline">All Habits →</a>
+          </div>
           <div className="grid gap-2 sm:gap-3">
             {activeHabits.length === 0 && (
               <div className="text-xs sm:text-sm text-gray-600">No habits yet. Choose 2–3 high-leverage habits to track.</div>
             )}
-            {activeHabits.map((h: any) => (
-              <a
+                        {activeHabits.map((h: any) => (
+              <button
                 key={h.id}
-                href="/habits"
-                className="rounded-xl p-3 bg-white border border-gray-200 shadow-sm flex items-center justify-between gap-2 min-w-0 hover:shadow-md hover:border-emerald-300 transition-all cursor-pointer text-left w-full"
+                onClick={() => setSelectedHabit(h)}
+                className="rounded-xl p-3 bg-white border border-gray-200 shadow-sm flex items-center justify-between gap-2 min-w-0 hover:shadow-md hover:border-emerald-300 transition-all cursor-pointer text-left w-full"                    
               >
                 <div className="min-w-0 flex-1">
-                  <div className="font-medium text-sm sm:text-base text-gray-900 truncate">{h.title}</div>
-                  <div className="text-xs text-gray-600">Streak: {h.streak}d</div>
+                  <div className="font-medium text-sm sm:text-base text-gray-900 truncate">{h.title}</div>                                                      
+                  <div className="text-xs text-gray-600">Streak: {h.streak}d</div>                                                                              
                 </div>
                 <CheckCircle2 className="w-4 h-4 text-gray-300 shrink-0" />
-              </a>
+              </button>
             ))}
           </div>
         </div>
       </section>
 
       <section className="space-y-3 sm:space-y-4">
-        <div className="text-sm sm:text-base font-semibold text-gray-800">Key Insights</div>
+        <div className="flex items-center justify-between">
+          <div className="text-sm sm:text-base font-semibold text-gray-800">Key Insights</div>
+          <a href="/insights" className="text-xs text-emerald-600 hover:text-emerald-700 hover:underline">All Insights →</a>
+        </div>
 				<div className="grid gap-2">
 					{insights.length === 0 && (
 						<div className="text-xs sm:text-sm text-gray-600">No insights yet. Chat with your coach to generate insights.</div>
@@ -170,24 +193,6 @@ return (
 						</div>
 					))}
 				</div>
-      </section>
-
-      {/* View All */}
-      <section>
-        <div className="grid gap-2 sm:gap-3 grid-cols-3">
-          <a href="/goals" className="rounded-xl p-2 sm:p-4 bg-white/90 backdrop-blur-sm border border-gray-200 shadow-sm hover:shadow-md transition">
-            <div className="text-xs sm:text-sm font-semibold text-gray-900">All Goals</div>
-            <div className="text-[10px] sm:text-xs text-gray-600">View & manage</div>
-          </a>
-          <a href="/habits" className="rounded-xl p-2 sm:p-4 bg-white/90 backdrop-blur-sm border border-gray-200 shadow-sm hover:shadow-md transition">
-            <div className="text-xs sm:text-sm font-semibold text-gray-900">All Habits</div>
-            <div className="text-[10px] sm:text-xs text-gray-600">Track progress</div>
-          </a>
-          <a href="/insights" className="rounded-xl p-2 sm:p-4 bg-white/90 backdrop-blur-sm border border-gray-200 shadow-sm hover:shadow-md transition">
-            <div className="text-xs sm:text-sm font-semibold text-gray-900">Insights Archive</div>
-            <div className="text-[10px] sm:text-xs text-gray-600">All discoveries</div>
-          </a>
-        </div>
       </section>
 
       {optimization && (
@@ -204,13 +209,50 @@ return (
 				</section>
 			)}
 			
-			{/* Modal for Goal Details */}
-			{selectedGoalId && (
-				<GoalDetailModal
-					goal={selectedGoalId}
-					onClose={() => setSelectedGoalId(null)}
-				/>
-			)}
+			                        {/* Modal for Goal Details */}
+                        {selectedGoal && (
+                                <GoalDetailModal
+                                        isOpen={!!selectedGoal}
+                                        goal={selectedGoal}
+                                        onClose={() => setSelectedGoal(null)}
+                                        onUpdateProgress={async (goalId: string, progress: number) => {                                                         
+                                                // Refresh My Focus data after progress update                                                                  
+                                                window.location.reload();
+                                        }}
+                                        onCompleteHabit={async (habitId: string) => {                                                                           
+                                                // Refresh My Focus data after habit completion                                                                 
+                                                window.location.reload();
+                                        }}
+                                        onRemoveHabit={async (goalId: string, habitId: string) => {                                                             
+                                                // Refresh My Focus data after habit removal                                                                    
+                                                window.location.reload();
+                                        }}
+                                        onAddHabit={async (goalId: string, habit: any) => {                                                                     
+                                                // Refresh My Focus data after habit addition                                                                   
+                                                window.location.reload();
+                                        }}
+                                />
+                        )}
+
+                        {/* Modal for Habit Editing */}
+                        {selectedHabit && (
+                                <EditHabitWizardModal
+                                        isOpen={!!selectedHabit}
+                                        onClose={() => setSelectedHabit(null)}
+                                        habit={{
+                                                id: selectedHabit.id,
+                                                title: selectedHabit.title,
+                                                description: selectedHabit.description,
+                                                category: selectedHabit.category
+                                        }}
+                                        onHabitUpdated={() => {
+                                                queryClient.invalidateQueries({ queryKey: ["/api/my-focus"] });
+                                                queryClient.invalidateQueries({ queryKey: ["habits"] });
+                                                queryClient.invalidateQueries({ queryKey: ["/api/goals"] });
+                                                setSelectedHabit(null);
+                                        }}
+                                />
+                        )}
     </div>
     </div>
 	);

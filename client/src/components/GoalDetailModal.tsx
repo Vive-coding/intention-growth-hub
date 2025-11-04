@@ -88,23 +88,28 @@ export const GoalDetailModal = ({
     setCurrentGoalData(goal);
   }, [goal]);
   
-  // Handle the actual API response structure
+    // Handle the actual API response structure
   const goalData = currentGoalData.goalInstance ? {
     id: currentGoalData.goalInstance.id,
     title: currentGoalData.goalDefinition?.title || "Untitled Goal",
     description: currentGoalData.goalDefinition?.description || "",
-    progress: currentGoalData.goalInstance.currentValue || 0, // currentValue is now stored as percentage
+    progress: currentGoalData.goalInstance.currentValue || 0, // currentValue is now stored as percentage                                                       
     currentValue: currentGoalData.goalInstance.currentValue,
     targetValue: currentGoalData.goalInstance.targetValue,
     targetDate: currentGoalData.goalInstance.targetDate, // Include target date
-    lifeMetric: currentGoalData.lifeMetric || { name: currentGoalData.goalDefinition?.category || "General", color: "#6B7280" },
+    lifeMetric: currentGoalData.lifeMetric || { name: currentGoalData.goalDefinition?.category || "General", color: "#6B7280" },                                
     habits: currentGoalData.habits || [],
-  } : currentGoalData;
+  } : {
+    ...currentGoalData,
+    habits: currentGoalData.habits || [],
+  };
 
   console.log('Goal data:', goalData);
   console.log('Associated habits:', goalData.habits);
   console.log('Goal ID:', goalData.id);
-  console.log('Sample habit structure:', goalData.habits[0]);
+  if (goalData.habits && goalData.habits.length > 0) {
+    console.log('Sample habit structure:', goalData.habits[0]);
+  }
 
   const [progress, setProgress] = useState(goalData.progress);
   // Split habit vs manual so users can see the adjustment that explains the number

@@ -16,6 +16,7 @@ import { RunnableSequence } from "@langchain/core/runnables";
 import { convertToOpenAIFunction } from "@langchain/core/utils/function_calling";
 import { HumanMessage, AIMessage, SystemMessage } from "@langchain/core/messages";
 import { MyFocusService } from "../services/myFocusService";
+import { createTracingCallbacks, generateTraceTags, generateTraceMetadata } from "./utils/langsmithTracing";
 
 const LIFE_COACH_PROMPT = `You are an experienced life coach helping the user make steady, meaningful progress through intentional goals and consistent habits.
 
@@ -473,36 +474,67 @@ Note: You have this context for the start of the conversation. For updates, call
           userId,
           threadId: context.threadId,
         },
-        callbacks: [{
-          handleLLMEnd: (output: any) => {
-            console.log("\n🤖 [LLM Response]");
-            const generation = output.generations?.[0]?.[0];
-            if (generation?.message?.tool_calls?.length > 0) {
-              console.log("✅ LLM decided to use tools:");
-              generation.message.tool_calls.forEach((tc: any) => {
-                console.log(`  - Tool: ${tc.name}`);
-                console.log(`    Args: ${JSON.stringify(tc.args, null, 2)}`);
-              });
-            } else if (generation?.text) {
-              console.log("💬 LLM returned text only (NO TOOLS):");
-              console.log(`  "${generation.text}"`);
-            } else {
-              console.log("⚠️  LLM returned empty response");
-            }
-          },
-          handleToolStart: (tool: any, input: string) => {
-            console.log(`\n🔧 [Tool Execution Started]: ${tool.name}`);
-            console.log(`   Input: ${input}`);
-          },
-          handleToolEnd: (output: string) => {
-            console.log(`✅ [Tool Execution Complete]`);
-            console.log(`   Output: ${output.substring(0, 200)}...`);
-          },
-          handleToolError: (error: Error) => {
-            console.log(`❌ [Tool Execution Error]: ${error.message}`);
-            console.log(`   Stack: ${error.stack}`);
-          },
-        }]
+        // Enhanced callbacks with LangSmith tracing metadata
+        callbacks: [
+          ...createTracingCallbacks({
+            agentType: 'tool_agent',
+            userId,
+            threadId: context.threadId,
+            mode: requestedAgentType || 'standard',
+            environment: process.env.NODE_ENV,
+          }),
+          {
+            handleLLMEnd: (output: any) => {
+              console.log("\n🤖 [LLM Response]");
+              const generation = output.generations?.[0]?.[0];
+              if (generation?.message?.tool_calls?.length > 0) {
+                console.log("✅ LLM decided to use tools:");
+                generation.message.tool_calls.forEach((tc: any) => {
+                  console.log(`  - Tool: ${tc.name}`);
+                  console.log(`    Args: ${JSON.stringify(tc.args, null, 2)}`);
+                });
+              } else if (generation?.text) {
+                console.log("💬 LLM returned text only (NO TOOLS):");
+                console.log(`  "${generation.text}"`);
+              } else {
+                console.log("⚠️  LLM returned empty response");
+              }
+              
+              // Note: runId is available on output.runId for LangSmith linking
+              if (output.runId) {
+                console.log(`[LangSmith] Trace runId: ${output.runId}`);
+              }
+            },
+            handleToolStart: (tool: any, input: string) => {
+              console.log(`\n🔧 [Tool Execution Started]: ${tool?.name || 'unknown'}`);
+              console.log(`   Input: ${input}`);
+            },
+            handleToolEnd: (output: string) => {
+              console.log(`✅ [Tool Execution Complete]`);
+              console.log(`   Output: ${output.substring(0, 200)}...`);
+            },
+            handleToolError: (error: Error) => {
+              console.log(`❌ [Tool Execution Error]: ${error.message}`);
+              console.log(`   Stack: ${error.stack}`);
+            },
+          }
+        ],
+        // Add custom metadata and tags for LangSmith
+        metadata: generateTraceMetadata({
+          userId,
+          threadId: context.threadId,
+          agentType: 'tool_agent',
+          userMessage,
+          messageLength: userMessage.length,
+          mode: requestedAgentType || 'standard',
+        }),
+        tags: generateTraceTags({
+          agentType: 'tool_agent',
+          userId,
+          threadId: context.threadId,
+          mode: requestedAgentType || 'standard',
+          environment: process.env.NODE_ENV,
+        }),
       }
     );
     } catch (invokeError) {

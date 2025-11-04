@@ -120,7 +120,9 @@ export class MyFocusService {
       priorityGoals = await this.getPriorityGoals(userId);
     }
 
-    const highLeverageHabits = await this.getHighLeverageHabits(userId);
+    // Only show habits that actually move the current priority goals forward
+    const priorityGoalIds = (priorityGoals || []).map(g => g.id).filter(Boolean);
+    const highLeverageHabits = await this.getHighLeverageHabits(userId, priorityGoalIds);
     const keyInsights = await this.getKeyInsights(userId);
     const pendingOptimization = await this.getPendingOptimization(userId);
 
@@ -197,8 +199,25 @@ export class MyFocusService {
     return results;
   }
 
-  private static async getHighLeverageHabits(userId: string) {
-    const habits = await db
+  private static async getHighLeverageHabits(userId: string, priorityGoalIds?: string[]) {
+    // If we have priority goals, ONLY show habits linked to those goal instances
+    const limitToPriority = Array.isArray(priorityGoalIds) && priorityGoalIds.length > 0;
+
+    // Build WHERE clause conditions
+    const whereConditions = [
+      eq(habitDefinitions.userId, userId),
+      eq(goalInstances.archived, false),
+      eq(goalInstances.status, 'active')
+    ];
+
+    // If filtering by priority goals, add condition to only include habits linked to those goals
+    if (limitToPriority) {
+      whereConditions.push(inArray(goalInstances.id, priorityGoalIds));
+    }
+
+    // Query habits - NO artificial limit when filtering by priority goals
+    // Only limit to 10 if we're showing ALL habits (no priority filtering)
+    const query = db
       .select({
         habitDef: habitDefinitions,
         habitInst: habitInstances,
@@ -206,23 +225,22 @@ export class MyFocusService {
         goalInst: goalInstances,
       })
       .from(habitDefinitions)
-      .leftJoin(habitInstances, eq(habitInstances.habitDefinitionId, habitDefinitions.id))
-      .leftJoin(goalInstances, eq(habitInstances.goalInstanceId, goalInstances.id))
-      .leftJoin(goalDefinitions, eq(goalInstances.goalDefinitionId, goalDefinitions.id))
-      .where(
-        and(
-          eq(habitDefinitions.userId, userId),
-          eq(goalInstances.archived, false),
-          eq(goalInstances.status, 'active')
-        )
-      )
-      .orderBy(desc(habitDefinitions.createdAt))
-      .limit(10);
+      .innerJoin(habitInstances, eq(habitInstances.habitDefinitionId, habitDefinitions.id))
+      .innerJoin(goalInstances, eq(habitInstances.goalInstanceId, goalInstances.id))
+      .innerJoin(goalDefinitions, eq(goalInstances.goalDefinitionId, goalDefinitions.id))
+      .where(and(...whereConditions))
+      .orderBy(desc(habitDefinitions.createdAt));
 
-    // Group habits by habit definition
+    // Only apply limit if NOT filtering by priority (fallback behavior)
+    const habits = limitToPriority 
+      ? await query  // No limit - show ALL habits linked to priority goals
+      : await query.limit(10);  // Limit only when showing all habits
+
+    // Group habits by habit definition (dedupe if same habit is linked to multiple priority goals)
     const habitMap = new Map();
     
     habits.forEach(h => {
+      // All habits at this point are already filtered to priority goals if limitToPriority is true
       if (!habitMap.has(h.habitDef.id)) {
         habitMap.set(h.habitDef.id, {
           id: h.habitDef.id,
@@ -235,15 +253,30 @@ export class MyFocusService {
         });
       }
       
+      // Add this goal to the linkedGoals array if not already present
       if (h.goalDef && h.goalInst) {
-        habitMap.get(h.habitDef.id).linkedGoals.push({
-          id: h.goalInst.id,
-          title: h.goalDef.title,
-        });
+        const existingGoal = habitMap.get(h.habitDef.id).linkedGoals.find(
+          (g: any) => g.id === h.goalInst.id
+        );
+        if (!existingGoal) {
+          habitMap.get(h.habitDef.id).linkedGoals.push({
+            id: h.goalInst.id,
+            title: h.goalDef.title,
+          });
+        }
       }
     });
 
-    return Array.from(habitMap.values());
+    const result = Array.from(habitMap.values());
+    
+    // Fallback: if filtering by priority goals produced zero habits, show all active habits instead
+    // This prevents empty "Active Habits" section
+    if (limitToPriority && result.length === 0) {
+      console.log('[MyFocus] No habits found for priority goals, falling back to all active habits');
+      return await this.getHighLeverageHabits(userId, undefined);
+    }
+    
+    return result;
   }
 
   private static async getKeyInsights(userId: string) {
