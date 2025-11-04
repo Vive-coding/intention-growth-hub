@@ -156,10 +156,10 @@ export default function Composer({ threadId }: Props) {
   };
 
   return (
-    <div className="max-w-3xl mx-auto flex items-start gap-2">
+    <div className="max-w-3xl mx-auto flex items-start gap-2 min-w-0 overflow-x-hidden">
       <textarea
         ref={textareaRef}
-        className="flex-1 border rounded-xl p-3 min-h-[44px] resize-none overflow-hidden"
+        className="flex-1 border rounded-xl p-3 min-h-[44px] resize-none overflow-hidden min-w-0"
         placeholder="Ask your coach..."
         value={text}
         onChange={(e) => setText(e.target.value)}

@@ -79,8 +79,8 @@ export default function OptimizationCard({ proposal, threadId, onApplied, onDisc
     onDiscard?.();
   };
 
-	return (
-    <div className="bg-gradient-to-br from-purple-50 to-indigo-50 border border-purple-200 rounded-2xl p-5 shadow-sm">
+	        return (
+    <div className="bg-gradient-to-br from-purple-50 to-indigo-50 border border-purple-200 rounded-2xl p-3 sm:p-4 md:p-5 shadow-sm min-w-0 overflow-hidden">
       <div className="text-sm font-semibold text-gray-800 mb-3 uppercase tracking-wide">Focus Optimization</div>
 
       {Array.isArray(proposal?.prioritization) && proposal.prioritization.length > 0 && (
@@ -88,13 +88,13 @@ export default function OptimizationCard({ proposal, threadId, onApplied, onDisc
           <div className="text-xs font-semibold text-gray-700 mb-2 uppercase tracking-wide">Priority Goals</div>
           <ol className="space-y-2">
             {proposal.prioritization.map((p: any, idx: number) => (
-              <li key={`${p.goalInstanceId}-${idx}`} className="bg-white rounded-lg border border-gray-200 p-3">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <div className="font-medium text-gray-900">{goalTitles[p.goalInstanceId] || 'Goal'}</div>
-                    {p.reason && <div className="text-xs text-gray-600 mt-1">{p.reason}</div>}
+              <li key={`${p.goalInstanceId}-${idx}`} className="bg-white rounded-lg border border-gray-200 p-2 sm:p-3 min-w-0">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="font-medium text-gray-900 break-words">{goalTitles[p.goalInstanceId] || 'Goal'}</div>
+                    {p.reason && <div className="text-xs text-gray-600 mt-1 break-words">{p.reason}</div>}
                   </div>
-                  <div className="text-xs text-gray-500">#{p.rank || (idx + 1)}</div>
+                  <div className="text-xs text-gray-500 shrink-0">#{p.rank || (idx + 1)}</div>
                 </div>
               </li>
             ))}
@@ -107,17 +107,17 @@ export default function OptimizationCard({ proposal, threadId, onApplied, onDisc
           <div className="text-xs font-semibold text-gray-700 mb-2 uppercase tracking-wide">Optimized Habits</div>
           <div className="space-y-2">
             {proposal.optimizedHabits.map((h: any, idx: number) => (
-              <div key={`${h.goalInstanceId}-${h.habitDefinitionId}-${idx}`} className="bg-white rounded-lg border border-gray-200 p-3">
-                <div className="text-xs text-gray-500 mb-1">{goalTitles[h.goalInstanceId] || 'Goal'}</div>
-                <div className="font-medium text-gray-900">{h?.newHabit?.title || 'New habit'}</div>
-                {h?.newHabit?.description && <div className="text-sm text-gray-700">{h.newHabit.description}</div>}
-                {h?.rationale && <div className="text-xs text-gray-500 mt-1">{h.rationale}</div>}
+              <div key={`${h.goalInstanceId}-${h.habitDefinitionId}-${idx}`} className="bg-white rounded-lg border border-gray-200 p-2 sm:p-3 min-w-0">
+                <div className="text-xs text-gray-500 mb-1 break-words">{goalTitles[h.goalInstanceId] || 'Goal'}</div>
+                <div className="font-medium text-gray-900 break-words">{h?.newHabit?.title || 'New habit'}</div>
+                {h?.newHabit?.description && <div className="text-sm text-gray-700 break-words">{h.newHabit.description}</div>}
+                {h?.rationale && <div className="text-xs text-gray-500 mt-1 break-words">{h.rationale}</div>}
               </div>
             ))}
           </div>
         </div>
       )}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
         {applied === "applied" ? (
           <span className="text-sm text-emerald-700">Applied</span>
         ) : applied === "discarded" ? (
@@ -128,8 +128,8 @@ export default function OptimizationCard({ proposal, threadId, onApplied, onDisc
             <Button variant="outline" className="rounded-xl" onClick={handleDiscard}>Discard</Button>
           </>
         ) : (
-          <div className="flex items-center gap-3">
-            <span className="text-xs text-gray-600">Confirm apply? This cannot be undone.</span>
+          <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+            <span className="text-xs text-gray-600 break-words">Confirm apply? This cannot be undone.</span>
             <Button disabled={applying} className="rounded-xl bg-emerald-600 hover:bg-emerald-700" onClick={handleApply}>{applying ? 'Applying…' : 'Confirm Apply'}</Button>
             <Button disabled={applying} variant="outline" className="rounded-xl" onClick={() => setConfirming(false)}>Cancel</Button>
           </div>

@@ -111,7 +111,7 @@ export default function ConversationStream({ threadId }: Props) {
   };
 
   return (
-    <div className="max-w-3xl mx-auto px-4 py-6 space-y-4">
+    <div className="max-w-3xl mx-auto px-3 sm:px-4 py-6 space-y-4 overflow-x-hidden">
       {messages.map((m: any) => {
         const isAssistant = m.role === 'assistant';
         const marker = '\n---json---\n';
@@ -131,7 +131,7 @@ export default function ConversationStream({ threadId }: Props) {
           <div key={m.id} className="space-y-2">
             {pre && (
               <div className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-[88%] rounded-2xl px-4 py-3 shadow-sm ${m.role === 'user' ? 'bg-teal-600 text-white rounded-br-md' : 'bg-white text-gray-800 border rounded-bl-md'}`}>
+                <div className={`max-w-[88%] sm:max-w-[85%] w-full min-w-0 rounded-2xl px-3 sm:px-4 py-3 shadow-sm ${m.role === 'user' ? 'bg-teal-600 text-white rounded-br-md' : 'bg-white text-gray-800 border rounded-bl-md'}`}>
                   <div className="text-xs opacity-70 mb-1">
                     {m.role === 'user' ? 'You' : 'Coach'} • {(() => {
                       try {
@@ -142,14 +142,14 @@ export default function ConversationStream({ threadId }: Props) {
                       }
                     })()}
                   </div>
-                  <div className="whitespace-pre-wrap leading-relaxed">{pre}</div>
+                  <div className="whitespace-pre-wrap break-words leading-relaxed">{pre}</div>
                 </div>
               </div>
             )}
 
             {isAssistant && payload && (
               <div className="flex justify-start">
-                <div className="max-w-[88%] w-full">
+                <div className="max-w-[88%] sm:max-w-[85%] w-full min-w-0">
                   {(() => {
                     const type = String(payload.type || '').toLowerCase();
                     if (type === 'goal_suggestion') {
@@ -182,7 +182,7 @@ export default function ConversationStream({ threadId }: Props) {
                       const isSubmitted = habitCardSubmitted[cardId];
                       
                       return (
-                        <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+                        <div className="bg-white rounded-xl border border-gray-200 p-3 sm:p-4 shadow-sm min-w-0 overflow-hidden">
                           <div className="text-sm font-semibold text-gray-800 mb-3 uppercase tracking-wide">Review Today's Habits</div>
                           {!isSubmitted ? (
                             <>
@@ -197,7 +197,7 @@ export default function ConversationStream({ threadId }: Props) {
                                 {(payload.habits || []).map((habit: any, idx: number) => (
                                   <button
                                     key={habit.id || idx}
-                                    className={`w-full text-left flex items-center gap-3 p-3 rounded-lg border ${
+                                    className={`w-full text-left flex items-center gap-2 sm:gap-3 p-2 sm:p-3 rounded-lg border min-w-0 ${
                                       habit.completed || recentlyCompleted[habit.id || idx]
                                         ? 'bg-teal-50 border-teal-200'
                                         : 'bg-gray-50 border-gray-200 hover:bg-gray-100'
@@ -225,10 +225,10 @@ export default function ConversationStream({ threadId }: Props) {
                                     }`}>
                                       {(habit.completed || recentlyCompleted[habit.id || idx]) && <Check className="w-4 h-4 text-white" />}
                                     </div>
-                                    <div className="flex-1">
-                                      <div className="font-medium text-gray-900">{habit.title}</div>
-                                      {habit.description && <div className="text-sm text-gray-600 mt-0.5">{habit.description}</div>}
-                                      <div className="text-xs text-gray-500 mt-1">{habit.streak} day streak • {habit.points} point{habit.points !== 1 ? 's' : ''}</div>
+                                    <div className="flex-1 min-w-0">
+                                      <div className="font-medium text-gray-900 break-words">{habit.title}</div>
+                                      {habit.description && <div className="text-sm text-gray-600 mt-0.5 break-words">{habit.description}</div>}
+                                      <div className="text-xs text-gray-500 mt-1 break-words">{habit.streak} day streak • {habit.points} point{habit.points !== 1 ? 's' : ''}</div>
                                     </div>
                                   </button>
                                 ))}
@@ -314,10 +314,10 @@ export default function ConversationStream({ threadId }: Props) {
                     }
                     if (type === 'insight') {
                       return (
-                        <div className="bg-gradient-to-br from-yellow-50 to-orange-50 border border-yellow-200 rounded-xl p-4 shadow-sm">
+                        <div className="bg-gradient-to-br from-yellow-50 to-orange-50 border border-yellow-200 rounded-xl p-3 sm:p-4 shadow-sm min-w-0 overflow-hidden">
                           <div className="text-sm font-semibold text-gray-800 mb-3 uppercase tracking-wide">Pattern Insight</div>
-                          <div className="text-lg font-bold text-gray-900 mb-2">{payload.title}</div>
-                          <div className="text-sm text-gray-700 mb-3">{payload.explanation}</div>
+                          <div className="text-base sm:text-lg font-bold text-gray-900 mb-2 break-words">{payload.title}</div>
+                          <div className="text-sm text-gray-700 mb-3 break-words">{payload.explanation}</div>
                           <div className="text-xs text-gray-500">Confidence: {payload.confidence}%</div>
                         </div>
                       );
@@ -364,9 +364,9 @@ export default function ConversationStream({ threadId }: Props) {
       {/* Show optimistic user message if it exists, after historical messages */}
       {optimisticUserMessage && (
         <div className="flex justify-end">
-          <div className="max-w-[88%] rounded-2xl px-4 py-3 bg-teal-600 text-white rounded-br-md shadow-sm">
+          <div className="max-w-[88%] sm:max-w-[85%] w-full min-w-0 rounded-2xl px-3 sm:px-4 py-3 bg-teal-600 text-white rounded-br-md shadow-sm">
             <div className="text-xs opacity-70 mb-1">You • now</div>
-            <div className="whitespace-pre-wrap leading-relaxed">{optimisticUserMessage}</div>
+            <div className="whitespace-pre-wrap break-words leading-relaxed">{optimisticUserMessage}</div>
           </div>
         </div>
       )}
@@ -374,7 +374,7 @@ export default function ConversationStream({ threadId }: Props) {
 
       {(isThinking || isStreaming) && (
         <div className="flex justify-start">
-          <div className="max-w-[88%] rounded-2xl px-4 py-3 bg-white border rounded-bl-md shadow-sm">
+          <div className="max-w-[88%] sm:max-w-[85%] w-full min-w-0 rounded-2xl px-3 sm:px-4 py-3 bg-white border rounded-bl-md shadow-sm">
             <div className="text-xs text-gray-500 mb-1">Coach • now</div>
             {isThinking ? (
               <div className="flex items-center gap-2 text-gray-600">
@@ -386,7 +386,7 @@ export default function ConversationStream({ threadId }: Props) {
                 <span className="text-sm">Thinking...</span>
               </div>
             ) : (
-              <div className="whitespace-pre-wrap leading-relaxed text-gray-800">{streamingText}</div>
+              <div className="whitespace-pre-wrap break-words leading-relaxed text-gray-800">{streamingText}</div>
             )}
             {streamingStructuredData && (
               <div className="mt-3">
@@ -422,8 +422,8 @@ export default function ConversationStream({ threadId }: Props) {
                     }}
                   />
                 )}
-                {streamingStructuredData.type === 'habit_review' && (
-                  <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+                                  {streamingStructuredData.type === 'habit_review' && (
+                  <div className="bg-white rounded-xl border border-gray-200 p-3 sm:p-4 shadow-sm min-w-0 overflow-hidden">
                     <div className="text-sm font-semibold text-gray-800 mb-3 uppercase tracking-wide">Review Today's Habits</div>
                     <div className="space-y-3">
                       <div className="text-xs text-gray-600 mb-1">
@@ -464,10 +464,10 @@ export default function ConversationStream({ threadId }: Props) {
                           }`}>
                             {(habit.completed || recentlyCompleted[habit.id || idx]) && <Check className="w-4 h-4 text-white" />}
                           </div>
-                          <div className="flex-1">
-                            <div className="font-medium text-gray-900">{habit.title}</div>
-                            {habit.description && <div className="text-sm text-gray-600 mt-0.5">{habit.description}</div>}
-                            <div className="text-xs text-gray-500 mt-1">{habit.streak} day streak • {habit.points} point{habit.points !== 1 ? 's' : ''}</div>
+                          <div className="flex-1 min-w-0">
+                            <div className="font-medium text-gray-900 break-words">{habit.title}</div>
+                            {habit.description && <div className="text-sm text-gray-600 mt-0.5 break-words">{habit.description}</div>}
+                            <div className="text-xs text-gray-500 mt-1 break-words">{habit.streak} day streak • {habit.points} point{habit.points !== 1 ? 's' : ''}</div>
                           </div>
                         </button>
                       ))}

@@ -122,16 +122,16 @@ export default function GoalSuggestionCard({ goal, habits = [], onAccept, onView
   };
 
   return (
-    <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-2xl p-6 shadow-lg">
+    <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-2xl p-3 sm:p-4 md:p-6 shadow-lg min-w-0 overflow-hidden">
       {/* Header */}
-      <div className="flex items-start justify-between mb-4">
+      <div className="flex items-start justify-between gap-2 mb-4 min-w-0">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-full bg-yellow-100 text-yellow-700 flex items-center justify-center">
             <Trophy className="w-5 h-5" />
           </div>
-          <div>
+          <div className="min-w-0 flex-1">
             <div className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Suggested Priority Goal</div>
-            <div className="text-lg font-bold text-gray-900 mt-1">{goal.title}</div>
+            <div className="text-base sm:text-lg font-bold text-gray-900 mt-1 break-words">{goal.title}</div>
           </div>
         </div>
         {accepted && !needsPrioritization && (
@@ -162,7 +162,7 @@ export default function GoalSuggestionCard({ goal, habits = [], onAccept, onView
             <div className="w-4 h-4 rounded-full bg-green-100 flex items-center justify-center mt-0.5">
               <div className="w-2 h-2 rounded-full bg-green-500"></div>
             </div>
-            <p className="text-sm text-gray-700 leading-relaxed">{goal.description}</p>
+            <p className="text-sm text-gray-700 leading-relaxed break-words">{goal.description}</p>
           </div>
         </div>
       )}
@@ -175,14 +175,14 @@ export default function GoalSuggestionCard({ goal, habits = [], onAccept, onView
           </div>
           <div className="space-y-3">
             {habits.map((habit, idx) => (
-              <div key={`${habit.id || idx}`} className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
+              <div key={`${habit.id || idx}`} className="bg-white rounded-xl p-3 sm:p-4 border border-gray-100 shadow-sm min-w-0">
                 <div className="flex items-start gap-3">
                   <div className="w-6 h-6 rounded-full bg-green-100 flex items-center justify-center mt-0.5">
                     <Check className="w-3 h-3 text-green-600" />
                   </div>
                   <div className="flex-1">
-                    <div className="flex items-center justify-between mb-1">
-                      <div className="font-semibold text-gray-900">{habit.title}</div>
+                    <div className="flex items-center justify-between gap-2 mb-1 min-w-0">
+                      <div className="font-semibold text-gray-900 break-words flex-1 min-w-0">{habit.title}</div>
                       {habit.impact && (
                         <Badge 
                           className={`text-xs px-2 py-1 ${
@@ -197,7 +197,7 @@ export default function GoalSuggestionCard({ goal, habits = [], onAccept, onView
                       )}
                     </div>
                     {habit.description && (
-                      <p className="text-sm text-gray-600 mb-2">{habit.description}</p>
+                      <p className="text-sm text-gray-600 mb-2 break-words">{habit.description}</p>
                     )}
                     <div className="flex items-center gap-4 text-xs text-gray-500">
                       {habit.frequency && (
@@ -230,7 +230,7 @@ export default function GoalSuggestionCard({ goal, habits = [], onAccept, onView
       )}
 
       {/* Action Buttons */}
-      <div className="flex gap-3">
+      <div className="flex gap-2 sm:gap-3 flex-col sm:flex-row">
         {!accepted ? (
           <>
             <Button 
@@ -242,7 +242,7 @@ export default function GoalSuggestionCard({ goal, habits = [], onAccept, onView
             </Button>
             <Button 
               variant="outline" 
-              className="px-6 py-3 rounded-xl border-gray-300"
+              className="px-4 sm:px-6 py-3 rounded-xl border-gray-300 w-full sm:w-auto"
               onClick={onView}
             >
               Dismiss

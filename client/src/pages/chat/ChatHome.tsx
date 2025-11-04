@@ -129,7 +129,7 @@ export default function ChatHome() {
   };
 
   return (
-    <div className="flex h-screen bg-gray-50">
+    <div className="flex h-screen bg-gray-50 overflow-x-hidden">
       {/* Desktop left nav + conversations list */}
       <SharedLeftNav>
         <ConversationsList currentThreadId={threadId} />
@@ -216,11 +216,11 @@ export default function ChatHome() {
           </div>
         </div>
 
-        <div className="flex-1 overflow-auto">
+        <div className="flex-1 overflow-auto overflow-x-hidden">
           {threadId ? (
             <ConversationStream threadId={threadId} />
           ) : (
-            <div className="max-w-3xl mx-auto px-4 py-16">
+            <div className="max-w-3xl mx-auto px-3 sm:px-4 py-16 overflow-x-hidden">
               <div className="text-center text-gray-600 mb-6">Start a conversation with your coach</div>
               {/* New chat: show full agent buttons directly */}
               <div className="mb-3">

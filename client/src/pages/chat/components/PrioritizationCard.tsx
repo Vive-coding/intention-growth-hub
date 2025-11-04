@@ -79,8 +79,8 @@ export default function PrioritizationCard({ items, messageId, onAccept, onRejec
 	};
 
 	if (accepted) {
-		return (
-			<div className="bg-green-50 border-2 border-green-300 rounded-2xl p-5 shadow-sm">
+		        return (
+                <div className="bg-green-50 border-2 border-green-300 rounded-2xl p-3 sm:p-4 md:p-5 shadow-sm min-w-0 overflow-hidden">
 				<div className="flex items-center gap-2 text-green-700 font-semibold mb-3">
 					<Check className="w-5 h-5" />
 					<span>Priorities Accepted</span>
@@ -99,8 +99,8 @@ export default function PrioritizationCard({ items, messageId, onAccept, onRejec
 	}
 
 	if (rejected) {
-		return (
-			<div className="bg-gray-100 border-2 border-gray-300 rounded-2xl p-5 shadow-sm">
+		        return (
+                <div className="bg-gray-100 border-2 border-gray-300 rounded-2xl p-3 sm:p-4 md:p-5 shadow-sm min-w-0 overflow-hidden">
 				<div className="text-gray-700 font-semibold mb-3">Priority Proposal Declined</div>
 				<div className="text-sm text-gray-600">
 					No changes made. You can ask me to re-prioritize if needed.
@@ -109,15 +109,15 @@ export default function PrioritizationCard({ items, messageId, onAccept, onRejec
 		);
 	}
 
-	return (
-		<div className="bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200 rounded-2xl p-5 shadow-sm">
+	        return (
+                <div className="bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200 rounded-2xl p-3 sm:p-4 md:p-5 shadow-sm min-w-0 overflow-hidden">
 			<div className="flex items-center justify-between mb-3">
 				<div className="text-sm font-semibold text-gray-800 uppercase tracking-wide">Priority Focus</div>
 				<div className="text-xs text-gray-600">Select which priorities to accept</div>
 			</div>
 			<div className="space-y-3">
-				{items.map((it, idx) => (
-					<div key={it.id || idx} className="bg-white border border-gray-200 rounded-xl p-3">
+				                                {items.map((it, idx) => (
+                                        <div key={it.id || idx} className="bg-white border border-gray-200 rounded-xl p-2 sm:p-3 min-w-0">
 						<div className="flex items-start gap-3">
 							<input
 								type="checkbox"
@@ -125,11 +125,11 @@ export default function PrioritizationCard({ items, messageId, onAccept, onRejec
 								onChange={() => toggleItem(it.id || String(idx))}
 								className="mt-1 w-5 h-5 rounded border-gray-300 text-teal-600 focus:ring-teal-500"
 							/>
-							<div className="min-w-0 flex-1">
-								<div className="flex items-start justify-between gap-3">
-									<div className="flex-1">
-										<div className="font-semibold text-gray-900 truncate">{it.title}</div>
-										{it.description && <div className="text-sm text-gray-600 mt-0.5">{it.description}</div>}
+							                                                        <div className="min-w-0 flex-1">
+                                                                <div className="flex items-start justify-between gap-2 sm:gap-3 min-w-0">
+                                                                        <div className="flex-1 min-w-0">
+                                                                               <div className="font-semibold text-gray-900 break-words">{it.title}</div>
+                                                                               {it.description && <div className="text-sm text-gray-600 mt-0.5 break-words">{it.description}</div>}
 										{it.lifeMetric && (
 											<div className="mt-1 text-[11px] inline-flex px-2 py-0.5 rounded-full border bg-white text-gray-700">
 												{it.lifeMetric}
@@ -143,7 +143,7 @@ export default function PrioritizationCard({ items, messageId, onAccept, onRejec
 					</div>
 				))}
 			</div>
-			<div className="flex gap-3 mt-4">
+			                        <div className="flex gap-2 sm:gap-3 mt-4 flex-col sm:flex-row">
 				<Button 
 					className="flex-1 bg-teal-600 hover:bg-teal-700 text-white font-semibold py-3 rounded-xl"
 					onClick={handleAccept}
