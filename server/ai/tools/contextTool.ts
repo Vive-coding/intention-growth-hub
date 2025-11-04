@@ -2,8 +2,8 @@ import { DynamicStructuredTool } from "@langchain/core/tools";
 import { z } from "zod";
 import { MyFocusService } from "../../services/myFocusService";
 import { db } from "../../db";
-import { goalDefinitions, goalInstances, habitDefinitions, habitInstances, insights, lifeMetricDefinitions } from "../../../shared/schema";
-import { eq, desc, and } from "drizzle-orm";
+import { goalDefinitions, goalInstances, habitDefinitions, habitInstances, habitCompletions, insights, insightLifeMetrics, insightVotes, lifeMetricDefinitions } from "../../../shared/schema";
+import { eq, desc, and, gte } from "drizzle-orm";
 
 /**
  * Universal context retrieval tool
@@ -11,21 +11,18 @@ import { eq, desc, and } from "drizzle-orm";
  */
 export const getContextTool = new DynamicStructuredTool({
   name: "get_context",
-  description: `Gets user context for coaching conversations.
+  description: `Retrieves user context for coaching conversations.
   
-  Args:
-  - scope: "my_focus" | "all_goals" | "habits" | "insights" | "life_metrics"
-  - filters: Optional {status, life_metric, timeframe, goal_ids, days}
+  Scopes available:
+  - "my_focus" → top 3 goals, active habits, key insights
+  - "all_goals" → all goals (with optional status filter)
+  - "habits" → habit history (with optional days filter)
+  - "insights" → insights (with optional life_metric filter)
+  - "life_metrics" → life categories and distribution
   
-  Examples:
-  - get_context("my_focus") → top 3 goals, active habits, key insights
-  - get_context("all_goals", {status: "completed"}) → completed goals
-  - get_context("habits", {days: 30}) → habit history last 30 days
-  - get_context("insights", {life_metric: "Career"}) → career insights
-  - get_context("life_metrics") → life categories and distribution
+  Optional filters: {status, life_metric, timeframe, goal_ids, days}
   
-  Use this to understand user's current state before making suggestions.
-  Always call this at the start of conversations to avoid duplicate goals/habits.`,
+  Call this when you need current information about the user's goals, habits, or progress. In ongoing conversations, you can rely on conversation history unless the user explicitly asks for updates or you need to verify current state.`,
   
   schema: z.object({
     scope: z.enum(["my_focus", "all_goals", "habits", "insights", "life_metrics"]),
@@ -38,7 +35,7 @@ export const getContextTool = new DynamicStructuredTool({
     console.log("[get_context] Filters:", filters);
     
     // Try to get userId from config first, then fallback to global variable
-    let userId = config?.configurable?.userId;
+    let userId = (config as any)?.configurable?.userId;
     if (!userId) {
       userId = (global as any).__TOOL_USER_ID__;
       console.log("[get_context] Using global userId:", userId);
@@ -121,9 +118,9 @@ ${myFocus.keyInsights.map((i: any) => `- ${i.title}: ${i.explanation.substring(0
                   id: i.id,
                   status: i.status,
                   targetValue: i.targetValue,
-                  currentValue: i.currentValue,
+                  currentValue: i.currentValue ?? 0,
                   targetDate: i.targetDate,
-                  progress: i.targetValue > 0 ? Math.round((i.currentValue / i.targetValue) * 100) : 0
+                  progress: i.targetValue > 0 ? Math.round(((i.currentValue ?? 0) / i.targetValue) * 100) : 0
                 }))
               };
             })
@@ -151,27 +148,52 @@ ${myFocus.keyInsights.map((i: any) => `- ${i.title}: ${i.explanation.substring(0
             )
             .orderBy(desc(habitDefinitions.createdAt));
           
+                    // Calculate cutoff date for last N days
+          const cutoffDate = new Date();
+          cutoffDate.setDate(cutoffDate.getDate() - days);
+          
           const habitsWithHistory = await Promise.all(
             habitDefs.map(async (def) => {
+              // Get habit instances to find frequency settings
               const instances = await db
                 .select()
                 .from(habitInstances)
                 .where(eq(habitInstances.habitDefinitionId, def.id))
-                .orderBy(desc(habitInstances.completedAt))
+                .limit(1);
+              
+              // Get completions for this habit in the date range
+              const completions = await db
+                .select()
+                .from(habitCompletions)
+                .where(
+                  and(
+                    eq(habitCompletions.habitDefinitionId, def.id),
+                    eq(habitCompletions.userId, userId),
+                    gte(habitCompletions.completedAt, cutoffDate)
+                  )
+                )
+                .orderBy(desc(habitCompletions.completedAt))
                 .limit(days);
               
-              const completedCount = instances.filter(i => i.completed).length;
-              const streak = instances[0]?.currentStreak || 0;
+              // Get frequency from first instance's frequencySettings, or default to 'daily'
+              const frequencySettings = instances[0]?.frequencySettings as any;
+              const frequency = frequencySettings?.frequency || 'daily';
+              
+              // Get streak from first instance's goalSpecificStreak, or from completions
+              let streak = instances[0]?.goalSpecificStreak || def.globalStreak || 0;
+              
+              // Calculate completion rate based on completions
+              const completionRate = completions.length > 0 ? Math.min(100, (completions.length / days) * 100) : 0;
               
               return {
                 id: def.id,
                 title: def.name,
-                frequency: def.frequency,
+                frequency: frequency,
                 currentStreak: streak,
-                completionRate: instances.length > 0 ? completedCount / instances.length : 0,
-                recentCompletions: instances.slice(0, 7).map(i => ({
-                  date: i.date,
-                  completed: i.completed
+                completionRate: completionRate,
+                recentCompletions: completions.slice(0, 7).map(c => ({
+                  date: c.completedAt,
+                  completed: true
                 }))
               };
             })
@@ -187,17 +209,51 @@ ${myFocus.keyInsights.map((i: any) => `- ${i.title}: ${i.explanation.substring(0
         case "insights": {
           const lifeMetric = filters?.life_metric;
           
-          let query = db
+          // Get all insights for the user
+          const allInsights = await db
             .select()
             .from(insights)
             .where(eq(insights.userId, userId))
-            .orderBy(desc(insights.confidence), desc(insights.createdAt));
+            .orderBy(desc(insights.confidence), desc(insights.createdAt))
+            .limit(20);
           
-          const allInsights = await query.limit(20);
+          // For each insight, get associated life metrics and votes
+          const insightsWithRelations = await Promise.all(
+            allInsights.map(async (insight) => {
+              // Get life metrics for this insight
+              const metrics = await db
+                .select({ lifeMetricId: insightLifeMetrics.lifeMetricId })
+                .from(insightLifeMetrics)
+                .where(eq(insightLifeMetrics.insightId, insight.id));
+              
+              const lifeMetricIds = metrics.map(m => m.lifeMetricId);
+              
+              // Get votes count for this insight
+              const votes = await db
+                .select()
+                .from(insightVotes)
+                .where(eq(insightVotes.insightId, insight.id));
+              
+              const voteCount = votes.filter(v => v.isUpvote).length - votes.filter(v => !v.isUpvote).length;
+              
+              return {
+                id: insight.id,
+                title: insight.title,
+                explanation: insight.explanation,
+                confidence: insight.confidence,
+                themes: insight.themes,
+                createdAt: insight.createdAt,
+                updatedAt: insight.updatedAt,
+                lifeMetricIds,
+                voteCount
+              };
+            })
+          );
           
+          // Filter by life metric if specified
           const filtered = lifeMetric
-            ? allInsights.filter(i => i.lifeMetricIds?.includes(lifeMetric))
-            : allInsights;
+            ? insightsWithRelations.filter(i => i.lifeMetricIds.includes(lifeMetric))
+            : insightsWithRelations;
           
           return JSON.stringify({
             success: true,
@@ -207,7 +263,7 @@ ${myFocus.keyInsights.map((i: any) => `- ${i.title}: ${i.explanation.substring(0
               explanation: i.explanation,
               confidence: i.confidence,
               lifeMetrics: i.lifeMetricIds,
-              votes: i.votes || 0
+              votes: i.voteCount || 0
             })),
             summary: `${filtered.length} insights${lifeMetric ? ` for ${lifeMetric}` : ""}`
           });

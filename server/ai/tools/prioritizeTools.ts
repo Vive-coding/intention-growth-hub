@@ -82,14 +82,21 @@ If you cannot find 3 specific goal titles in the reasoning, choose the 3 most re
  */
 export const prioritizeGoalsTool = new DynamicStructuredTool({
   name: "prioritize_goals",
-  description: `Selects the top 3 priority goals based on your analysis.
+  description: `Helps user focus on top 3 priority goals.
   
-  WORKFLOW:
-  1. Call get_context("all_goals") FIRST to see all available goals
-  2. Based on user feedback and context, list which 3 goals to prioritize in the "reasoning" parameter
+  Call when:
+  - User feels overwhelmed or mentions "too much on my plate"
+  - They have 4+ active goals after adding a new one
+  - User asks to re-prioritize or change priorities
+  
+  Workflow:
+  1. First call get_context("all_goals") to see all available goals
+  2. Then call this tool with your selection and reasoning explaining which 3 goals to prioritize and why
   3. The tool will match those goals and create the prioritization
   
-  In the "reasoning" parameter, list the 3 goal titles you want to prioritize. The tool will search for those exact titles.`,
+  In the "reasoning" parameter, list the 3 goal titles you want to prioritize. The tool will search for those exact titles. After the tool returns prioritized goals, use those exact titles in your response.
+  
+  Returns: Priority focus card with top 3 goals`,
   
   schema: z.object({
     reasoning: z.string().describe("Which 3 goals to prioritize and why. Include the EXACT goal titles like '1. Secure First 100 Users, 2. Enter 3 more interview processes, 3. Sleep 7 hours' - use the exact titles you see in get_context('all_goals')."),

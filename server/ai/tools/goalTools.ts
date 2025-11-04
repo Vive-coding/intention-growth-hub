@@ -77,22 +77,19 @@ async function generateHabitSuggestions(goalTitle: string, lifeMetric: string, u
  */
 export const createGoalWithHabitsTool = new DynamicStructuredTool({
   name: "create_goal_with_habits",
-  description: `Creates a new goal and suggests habits to support it.
-  
-  Required information (gather naturally in conversation):
-  - title: Clear, specific goal statement
-  - life_metric: Which life area (use get_context("life_metrics") to see options)
-  - importance: WHY it matters - their personal reason/motivation
-  - target_date: When they want to achieve it (ISO format YYYY-MM-DD)
-  - urgency: "urgent" | "moderate" | "flexible"
-  
-  Optional:
-  - habit_suggestions: Custom habit suggestions (will auto-generate if not provided)
-  
-  Only call when you have ALL required information.
-  If missing any, continue the conversation to gather it naturally.
-  
-  Returns: Card with goal + linked habit suggestions (accept/dismiss CTAs)`,
+  description: `Creates a new goal with supporting habits.
+
+Required: title, life_metric, importance, target_date, urgency
+Optional: habit_suggestions (auto-generated if not provided)
+
+Make reasonable assumptions when appropriate:
+- If timing isn't specified, assume "moderate" urgency and set target_date 30-90 days out
+- If life_metric is unclear from context, infer from the goal type
+- If importance isn't stated, derive it from the enthusiasm/language used
+
+Gather missing critical details conversationally, but don't block on every detail. You can call this tool when you have the essential information (title and basic goal idea), even if some details like exact target dates need reasonable assumptions.
+
+Returns: Interactive card with goal + habit suggestions`,
   
   schema: z.object({
     goal_data: z.object({
@@ -109,8 +106,12 @@ export const createGoalWithHabitsTool = new DynamicStructuredTool({
     })).optional().describe("Custom habit suggestions (auto-generated if not provided)")
   }),
   
-  func: async ({ goal_data, habit_suggestions }) => {
-    const userId = (global as any).__TOOL_USER_ID__;
+  func: async ({ goal_data, habit_suggestions }, config) => {
+    // Try to get userId from config first, then fallback to global variable
+    let userId = (config as any)?.configurable?.userId;
+    if (!userId) {
+      userId = (global as any).__TOOL_USER_ID__;
+    }
     const threadId = (global as any).__TOOL_THREAD_ID__;
     if (!userId) {
       throw new Error("User ID required");
@@ -162,13 +163,15 @@ export const suggestHabitsForGoalTool = new DynamicStructuredTool({
   description: `Suggests habits to support an existing goal that's struggling.
   
   Args:
-  - goal_id: Which goal needs support
+  - goal_id: Which goal needs support (infer from conversation context when possible)
   - context: Why suggesting now (e.g., "User reports lack of progress")
   
   Use when:
   - User says goal isn't progressing
   - Goal has no linked habits
-  - User asks "what would help with X goal?"
+  - User asks "what would help with X goal?" or expresses uncertainty about next steps
+  
+  Infer the goal from conversation context when clear, or confirm if multiple goals could apply.
   
   Returns: Habit suggestion cards (accept/modify/dismiss)`,
   
@@ -178,7 +181,11 @@ export const suggestHabitsForGoalTool = new DynamicStructuredTool({
   }),
   
   func: async ({ goal_id, context }, config) => {
-    const userId = config?.configurable?.userId;
+    // Try to get userId from config first, then fallback to global variable
+    let userId = (config as any)?.configurable?.userId;
+    if (!userId) {
+      userId = (global as any).__TOOL_USER_ID__;
+    }
     if (!userId) {
       throw new Error("User ID required");
     }
@@ -243,8 +250,9 @@ export const updateGoalProgressTool = new DynamicStructuredTool({
   name: "update_goal_progress",
   description: `Updates progress on a goal based on user's report.
   
-  Use when user shares accomplishments or progress on a goal.
-  System will parse the update and adjust progress %.
+  Use when user shares accomplishments or progress on a goal ("I worked out," "I saved $200 this week," "I completed 3 interviews").
+  This tool updates the goal's progress percentage in the database (not just fetching/displaying).
+  System will parse the update and adjust progress % automatically.
   
   Returns: Updated goal card with celebration if milestone reached`,
   
@@ -254,7 +262,11 @@ export const updateGoalProgressTool = new DynamicStructuredTool({
   }),
   
   func: async ({ goal_id, progress_update }, config) => {
-    const userId = config?.configurable?.userId;
+    // Try to get userId from config first, then fallback to global variable
+    let userId = (config as any)?.configurable?.userId;
+    if (!userId) {
+      userId = (global as any).__TOOL_USER_ID__;
+    }
     if (!userId) {
       throw new Error("User ID required");
     }
@@ -344,22 +356,29 @@ export const completeGoalTool = new DynamicStructuredTool({
   }),
   
   func: async ({ goal_id, reflection }, config) => {
-    const userId = config?.configurable?.userId;
+    // Try to get userId from config first, then fallback to global variable
+    let userId = (config as any)?.configurable?.userId;
+    if (!userId) {
+      userId = (global as any).__TOOL_USER_ID__;
+    }
     if (!userId) {
       throw new Error("User ID required");
     }
     
     try {
       // Update goal instance
+      // Get target value first
+      const [goalInstance] = await db
+        .select({ targetValue: goalInstances.targetValue })
+        .from(goalInstances)
+        .where(eq(goalInstances.id, goal_id))
+        .limit(1);
+      
       await db
         .update(goalInstances)
         .set({
           status: "completed",
-          currentValue: db
-            .select({ targetValue: goalInstances.targetValue })
-            .from(goalInstances)
-            .where(eq(goalInstances.id, goal_id))
-            .then(rows => rows[0]?.targetValue || 100),
+          currentValue: goalInstance?.targetValue || 100,
           completedAt: new Date()
         })
         .where(
@@ -402,9 +421,13 @@ export const completeGoalTool = new DynamicStructuredTool({
  */
 export const adjustGoalTool = new DynamicStructuredTool({
   name: "adjust_goal",
-  description: `Adjusts goal properties (target date, title, etc.) when life circumstances change.
+  description: `Adjusts goal properties (target date, title, urgency, etc.) when life circumstances change.
   
-  Use when user needs to modify a goal due to changing priorities or timeline.`,
+  Use when:
+  - User mentions life changes, timing slipped, or wants to slow down/refocus
+  - You notice from context that an adjustment is needed (e.g., goal seems unrealistic given recent updates)
+  
+  Infer the needed changes from their message when clear, or confirm if the desired adjustments are unclear.`,
   
   schema: z.object({
     goal_id: z.string().describe("UUID of the goal"),
@@ -413,7 +436,11 @@ export const adjustGoalTool = new DynamicStructuredTool({
   }),
   
   func: async ({ goal_id, changes, reason }, config) => {
-    const userId = config?.configurable?.userId;
+    // Try to get userId from config first, then fallback to global variable
+    let userId = (config as any)?.configurable?.userId;
+    if (!userId) {
+      userId = (global as any).__TOOL_USER_ID__;
+    }
     if (!userId) {
       throw new Error("User ID required");
     }

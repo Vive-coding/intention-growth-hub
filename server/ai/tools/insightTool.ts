@@ -1,8 +1,8 @@
 import { DynamicStructuredTool } from "@langchain/core/tools";
 import { z } from "zod";
 import { db } from "../../db";
-import { insights, lifeMetricDefinitions } from "../../../shared/schema";
-import { eq } from "drizzle-orm";
+import { insights, insightLifeMetrics, insightVotes, lifeMetricDefinitions } from "../../../shared/schema";
+import { eq, and } from "drizzle-orm";
 
 /**
  * Tool: Share breakthrough insight
@@ -20,9 +20,7 @@ export const shareInsightTool = new DynamicStructuredTool({
   - User has a self-realization through your questions
   - You've provided advice that felt transformative
   
-  IMPORTANT: Always ask first if it resonates!
-  Examples: "Does this resonate with you?" or "Is this something you hadn't realized before?"
-  Only call this tool if they confirm it's valuable/new to them.
+  Call when you identify a meaningful pattern. Share insights conversationally without requiring explicit confirmation first. The card includes feedback options for the user.
   
   Returns: Insight card with thumbs up/down for user feedback`,
   
@@ -32,7 +30,11 @@ export const shareInsightTool = new DynamicStructuredTool({
   }),
   
   func: async ({ insight_text, life_metric }, config) => {
-    const userId = config?.configurable?.userId;
+    // Try to get userId from config first, then fallback to global variable
+    let userId = (config as any)?.configurable?.userId;
+    if (!userId) {
+      userId = (global as any).__TOOL_USER_ID__;
+    }
     if (!userId) {
       throw new Error("User ID required");
     }
@@ -57,12 +59,17 @@ export const shareInsightTool = new DynamicStructuredTool({
           title: insight_text.slice(0, 100), // First 100 chars as title
           explanation: insight_text,
           confidence: 80, // Medium-high confidence
-          lifeMetricIds,
-          votes: 0, // Will be updated when user votes
-          source: "agent_conversation",
-          createdAt: new Date()
+          themes: [] // Empty themes array for now
         })
         .returning();
+      
+      // Create life metric association if metric was found
+      if (metric) {
+        await db.insert(insightLifeMetrics).values({
+          insightId: newInsight.id,
+          lifeMetricId: metric.id
+        });
+      }
       
       // Return card data matching existing insight card format
       const result = {
@@ -97,18 +104,49 @@ export const voteOnInsightTool = new DynamicStructuredTool({
   }),
   
   func: async ({ insight_id, vote }, config) => {
-    const userId = config?.configurable?.userId;
+    // Try to get userId from config first, then fallback to global variable
+    let userId = (config as any)?.configurable?.userId;
+    if (!userId) {
+      userId = (global as any).__TOOL_USER_ID__;
+    }
     if (!userId) {
       throw new Error("User ID required");
     }
     
     try {
-      const voteValue = vote === "upvote" ? 1 : -1;
+      const isUpvote = vote === "upvote";
       
-      await db
-        .update(insights)
-        .set({ votes: voteValue })
-        .where(eq(insights.id, insight_id));
+      // Check if user already voted on this insight
+      const existingVote = await db
+        .select()
+        .from(insightVotes)
+        .where(
+          and(
+            eq(insightVotes.insightId, insight_id),
+            eq(insightVotes.userId, userId)
+          )
+        )
+        .limit(1);
+      
+      if (existingVote.length > 0) {
+        // Update existing vote
+        await db
+          .update(insightVotes)
+          .set({ isUpvote })
+          .where(
+            and(
+              eq(insightVotes.insightId, insight_id),
+              eq(insightVotes.userId, userId)
+            )
+          );
+      } else {
+        // Create new vote
+        await db.insert(insightVotes).values({
+          insightId: insight_id,
+          userId,
+          isUpvote
+        });
+      }
       
       return {
         success: true,

@@ -17,10 +17,11 @@ export const reviewDailyHabitsTool = new DynamicStructuredTool({
   - pre_checked: Optional list of habit IDs user mentioned completing
   
   Use when:
-  - User mentions completing a habit ("I did my morning run")
-  - Daily check-in time
-  - User asks "what should I track today?"
-  - Reviewing what they accomplished
+  - User wants to see or log today's habits
+  - Reviewing progress and you want current completion status
+  - User mentions completing habits or asks what to do today
+  
+  This shows a card for users to check off habits. The system automatically updates goal progress based on habit completions over time.
   
   Returns: Interactive habit checklist card (user ticks completed ones)`,
   
@@ -195,14 +196,19 @@ export const reviewDailyHabitsTool = new DynamicStructuredTool({
  */
 export const updateHabitTool = new DynamicStructuredTool({
   name: "update_habit",
-  description: `Modifies an existing habit.
+  description: `Modifies an existing habit (pause, resume, change frequency, or archive).
   
   Args:
-  - habit_id: Which habit to modify
+  - habit_id: Which habit to modify (infer from conversation context when possible)
   - action: "pause" | "resume" | "change_frequency" | "archive"
   - value: Depends on action (resume_date for pause, new frequency, etc.)
   
-  Use when user needs to adjust habits due to life changes.
+  Use when:
+  - User says a habit is too hard, not relevant, or too frequent
+  - You notice from context that an adjustment is needed
+  - Life circumstances change and habits need to adapt
+  
+  Infer the needed change from their message when clear, or confirm if uncertain.
   
   Returns: Confirmation message`,
   

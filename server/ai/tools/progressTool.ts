@@ -1,7 +1,7 @@
 import { DynamicStructuredTool } from "@langchain/core/tools";
 import { z } from "zod";
 import { db } from "../../db";
-import { goalDefinitions, goalInstances, habitDefinitions, habitInstances, lifeMetricDefinitions } from "../../../shared/schema";
+import { goalDefinitions, goalInstances, habitDefinitions, habitInstances, habitCompletions, lifeMetricDefinitions } from "../../../shared/schema";
 import { eq, and, desc, gte } from "drizzle-orm";
 
 /**
@@ -13,17 +13,15 @@ export const showProgressSummaryTool = new DynamicStructuredTool({
   
   Args:
   - scope: "goals" | "habits" | "life_metric"
-  - filters: {goal_ids: [], life_metric: str, timeframe: str}
-  
-  Examples:
-  - show_progress_summary("goals", {goal_ids: ["uuid1", "uuid2"]})
-  - show_progress_summary("life_metric", {life_metric: "Career"})
-  - show_progress_summary("habits", {timeframe: "last_30_days"})
+  - filters: Optional {goal_ids: [], life_metric: str, timeframe: str}
   
   Use when:
-  - User asks "how am I doing?"
-  - Celebrating progress
-  - Reviewing specific area
+  - User asks "how am I doing?" or "am I improving?"
+  - Reviewing progress or celebrating achievements
+  - Checking on specific goals, habits, or life areas
+  - Preparing to provide a progress summary
+  
+  This tool helps visualize progress across goals, streaks, and completion patterns.
   
   Returns: Visual dashboard card with stats, charts, wins`,
   
@@ -33,7 +31,11 @@ export const showProgressSummaryTool = new DynamicStructuredTool({
   }),
   
   func: async ({ scope, filters }, config) => {
-    const userId = config?.configurable?.userId;
+    // Try to get userId from config first, then fallback to global variable
+    let userId = (config as any)?.configurable?.userId;
+    if (!userId) {
+      userId = (global as any).__TOOL_USER_ID__;
+    }
     if (!userId) {
       throw new Error("User ID required");
     }
@@ -70,7 +72,7 @@ export const showProgressSummaryTool = new DynamicStructuredTool({
             
             const totalProgress = instances.reduce((sum, inst) => {
               const progress = inst.targetValue > 0 
-                ? (inst.currentValue / inst.targetValue) * 100 
+                ? ((inst.currentValue ?? 0) / inst.targetValue) * 100 
                 : 0;
               return sum + Math.min(progress, 100);
             }, 0);
@@ -126,20 +128,29 @@ export const showProgressSummaryTool = new DynamicStructuredTool({
             const cutoffDate = new Date();
             cutoffDate.setDate(cutoffDate.getDate() - days);
             
+            // Get habit instances for frequency/streak info
             const instances = await db
               .select()
               .from(habitInstances)
+              .where(eq(habitInstances.habitDefinitionId, habit.id))
+              .limit(1);
+            
+            // Get completions for this habit in the date range
+            const completions = await db
+              .select()
+              .from(habitCompletions)
               .where(
                 and(
-                  eq(habitInstances.habitDefinitionId, habit.id),
-                  gte(habitInstances.date, cutoffDate.toISOString().split('T')[0])
+                  eq(habitCompletions.habitDefinitionId, habit.id),
+                  eq(habitCompletions.userId, userId),
+                  gte(habitCompletions.completedAt, cutoffDate)
                 )
               )
-              .orderBy(desc(habitInstances.date));
+              .orderBy(desc(habitCompletions.completedAt));
             
-            const completed = instances.filter(i => i.completed).length;
-            const completionRate = instances.length > 0 ? completed / instances.length : 0;
-            const streak = instances[0]?.currentStreak || 0;
+            const completed = completions.length;
+            const completionRate = days > 0 ? Math.min(1, completed / days) : 0;
+            const streak = instances[0]?.goalSpecificStreak || habit.globalStreak || 0;
             
             return {
               id: habit.id,
@@ -212,7 +223,7 @@ export const showProgressSummaryTool = new DynamicStructuredTool({
               .where(eq(goalInstances.goalDefinitionId, goal.id));
             
             const avgProgress = instances.length > 0
-              ? instances.reduce((sum, i) => sum + ((i.currentValue / i.targetValue) * 100), 0) / instances.length
+              ? instances.reduce((sum, i) => sum + (((i.currentValue ?? 0) / i.targetValue) * 100), 0) / instances.length
               : 0;
             
             return {
