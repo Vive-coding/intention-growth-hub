@@ -4,15 +4,20 @@ import { QueryClient } from "@tanstack/react-query";
 async function fetchWithCredentials(url: string, config?: RequestInit) {
   const token = localStorage.getItem("token");
   
-  // Get the API base URL from environment variable
-  const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+  // Determine API base URL with sensible defaults for dev vs prod
+  const envApiBaseUrl = import.meta.env.VITE_API_URL?.trim();
+  const apiBaseUrl = envApiBaseUrl && envApiBaseUrl.length > 0
+    ? envApiBaseUrl
+    : (import.meta.env.DEV ? "http://localhost:3000" : "");
   
   // Debug: Log the environment variable
-  console.log('🔍 VITE_API_URL:', import.meta.env.VITE_API_URL);
-  console.log('🔍 apiBaseUrl:', apiBaseUrl);
+  console.log("🔍 VITE_API_URL:", import.meta.env.VITE_API_URL);
+  console.log("🔍 apiBaseUrl:", apiBaseUrl || "[same-origin]");
   
-  // If it's a relative URL, prepend the API base URL
-  const fullUrl = url.startsWith('/') ? `${apiBaseUrl}${url}` : url;
+  // If it's a relative URL, prepend the API base URL when available
+  const fullUrl = url.startsWith("/")
+    ? `${apiBaseUrl}${url}`
+    : url;
   
   console.log(`🌐 Making request to ${fullUrl} with token: ${token ? 'present' : 'missing'}`);
   
