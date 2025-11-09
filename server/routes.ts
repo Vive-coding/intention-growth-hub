@@ -21,6 +21,8 @@ import {
   goalDefinitions,
   lifeMetricDefinitions,
   habitCompletions,
+  userOnboardingProfiles,
+  users,
 } from "../shared/schema";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -328,6 +330,134 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error completing onboarding:", error);
       res.status(500).json({ message: "Failed to complete onboarding" });
+    }
+  });
+
+  app.get('/api/users/onboarding-profile', authMiddleware, async (req: any, res) => {
+    try {
+      const userId = req.user.id || req.user.claims.sub;
+      const [profile] = await db
+        .select()
+        .from(userOnboardingProfiles)
+        .where(eq(userOnboardingProfiles.userId, userId))
+        .limit(1);
+
+      res.json(profile ?? {});
+    } catch (error) {
+      console.error('Error fetching onboarding profile:', error);
+      res.status(500).json({ message: 'Failed to fetch onboarding profile' });
+    }
+  });
+
+  app.post('/api/users/onboarding-profile', authMiddleware, async (req: any, res) => {
+    try {
+      const userId = req.user.id || req.user.claims.sub;
+      const {
+        goalSettingAbility,
+        habitBuildingAbility,
+        coachingStyle,
+        focusLifeMetrics,
+        coachPersonality,
+      } = req.body ?? {};
+
+      const sanitizedGoalSettingAbility = typeof goalSettingAbility === 'string' ? goalSettingAbility : null;
+      const sanitizedHabitBuildingAbility = typeof habitBuildingAbility === 'string' ? habitBuildingAbility : null;
+      const sanitizedCoachingStyle = Array.isArray(coachingStyle)
+        ? (coachingStyle as any[]).map((value) => String(value)).filter(Boolean)
+        : null;
+      const sanitizedFocusMetrics = Array.isArray(focusLifeMetrics)
+        ? (focusLifeMetrics as any[]).map((value) => String(value)).filter(Boolean)
+        : null;
+      const sanitizedCoachPersonality = typeof coachPersonality === 'string' ? coachPersonality : null;
+
+      const [profile] = await db
+        .insert(userOnboardingProfiles)
+        .values({
+          userId,
+          goalSettingAbility: sanitizedGoalSettingAbility,
+          habitBuildingAbility: sanitizedHabitBuildingAbility,
+          coachingStyle: sanitizedCoachingStyle,
+          focusLifeMetrics: sanitizedFocusMetrics,
+          coachPersonality: sanitizedCoachPersonality,
+        })
+        .onConflictDoUpdate({
+          target: userOnboardingProfiles.userId,
+          set: {
+            goalSettingAbility: sanitizedGoalSettingAbility,
+            habitBuildingAbility: sanitizedHabitBuildingAbility,
+            coachingStyle: sanitizedCoachingStyle,
+            focusLifeMetrics: sanitizedFocusMetrics,
+            coachPersonality: sanitizedCoachPersonality,
+            updatedAt: new Date(),
+          },
+        })
+        .returning();
+
+      const [userRow] = await db
+        .select({ onboardingStep: users.onboardingStep })
+        .from(users)
+        .where(eq(users.id, userId))
+        .limit(1);
+
+      if (!userRow?.onboardingStep || userRow.onboardingStep === 'welcome') {
+        await db
+          .update(users)
+          .set({ onboardingStep: 'profile_completed', updatedAt: new Date() })
+          .where(eq(users.id, userId));
+      }
+
+      res.json(profile ?? {});
+    } catch (error) {
+      console.error('Error saving onboarding profile:', error);
+      res.status(500).json({ message: 'Failed to save onboarding profile' });
+    }
+  });
+
+  app.post('/api/users/notification-preferences', authMiddleware, async (req: any, res) => {
+    try {
+      const userId = req.user.id || req.user.claims.sub;
+      const { enabled, frequency, preferredTime, phoneNumber } = req.body ?? {};
+
+      const isEnabled = Boolean(enabled);
+      const sanitizedFrequency = typeof frequency === 'string' ? frequency : null;
+      const sanitizedPreferredTime = typeof preferredTime === 'string' ? preferredTime : null;
+      const sanitizedPhone = typeof phoneNumber === 'string' ? phoneNumber : null;
+
+      const timestamp = new Date();
+      const updateValues = {
+        notificationEnabled: isEnabled,
+        notificationFrequency: isEnabled ? sanitizedFrequency : null,
+        preferredNotificationTime: isEnabled ? sanitizedPreferredTime : null,
+        phoneNumber: sanitizedPhone,
+        completedAt: timestamp,
+        updatedAt: timestamp,
+      };
+
+      const [profile] = await db
+        .insert(userOnboardingProfiles)
+        .values({
+          userId,
+          ...updateValues,
+        })
+        .onConflictDoUpdate({
+          target: userOnboardingProfiles.userId,
+          set: updateValues,
+        })
+        .returning();
+
+      await db
+        .update(users)
+        .set({
+          onboardingCompleted: true,
+          onboardingStep: 'completed',
+          updatedAt: timestamp,
+        })
+        .where(eq(users.id, userId));
+
+      res.json({ success: true, profile });
+    } catch (error) {
+      console.error('Error saving notification preferences:', error);
+      res.status(500).json({ message: 'Failed to save notification preferences' });
     }
   });
 

@@ -36,11 +36,12 @@ function clampTokens(text: string, maxChars = 2000): string {
 function packContext(opts: {
   profile: Awaited<ReturnType<typeof ChatContextService.getProfileCapsule>>;
   workingSet: Awaited<ReturnType<typeof ChatContextService.getWorkingSet>>;
+  onboardingProfile: Awaited<ReturnType<typeof ChatContextService.getOnboardingProfile>>;
   threadSummary: string | null;
   recentMessages: Array<{ role: string; content: string }>;
   userMessage: string;
 }): { system: string; user: string; } {
-  const { profile, workingSet, threadSummary, recentMessages, userMessage } = opts;
+  const { profile, workingSet, onboardingProfile, threadSummary, recentMessages, userMessage } = opts;
 
   const profileLine = [profile?.firstName ? `Name:${profile.firstName}` : null, profile?.timezone ? `TZ:${profile.timezone}` : null]
     .filter(Boolean)
@@ -50,10 +51,21 @@ function packContext(opts: {
   const habits = (workingSet.activeHabits || []).slice(0, 6).map(h => `• ${h.name} (streak ${h.streak})`).join('\n');
   const insights = (workingSet.recentInsights || []).slice(0, 5).map(i => `• ${i.title}: ${i.summary}`).join('\n');
 
+  const onboardingData = profile?.onboarding || onboardingProfile;
+
+  const onboardingStage = onboardingData?.onboardingStep ?? onboardingProfile?.onboardingStep ?? 'unknown';
+  const firstGoalCreated = onboardingData?.firstGoalCreated ?? onboardingProfile?.firstGoalCreated ?? false;
+  const firstChatSession = onboardingData?.firstChatSession ?? onboardingProfile?.firstChatSession ?? false;
+
+  const onboardingSummary = onboardingData
+    ? `Stage: ${onboardingStage} | Goal setting: ${onboardingData.goalSettingAbility ?? 'n/a'} | Habit building: ${onboardingData.habitBuildingAbility ?? 'n/a'} | Coaching: ${(onboardingData.coachingStyle || []).join(', ') || 'n/a'} | Personality: ${onboardingData.coachPersonality ?? 'default'} | Focus: ${(onboardingData.focusLifeMetrics || []).join(', ') || 'n/a'} | First goal created: ${firstGoalCreated ? 'yes' : 'no'} | First chat completed: ${firstChatSession ? 'yes' : 'no'}`
+    : 'No onboarding profile captured yet.';
+
   const recents = recentMessages.slice(-2).map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`).join('\n');
 
   const composedUser = `
 Profile: ${profileLine || 'n/a'}
+Onboarding: ${onboardingSummary}
 Thread: ${threadSummary ? clampTokens(threadSummary, 500) : 'n/a'}
 Recent:
 ${recents}
@@ -78,15 +90,17 @@ export async function streamLifeCoachReply(params: {
   threadId: string;
   input: string;
   onToken: (delta: string) => void;
+  onStructuredData?: (data: any) => void;
   requestedAgentType?: AgentType;
 }): Promise<{ finalText: string; cta?: string; structuredData?: any }>{
-  const { userId, threadId, input, onToken, requestedAgentType } = params;
+  const { userId, threadId, input, onToken, onStructuredData, requestedAgentType } = params;
 
   // Load context
-  const [profile, workingSet, recentMessages] = await Promise.all([
+  const [profile, workingSet, recentMessages, onboardingProfile] = await Promise.all([
     ChatContextService.getProfileCapsule(userId),
     ChatContextService.getWorkingSet(userId),
     ChatContextService.getRecentMessages(threadId, 10),
+    ChatContextService.getOnboardingProfile(userId),
   ]);
   const threadRow = await db.select().from(chatThreads).where(eq(chatThreads.id, threadId)).limit(1);
   const threadSummary = threadRow[0]?.summary ?? null;
@@ -99,6 +113,7 @@ export async function streamLifeCoachReply(params: {
     profile,
     workingSet,
     threadSummary,
+    onboardingProfile,
   };
 
   let result: { finalText: string; cta?: string; structuredData?: any };
@@ -118,6 +133,12 @@ export async function streamLifeCoachReply(params: {
         hasStructuredData: !!result.structuredData,
         structuredDataType: result.structuredData?.type
       });
+      
+      // Send structured data immediately if available (before streaming text)
+      if (result.structuredData && onStructuredData) {
+        console.log('[lifeCoachService] 🎴 Sending structured data immediately:', result.structuredData.type);
+        onStructuredData(result.structuredData);
+      }
     } catch (error) {
       console.error('[lifeCoachService] Tool agent error:', error);
       // Fallback to old system on error

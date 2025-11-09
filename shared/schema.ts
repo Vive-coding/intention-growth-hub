@@ -10,6 +10,7 @@ import {
   boolean,
   integer,
   numeric,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -35,10 +36,32 @@ export const users = pgTable("users", {
   lastName: varchar("last_name"),
   profileImageUrl: varchar("profile_image_url"),
   onboardingCompleted: boolean("onboarding_completed").default(false),
+  onboardingStep: varchar("onboarding_step", { length: 50 }).default("welcome"),
+  firstGoalCreated: boolean("first_goal_created").default(false),
+  firstChatSession: boolean("first_chat_session").default(false),
   timezone: varchar("timezone"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
+
+export const userOnboardingProfiles = pgTable("user_onboarding_profiles", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  goalSettingAbility: varchar("goal_setting_ability"),
+  habitBuildingAbility: varchar("habit_building_ability"),
+  coachingStyle: text("coaching_style").array(),
+  focusLifeMetrics: text("focus_life_metrics").array(),
+  coachPersonality: varchar("coach_personality"),
+  notificationEnabled: boolean("notification_enabled").default(false),
+  notificationFrequency: varchar("notification_frequency"),
+  preferredNotificationTime: varchar("preferred_notification_time"),
+  phoneNumber: varchar("phone_number"),
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  userUnique: uniqueIndex("user_onboarding_profiles_user_id_idx").on(table.userId),
+}));
 
 // Life metric definitions
 export const lifeMetricDefinitions = pgTable("life_metric_definitions", {
@@ -312,11 +335,15 @@ export const chatContextSnapshots = pgTable("chat_context_snapshots", {
 });
 
 // Relations
-export const usersRelations = relations(users, ({ many }) => ({
+export const usersRelations = relations(users, ({ one, many }) => ({
   lifeMetrics: many(lifeMetricDefinitions),
   goalDefinitions: many(goalDefinitions),
   goalInstances: many(goalInstances),
   journalEntries: many(journalEntries),
+  onboardingProfile: one(userOnboardingProfiles, {
+    fields: [users.id],
+    references: [userOnboardingProfiles.userId],
+  }),
 }));
 
 export const lifeMetricDefinitionsRelations = relations(lifeMetricDefinitions, ({ one }) => ({
@@ -344,6 +371,13 @@ export const goalInstancesRelations = relations(goalInstances, ({ one, many }) =
     references: [users.id],
   }),
   habitInstances: many(habitInstances),
+}));
+
+export const userOnboardingProfilesRelations = relations(userOnboardingProfiles, ({ one }) => ({
+  user: one(users, {
+    fields: [userOnboardingProfiles.userId],
+    references: [users.id],
+  }),
 }));
 
 export const journalEntriesRelations = relations(journalEntries, ({ one }) => ({
@@ -502,6 +536,9 @@ export type HabitInstance = typeof habitInstances.$inferSelect;
 export type InsertHabitInstance = typeof habitInstances.$inferInsert;
 export type HabitCompletion = typeof habitCompletions.$inferSelect;
 export type InsertHabitCompletion = typeof habitCompletions.$inferInsert;
+
+export type UserOnboardingProfile = typeof userOnboardingProfiles.$inferSelect;
+export type InsertUserOnboardingProfile = typeof userOnboardingProfiles.$inferInsert;
 
 export type ProgressSnapshot = typeof progressSnapshots.$inferSelect;
 export type InsertProgressSnapshot = typeof progressSnapshots.$inferInsert;

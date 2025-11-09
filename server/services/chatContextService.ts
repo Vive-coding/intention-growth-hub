@@ -7,13 +7,26 @@ import {
   goalDefinitions,
   habitDefinitions,
   habitInstances,
-  ProgressSnapshot,
+  userOnboardingProfiles,
   chatMessages,
 } from "../../shared/schema";
 
 export interface ProfileCapsule {
   firstName?: string | null;
   timezone?: string | null;
+  onboarding?: {
+    onboardingStep?: string | null;
+    firstGoalCreated?: boolean | null;
+    firstChatSession?: boolean | null;
+    goalSettingAbility?: string | null;
+    habitBuildingAbility?: string | null;
+    coachingStyle?: string[] | null;
+    focusLifeMetrics?: string[] | null;
+    coachPersonality?: string | null;
+    notificationEnabled?: boolean | null;
+    notificationFrequency?: string | null;
+    preferredNotificationTime?: string | null;
+  } | null;
 }
 
 export interface WorkingSetSnapshot {
@@ -24,9 +37,57 @@ export interface WorkingSetSnapshot {
 
 export class ChatContextService {
   static async getProfileCapsule(userId: string): Promise<ProfileCapsule> {
-    const row = await db.select().from(users).where(eq(users.id, userId)).limit(1);
-    const u = row[0];
-    return { firstName: u?.firstName ?? null, timezone: u?.timezone ?? null };
+    const [row] = await db
+      .select({
+        firstName: users.firstName,
+        timezone: users.timezone,
+        onboardingStep: users.onboardingStep,
+        firstGoalCreated: users.firstGoalCreated,
+        firstChatSession: users.firstChatSession,
+        goalSettingAbility: userOnboardingProfiles.goalSettingAbility,
+        habitBuildingAbility: userOnboardingProfiles.habitBuildingAbility,
+        coachingStyle: userOnboardingProfiles.coachingStyle,
+        focusLifeMetrics: userOnboardingProfiles.focusLifeMetrics,
+        coachPersonality: userOnboardingProfiles.coachPersonality,
+        notificationEnabled: userOnboardingProfiles.notificationEnabled,
+        notificationFrequency: userOnboardingProfiles.notificationFrequency,
+        preferredNotificationTime: userOnboardingProfiles.preferredNotificationTime,
+      })
+      .from(users)
+      .leftJoin(userOnboardingProfiles, eq(userOnboardingProfiles.userId, users.id))
+      .where(eq(users.id, userId))
+      .limit(1);
+
+    if (!row) {
+      return { firstName: null, timezone: null, onboarding: null };
+    }
+
+    const onboarding =
+      row.goalSettingAbility ||
+      row.habitBuildingAbility ||
+      (row.coachingStyle && row.coachingStyle.length > 0) ||
+      (row.focusLifeMetrics && row.focusLifeMetrics.length > 0) ||
+      row.notificationEnabled !== null
+        ? {
+            onboardingStep: row.onboardingStep ?? null,
+            firstGoalCreated: row.firstGoalCreated ?? false,
+            firstChatSession: row.firstChatSession ?? false,
+            goalSettingAbility: row.goalSettingAbility ?? null,
+            habitBuildingAbility: row.habitBuildingAbility ?? null,
+            coachingStyle: row.coachingStyle ?? null,
+            focusLifeMetrics: row.focusLifeMetrics ?? null,
+            coachPersonality: row.coachPersonality ?? null,
+            notificationEnabled: row.notificationEnabled ?? null,
+            notificationFrequency: row.notificationFrequency ?? null,
+            preferredNotificationTime: row.preferredNotificationTime ?? null,
+          }
+        : null;
+
+    return {
+      firstName: row.firstName ?? null,
+      timezone: row.timezone ?? null,
+      onboarding,
+    };
   }
 
   static async getWorkingSet(userId: string): Promise<WorkingSetSnapshot> {
@@ -63,6 +124,34 @@ export class ChatContextService {
       .orderBy(desc(chatMessages.createdAt))
       .limit(limit);
     return rows.reverse();
+  }
+
+  static async getOnboardingProfile(userId: string) {
+    const [row] = await db
+      .select({
+        goalSettingAbility: userOnboardingProfiles.goalSettingAbility,
+        habitBuildingAbility: userOnboardingProfiles.habitBuildingAbility,
+        coachingStyle: userOnboardingProfiles.coachingStyle,
+        focusLifeMetrics: userOnboardingProfiles.focusLifeMetrics,
+        coachPersonality: userOnboardingProfiles.coachPersonality,
+        notificationEnabled: userOnboardingProfiles.notificationEnabled,
+        notificationFrequency: userOnboardingProfiles.notificationFrequency,
+        preferredNotificationTime: userOnboardingProfiles.preferredNotificationTime,
+        completedAt: userOnboardingProfiles.completedAt,
+        onboardingStep: users.onboardingStep,
+        firstGoalCreated: users.firstGoalCreated,
+        firstChatSession: users.firstChatSession,
+      })
+      .from(users)
+      .leftJoin(userOnboardingProfiles, eq(userOnboardingProfiles.userId, users.id))
+      .where(eq(users.id, userId))
+      .limit(1);
+
+    if (!row) {
+      return null;
+    }
+
+    return row;
   }
 }
 

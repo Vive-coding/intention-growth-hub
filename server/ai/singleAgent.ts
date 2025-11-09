@@ -40,6 +40,17 @@ const LIFE_COACH_PROMPT = `You are an experienced life coach helping the user ma
   - You need to verify current state to provide accurate guidance.
 - Make reasonable assumptions based on context when appropriate. If you're missing something critical (like timeline), you can make reasonable estimates or ask briefly.
 
+## Onboarding Guidance
+
+- The profile object contains onboarding details (confidence, coaching style, focus areas, notification preferences, preferred coach personality). Refer to them explicitly so the user feels seen.
+- Mirror the requested coach personality (for example “tough but fair”, “brutally honest”, or “patient and encouraging”) in tone, pacing, and word choice while remaining constructive.
+- When you are greeting the user right after onboarding (mode: *Onboarding Welcome*), the user has not said anything yet:
+  * Open with a warm, enthusiastic welcome that reflects their coaching style preferences, focus areas, and goal/habit confidence.
+  * Ask how they’re feeling or what’s top-of-mind today, then follow with 1–2 focused questions about what they’d like help with and why it matters.
+  * Quickly guide the conversation toward defining their first goal and 1–3 supportive habits. Call create_goal_with_habits once you have enough detail.
+- While onboarding is in progress (onboardingStep not "completed"), stay in discovery mode. Help them clarify needs, explore motivations, and identify the smallest meaningful next goal.
+- After onboarding is complete, keep using their stated preferences to personalize motivation, accountability, and suggestions as their journey evolves.
+
 ## Your Tools and When to Use Them
 
 You have access to these actions. You should quietly use them (don't mention tool names to the user). After a tool runs, respond in natural language.
@@ -377,7 +388,7 @@ export async function processWithToolAgent(context: AgentContext, requestedAgent
   cta?: string;
   toolCalls?: Array<{ tool: string; input: any; output: any }>;
 }> {
-  const { userMessage, profile, workingSet, threadSummary, recentMessages, userId } = context;
+  const { userMessage, profile, workingSet, threadSummary, recentMessages, userId, onboardingProfile } = context;
   
   // Determine mode and context-specific instructions
   let mode = "Standard Coaching";
@@ -391,6 +402,14 @@ export async function processWithToolAgent(context: AgentContext, requestedAgent
 - Nudging them to share in order to discover aspirations and self-insights
 - Automatically calling create_goal_with_habits when goals are recognized
 - Reinforcing that habits must be kept to progress goals`;
+  } else if (requestedAgentType === 'onboarding_welcome') {
+    mode = "Onboarding Welcome";
+    contextInstructions = `You are greeting the user immediately after they finished onboarding. They have not typed anything yet.
+- Lead with a warm, personal welcome that references their onboarding preferences (confidence, focus areas, coaching style, notification choices) and mirror their requested coach personality.
+- Ask how they're feeling or what's been top-of-mind today, then invite them to share what feels most important to work on and why it matters.
+- Ask one or two thoughtful follow-up questions to surface a concrete first goal.
+- As soon as you have enough detail, call create_goal_with_habits to co-create their first goal and 1–3 supportive habits.
+- Keep the tone supportive, energetic, and aligned with their preferred coaching style and personality.`;
   } else if (requestedAgentType === 'review_progress') {
     mode = "Review Progress";
     contextInstructions = `You are helping the user review their progress. This conversation is about:
@@ -434,6 +453,67 @@ Note: You have this context for the start of the conversation. For updates, call
       }
     }
     
+    // Build onboarding guidance block
+    let onboardingInstructions = "";
+    if (onboardingProfile || profile?.onboarding) {
+      const source = {
+        onboardingStep:
+          onboardingProfile?.onboardingStep ??
+          profile?.onboarding?.onboardingStep ??
+          (onboardingProfile?.completedAt ? "completed" : undefined) ??
+          "welcome",
+        goalSettingAbility: onboardingProfile?.goalSettingAbility ?? profile?.onboarding?.goalSettingAbility ?? "not provided",
+        habitBuildingAbility: onboardingProfile?.habitBuildingAbility ?? profile?.onboarding?.habitBuildingAbility ?? "not provided",
+        coachingStyle:
+          onboardingProfile?.coachingStyle ??
+          profile?.onboarding?.coachingStyle ??
+          [],
+        focusLifeMetrics:
+          onboardingProfile?.focusLifeMetrics ??
+          profile?.onboarding?.focusLifeMetrics ??
+          [],
+        coachPersonality: onboardingProfile?.coachPersonality ?? profile?.onboarding?.coachPersonality ?? null,
+        firstGoalCreated: onboardingProfile?.firstGoalCreated ?? profile?.onboarding?.firstGoalCreated ?? false,
+        firstChatSession: onboardingProfile?.firstChatSession ?? profile?.onboarding?.firstChatSession ?? false,
+      };
+
+      const stage = String(source.onboardingStep || "welcome").toLowerCase();
+      const coachingPref = Array.isArray(source.coachingStyle) && source.coachingStyle.length > 0
+        ? source.coachingStyle.join(", ")
+        : "flexible";
+      const focusAreas = Array.isArray(source.focusLifeMetrics) && source.focusLifeMetrics.length > 0
+        ? source.focusLifeMetrics.join(", ")
+        : "all areas";
+      const hasFirstGoal = !!source.firstGoalCreated;
+      const hasFirstChat = !!source.firstChatSession;
+      const onboardingSummary = `- Stage: ${stage}
+- Goal-setting confidence: ${source.goalSettingAbility}
+- Habit-building confidence: ${source.habitBuildingAbility}
+- Preferred coaching style: ${coachingPref}
+- Preferred coach personality: ${source.coachPersonality || "default"}
+- Focus areas: ${focusAreas}
+- First goal created: ${hasFirstGoal ? "Yes" : "No"}
+- First chat session completed: ${hasFirstChat ? "Yes" : "No"}`;
+
+      if (stage === "completed") {
+        onboardingInstructions = `\n\n**ONBOARDING STATUS:**\n${onboardingSummary}\n\nUse the preferences above to personalize tone, encouragement, and suggestions. Mirror their requested coach personality while motivating them.`;
+      } else {
+        onboardingInstructions = `\n\n**ONBOARDING STATUS:**\n${onboardingSummary}\n\n**ONBOARDING RULES (use until onboarding is complete):**
+1. If this is their first chat session (${hasFirstChat ? "already completed" : "not completed yet"}):
+   - Open warmly and invite them to share what they want help with today.
+   - Encourage them to talk about what's on their mind so you can discover a goal.
+2. When they express a goal or aspiration:
+   - Explore why it matters, when they'd like progress, and any friction.
+   - Call create_goal_with_habits once you have enough context (make reasonable assumptions if details are missing).
+3. After their first goal is created (${hasFirstGoal ? "done" : "still pending"}):
+   - Celebrate the milestone and explain how you will help them track progress.
+   - Offer to gather notification preferences when it feels natural.
+4. Keep the conversation natural—mirror both their coaching style and personality preferences when offering accountability, support, or suggestions.`;
+      }
+    } else {
+      onboardingInstructions = `\n\n**ONBOARDING STATUS:** No onboarding profile captured yet. Gently learn about their goal-setting confidence, habit experience, preferred coaching style, coach personality, and focus areas, and guide them toward creating a first goal with supporting habits.`;
+    }
+
     // Create tools with userId and threadId baked in
     const toolsForUser = createToolsForUser(userId, context.threadId);
     console.log("[processWithToolAgent] Created tools for user:", userId);
@@ -442,7 +522,7 @@ Note: You have this context for the start of the conversation. For updates, call
     const agentExecutor = await createLifeCoachAgentWithTools(
       toolsForUser, 
       mode, 
-      contextInstructions + myFocusContext
+      contextInstructions + myFocusContext + onboardingInstructions
     );
     
     // Build chat history from recent messages (convert to LangChain message format)

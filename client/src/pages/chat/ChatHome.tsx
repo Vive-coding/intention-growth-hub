@@ -16,6 +16,7 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Menu, Home, Target } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { NotificationSetupModal } from "@/components/NotificationSetupModal";
 
 export default function ChatHome() {
   const [, navigate] = useLocation();
@@ -29,6 +30,10 @@ export default function ChatHome() {
   const [showComplete, setShowComplete] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<{threadId: string, title: string} | null>(null);
   const actionPendingRef = useRef(false);
+  const welcomeTriggeredRef = useRef(false);
+  const [welcomePoll, setWelcomePoll] = useState(0);
+  const hasShownNotificationModal = useRef(false);
+  const [showNotificationSetup, setShowNotificationSetup] = useState(false);
   const { user } = useAuth();
 
   // Calculate actual viewport height (excluding mobile browser UI)
@@ -183,8 +188,83 @@ export default function ChatHome() {
     }
   };
 
+  useEffect(() => {
+    if (!user) return;
+
+    if (user.onboardingStep === "ready_for_notifications" && !hasShownNotificationModal.current) {
+      hasShownNotificationModal.current = true;
+      const timer = setTimeout(() => setShowNotificationSetup(true), 1200);
+      return () => clearTimeout(timer);
+    }
+
+    if (user.onboardingStep === "completed") {
+      setShowNotificationSetup(false);
+    }
+  }, [user?.onboardingStep]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!threadId) return;
+
+    const params = new URLSearchParams(window.location.search);
+    const pendingThread = sessionStorage.getItem("pendingWelcomeThread");
+    const shouldWelcome = params.get("welcome") === "1" || (pendingThread && pendingThread === threadId);
+
+    if (!shouldWelcome || welcomeTriggeredRef.current) {
+      return;
+    }
+
+    const sendFn = (window as any).sendServerStream;
+    const stream = (window as any).chatStream;
+
+    if (typeof sendFn !== "function" || !stream) {
+      const timer = setTimeout(() => setWelcomePoll((n) => n + 1), 150);
+      return () => clearTimeout(timer);
+    }
+
+    welcomeTriggeredRef.current = true;
+    stream.begin?.();
+
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
+
+    sendFn({
+      threadId,
+      content: "I'm ready to begin our first coaching conversation.",
+      requestedAgentType: "onboarding_welcome",
+    })
+      .then(() => {
+        sessionStorage.removeItem("pendingWelcomeThread");
+        if (params.get("welcome") === "1") {
+          params.delete("welcome");
+          const nextQuery = params.toString();
+          navigate(nextQuery ? `/chat/${threadId}?${nextQuery}` : `/chat/${threadId}`);
+        }
+      })
+      .catch((error: any) => {
+        console.error("[ChatHome] Failed to trigger onboarding welcome message", error);
+        welcomeTriggeredRef.current = false;
+        retryTimer = setTimeout(() => setWelcomePoll((n) => n + 1), 300);
+      });
+
+    return () => {
+      if (retryTimer) {
+        clearTimeout(retryTimer);
+      }
+    };
+  }, [threadId, navigate, welcomePoll]);
+
   return (
-    <div 
+    <>
+      <NotificationSetupModal
+        open={showNotificationSetup}
+        onClose={() => setShowNotificationSetup(false)}
+        onSaved={async () => {
+          setShowNotificationSetup(false);
+          await queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+        }}
+      />
+
+      <div 
       className="flex bg-gray-50 overflow-x-hidden"
       style={{ height: `${viewportHeight}px` }}
     >
@@ -353,6 +433,7 @@ export default function ChatHome() {
         variant="destructive"
       />
     </div>
+    </>
   );
 }
 

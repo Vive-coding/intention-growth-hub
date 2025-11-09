@@ -2642,6 +2642,38 @@ router.post("/", async (req: Request, res: Response) => {
       console.warn('Snapshot upsert (all metrics) after goal creation failed', e);
     }
 
+    // Mark onboarding milestone if this is the user's first goal
+    try {
+      const [userRow] = await db
+        .select({
+          firstGoalCreated: users.firstGoalCreated,
+          onboardingStep: users.onboardingStep,
+        })
+        .from(users)
+        .where(eq(users.id, userId))
+        .limit(1);
+
+      if (userRow && !userRow.firstGoalCreated) {
+        const updatePayload: Record<string, any> = {
+          firstGoalCreated: true,
+          updatedAt: new Date(),
+        };
+
+        const currentStep = (userRow.onboardingStep ?? "").toLowerCase();
+        if (!currentStep || currentStep === "welcome" || currentStep === "profile_completed") {
+          updatePayload.onboardingStep = "first_goal_completed";
+        }
+
+        await db
+          .update(users)
+          .set(updatePayload)
+          .where(eq(users.id, userId));
+        console.log('[goals] ✅ First goal milestone recorded for user', userId);
+      }
+    } catch (milestoneError) {
+      console.error('[goals] Failed to update onboarding milestone for user', userId, milestoneError);
+    }
+
     res.status(201).json({ goal: goalInstance, definition: goalDefinition });
   } catch (error) {
     console.error("Error creating goal:", error);

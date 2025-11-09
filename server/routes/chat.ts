@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "../db";
 import { eq, desc } from "drizzle-orm";
-import { chatThreads, chatMessages } from "../../shared/schema";
+import { chatThreads, chatMessages, users } from "../../shared/schema";
 import { ChatThreadService } from "../services/chatThreadService";
 import { streamLifeCoachReply } from "../ai/lifeCoachService";
 import { MyFocusService } from "../services/myFocusService";
@@ -300,6 +300,20 @@ router.post("/respond", async (req: any, res) => {
           finalText += delta;
           send(JSON.stringify({ type: "delta", content: delta }));
         },
+        onStructuredData: (data: any) => {
+          // Send structured data immediately when available (before streaming completes)
+          console.log('[chat/respond] 🎴 SENDING CARD TO FRONTEND (immediate):', data.type);
+          send(JSON.stringify({ type: "structured_data", data }));
+          structuredPayload = data;
+          // Persist agent outputs into My Focus (best-effort)
+          try {
+            MyFocusService.persistFromAgent(data, { userId, threadId }).catch((e) => {
+              console.error('[chat] persist-from-agent failed', e);
+            });
+          } catch (e) {
+            console.error('[chat] persist-from-agent failed', e);
+          }
+        },
         requestedAgentType,
       });
       finalText = result.finalText || finalText;
@@ -313,17 +327,7 @@ router.post("/respond", async (req: any, res) => {
       if (result.cta) {
         send(JSON.stringify({ type: "cta", label: result.cta }));
       }
-      if (result.structuredData) {
-        console.log('[chat/respond] 🎴 SENDING CARD TO FRONTEND:', result.structuredData.type);
-        send(JSON.stringify({ type: "structured_data", data: result.structuredData }));
-        structuredPayload = result.structuredData;
-        // Persist agent outputs into My Focus (best-effort)
-        try {
-          await MyFocusService.persistFromAgent(result.structuredData, { userId, threadId });
-        } catch (e) {
-          console.error('[chat] persist-from-agent failed', e);
-        }
-      }
+      // Note: structuredData is already sent via onStructuredData callback above
     } catch (e) {
       console.error('[chat] life coach stream failed', e);
       send(JSON.stringify({ type: 'error', message: 'Assistant failed to respond' }));
@@ -411,6 +415,43 @@ router.post("/respond", async (req: any, res) => {
         console.error('[chat] Failed to generate thread title:', e);
       }
     }
+
+    try {
+      const [userRow] = await db
+        .select({
+          firstChatSession: users.firstChatSession,
+          onboardingStep: users.onboardingStep,
+          firstGoalCreated: users.firstGoalCreated,
+        })
+        .from(users)
+        .where(eq(users.id, userId))
+        .limit(1);
+
+      if (userRow && !userRow.firstChatSession) {
+        const updatePayload: Record<string, any> = {
+          firstChatSession: true,
+          updatedAt: new Date(),
+        };
+
+        const currentStep = (userRow.onboardingStep ?? "").toLowerCase();
+        if (
+          userRow.firstGoalCreated &&
+          currentStep !== "completed" &&
+          currentStep !== "ready_for_notifications"
+        ) {
+          updatePayload.onboardingStep = "ready_for_notifications";
+        }
+
+        await db
+          .update(users)
+          .set(updatePayload)
+          .where(eq(users.id, userId));
+        console.log('[chat/respond] ✅ First chat milestone recorded for user', userId);
+      }
+    } catch (milestoneError) {
+      console.error('[chat/respond] Failed to update chat onboarding milestone', milestoneError);
+    }
+
     res.end();
   } catch (e) {
     console.error("[chat] respond failed", e);

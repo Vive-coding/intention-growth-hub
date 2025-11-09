@@ -1,4 +1,10 @@
-export type AgentType = 'master' | 'review_progress' | 'suggest_goals' | 'prioritize_optimize' | 'surprise_me';
+export type AgentType =
+  | 'master'
+  | 'review_progress'
+  | 'suggest_goals'
+  | 'prioritize_optimize'
+  | 'surprise_me'
+  | 'onboarding_welcome';
 
 export interface AgentContext {
   userId: string;
@@ -8,6 +14,7 @@ export interface AgentContext {
   profile: any;
   workingSet: any;
   threadSummary: string | null;
+  onboardingProfile?: any;
 }
 
 export interface AgentResponse {

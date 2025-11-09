@@ -366,19 +366,28 @@ export const completeGoalTool = new DynamicStructuredTool({
     }
     
     try {
-      // Update goal instance
-      // Get target value first
-      const [goalInstance] = await db
-        .select({ targetValue: goalInstances.targetValue })
+      // Get goal instance first to verify it exists and belongs to user
+      const [instance] = await db
+        .select()
         .from(goalInstances)
-        .where(eq(goalInstances.id, goal_id))
+        .where(
+          and(
+            eq(goalInstances.id, goal_id),
+            eq(goalInstances.userId, userId)
+          )
+        )
         .limit(1);
       
+      if (!instance) {
+        throw new Error(`Goal instance not found: ${goal_id}`);
+      }
+      
+      // Update goal instance to completed
       await db
         .update(goalInstances)
         .set({
           status: "completed",
-          currentValue: goalInstance?.targetValue || 100,
+          currentValue: instance.targetValue || 100,
           completedAt: new Date()
         })
         .where(
@@ -388,25 +397,22 @@ export const completeGoalTool = new DynamicStructuredTool({
           )
         );
       
-      // Get goal details
-      const [instance] = await db
-        .select()
-        .from(goalInstances)
-        .where(eq(goalInstances.id, goal_id))
-        .limit(1);
-      
       const [goalDef] = await db
         .select()
         .from(goalDefinitions)
         .where(eq(goalDefinitions.id, instance.goalDefinitionId))
         .limit(1);
       
+      if (!goalDef) {
+        throw new Error(`Goal definition not found for instance: ${goal_id}`);
+      }
+      
       return {
         type: "goal_celebration",
         goal_id: goal_id,
-        goal_title: goalDef?.title || "Goal",
+        goal_title: goalDef.title,
         completed_date: new Date().toISOString(),
-        reflection: reflection,
+        reflection: reflection || "",
         final_progress: 100
       };
     } catch (error) {
