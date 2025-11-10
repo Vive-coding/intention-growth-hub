@@ -15,7 +15,7 @@ export default function TestCardsPage() {
       setResult(response);
 
       if (response.threadId) {
-        navigate(`/chat/${response.threadId}`);
+        navigate(`/${response.threadId}`);
       }
     } catch (error) {
       console.error('Failed to create test thread:', error);
@@ -58,7 +58,7 @@ export default function TestCardsPage() {
           {result.threadId && (
             <div className="mt-4">
               <a 
-                href={`/chat/${result.threadId}`}
+                href={`/${result.threadId}`}
                 className="inline-block bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
               >
                 Open Test Thread in Chat

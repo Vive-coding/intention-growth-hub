@@ -46,7 +46,7 @@ export default function ConversationStream({ threadId }: Props) {
     const status = (messagesError as any)?.status;
     if (status === 404 && threadId) {
       console.log('[ConversationStream] Thread deleted (404). Navigating to /chat');
-      navigate('/chat', { replace: true });
+      navigate('/', { replace: true });
     }
   }, [messagesError, threadId, navigate]);
 

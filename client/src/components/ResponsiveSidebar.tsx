@@ -1,4 +1,4 @@
-import { Home, TrendingUp, Target, BookOpen, User, Flame } from "lucide-react";
+import { Home, TrendingUp, Target, BookOpen, User, Flame, MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Logo } from "@/components/ui/Logo";
@@ -75,6 +75,17 @@ export const ResponsiveSidebar = ({ currentScreen, onNavigate, className, isInDe
               </Button>
             );
           })}
+          
+          {/* Chat mode toggle */}
+          <div className="pt-4 mt-4 border-t border-sidebar-border">
+            <a 
+              href="/"
+              className="flex items-center gap-3 px-4 py-3 text-sm text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground rounded-lg transition-colors"
+            >
+              <MessageCircle className="w-4 h-4" />
+              <span>Switch to Chat Mode</span>
+            </a>
+          </div>
         </nav>
       </div>
     </aside>

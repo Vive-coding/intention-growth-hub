@@ -2,7 +2,7 @@ import MyFocusDashboard from "@/components/focus/MyFocusDashboard";
 import SharedLeftNav from "@/components/layout/SharedLeftNav";
 import ConversationsList from "@/components/chat/ConversationsList";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { Menu, Home, Target } from "lucide-react";
+import { Menu, MessageCircle, BookOpen, Target } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
@@ -32,9 +32,13 @@ export default function FocusPage() {
 										<img src="/goodhabit.ai(200 x 40 px).png" alt="GoodHabit" className="h-6" />
 									</div>
 									<nav className="px-2 py-2 space-y-1 flex-1">
-										<a href="/chat?new=1" className="flex items-center gap-3 px-4 py-2 rounded-lg text-gray-700 hover:bg-gray-50">
-											<Home className="w-4 h-4 text-gray-500" />
-											<span className="text-sm font-medium">Home</span>
+										<a href="/" className="flex items-center gap-3 px-4 py-2 rounded-lg text-gray-700 hover:bg-gray-50">
+											<MessageCircle className="w-4 h-4 text-gray-500" />
+											<span className="text-sm font-medium">Chat Home</span>
+										</a>
+										<a href="/journal" className="flex items-center gap-3 px-4 py-2 rounded-lg text-gray-700 hover:bg-gray-50">
+											<BookOpen className="w-4 h-4 text-gray-500" />
+											<span className="text-sm font-medium">Journal Home</span>
 										</a>
 										<a href="/focus" className="flex items-center gap-3 px-4 py-2 rounded-lg bg-emerald-50 text-emerald-700">
 											<Target className="w-4 h-4 text-emerald-700" />

@@ -10,7 +10,7 @@ import { CommunityScreen } from "@/components/CommunityScreen";
 import { ProfileScreen } from "@/components/ProfileScreen";
 import { NavigationBar } from "@/components/NavigationBar";
 import MyFocusDashboard from "@/components/focus/MyFocusDashboard";
-import { ResponsiveSidebar } from "@/components/ResponsiveSidebar";
+import SharedLeftNav from "@/components/layout/SharedLeftNav";
 import { GPTModal } from "@/components/GPTModal";
 import { useAuth } from "@/hooks/useAuth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -19,6 +19,8 @@ import type { User as UserType } from "@shared/schema";
 import { HabitsScreen } from "@/components/HabitsScreen";
 import { Landing } from "./Landing";
 import { UniformHeader } from "@/components/ui/UniformHeader";
+import { ModeToggle } from "@/components/ui/ModeToggle";
+import { RecentJournalsNav } from "@/components/journal/RecentJournalsNav";
 
 const Index = () => {
   const { user, isLoading, isAuthenticated, shouldShowAuthButton } = useAuth();
@@ -27,6 +29,7 @@ const Index = () => {
   const [showGPTModal, setShowGPTModal] = useState(false);
   const [isInDetailedView, setIsInDetailedView] = useState(false);
   const [dashboardKey, setDashboardKey] = useState(0);
+  const [selectedJournalId, setSelectedJournalId] = useState<string | null>(null);
   
   // Check if user has completed onboarding - localStorage takes absolute priority
   const localStorageOnboarding = localStorage.getItem("onboardingCompleted");
@@ -117,15 +120,19 @@ const Index = () => {
     // Always show the main app if authenticated or bypassed
     switch (currentScreen) {
       case "home":
-        return <Dashboard 
-          key={dashboardKey}
-          onOpenGPT={() => setShowGPTModal(true)} 
-          onDetailedViewChange={setIsInDetailedView}
-          onClearDetailedView={() => {
-            console.log('Index: Clearing detailed view from Dashboard');
-            setIsInDetailedView(false);
-          }}
-        />;
+        return (
+          <div className="space-y-6">
+            <Dashboard 
+              key={dashboardKey}
+              onOpenGPT={() => setShowGPTModal(true)} 
+              onDetailedViewChange={setIsInDetailedView}
+              onClearDetailedView={() => {
+                console.log('Index: Clearing detailed view from Dashboard');
+                setIsInDetailedView(false);
+              }}
+            />
+          </div>
+        );
       case "insights":
         return <InsightsScreen />;
       case "habits":
@@ -135,7 +142,16 @@ const Index = () => {
       case "focus":
         return <MyFocusDashboard />;
       case "journals":
-        return <JournalsScreen />;
+        return (
+          <JournalsScreen
+            initialEntryId={selectedJournalId}
+            onBack={() => {
+              setCurrentScreen("home");
+              setSelectedJournalId(null);
+            }}
+            onEntryCleared={() => setSelectedJournalId(null)}
+          />
+        );
       case "community":
         return <CommunityScreen />;
       case "profile":
@@ -153,66 +169,73 @@ const Index = () => {
     }
   };
 
+  const handleReturnToOnboarding = () => {
+    localStorage.setItem('onboardingCompleted', 'false');
+    localStorage.removeItem('bypassOnboarding');
+    queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
+    window.location.reload();
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('user');
+    localStorage.removeItem('token');
+    window.location.reload();
+  };
+ 
+  const header = (
+    <div className="relative">
+      <UniformHeader 
+        user={typedUser ? { firstName: typedUser.firstName ?? undefined, lastName: typedUser.lastName ?? undefined, email: typedUser.email ?? undefined } : null}
+        onNavigate={setCurrentScreen}
+        onReturnToOnboarding={handleReturnToOnboarding}
+        onLogout={handleLogout}
+        rightSlot={<ModeToggle />}
+        profileVisibility={hasCompletedOnboarding ? "mobile" : "all"}
+        showLogo={!hasCompletedOnboarding}
+      />
+    </div>
+  );
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-blue-50">
-      {/* Uniform Header - always visible when authenticated */}
-      <div className="relative">
-        <UniformHeader 
-          user={typedUser ? { firstName: typedUser.firstName ?? undefined, lastName: typedUser.lastName ?? undefined, email: typedUser.email ?? undefined } : null}
-          onNavigate={setCurrentScreen}
-          onReturnToOnboarding={() => {
-            // Set localStorage to force onboarding mode
-            localStorage.setItem('onboardingCompleted', 'false');
-            localStorage.removeItem('bypassOnboarding');
-            
-            // Force the user query to refetch
-            queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
-            
-            // Refresh the page to trigger onboarding flow
-            window.location.reload();
-          }}
-          onLogout={() => { 
-            localStorage.removeItem('user'); 
-            localStorage.removeItem('token'); 
-            window.location.reload(); 
-          }}
-        />
-      </div>
-
-      {/* Conditionally show sidebar and navigation based on onboarding status */}
       {hasCompletedOnboarding ? (
+        <div className="flex min-h-screen">
+          <SharedLeftNav
+            onReturnToOnboarding={handleReturnToOnboarding}
+            onLogout={handleLogout}
+          >
+            <RecentJournalsNav
+              onSelectEntry={(id) => {
+                setSelectedJournalId(id);
+                setCurrentScreen("journals");
+              }}
+            />
+          </SharedLeftNav>
+          <div className="flex-1 flex flex-col bg-transparent">
+            {header}
+            <div className="flex-1 lg:overflow-y-auto px-4 sm:px-6 lg:px-8 py-6">
+              {renderScreen()}
+            </div>
+            <NavigationBar 
+              currentScreen={currentScreen} 
+              onNavigate={setCurrentScreen}
+              isInDetailedView={isInDetailedView}
+              onNavigateHome={() => {
+                console.log('Index: Mobile Home navigation triggered, clearing detailed view');
+                setCurrentScreen("home");
+                setIsInDetailedView(false);
+                setDashboardKey(prev => prev + 1); // Force Dashboard re-render
+              }}
+            />
+          </div>
+        </div>
+      ) : (
         <>
-          <ResponsiveSidebar 
-            currentScreen={currentScreen} 
-            onNavigate={setCurrentScreen}
-            isInDetailedView={isInDetailedView}
-            onNavigateHome={() => {
-              console.log('Index: Home navigation triggered, clearing detailed view');
-              setCurrentScreen("home");
-              setIsInDetailedView(false);
-              setDashboardKey(prev => prev + 1); // Force Dashboard re-render
-            }}
-          />
-          
-          <div className="lg:ml-64 relative">
+          {header}
+          <div className="relative px-4 sm:px-6 lg:px-8 py-6">
             {renderScreen()}
           </div>
-          
-          <NavigationBar 
-            currentScreen={currentScreen} 
-            onNavigate={setCurrentScreen}
-            isInDetailedView={isInDetailedView}
-            onNavigateHome={() => {
-              console.log('Index: Mobile Home navigation triggered, clearing detailed view');
-              setCurrentScreen("home");
-              setIsInDetailedView(false);
-              setDashboardKey(prev => prev + 1); // Force Dashboard re-render
-            }}
-          />
         </>
-      ) : (
-        // Show onboarding without sidebar/navigation
-        renderScreen()
       )}
       
       <GPTModal 

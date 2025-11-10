@@ -331,7 +331,7 @@ export const OnboardingFlow = ({ onComplete }: OnboardingFlowProps) => {
       sessionStorage.setItem("pendingWelcomeThread", newThreadId);
     }
 
-    navigate(`/chat/${newThreadId}?welcome=1`);
+    navigate(`/${newThreadId}?welcome=1`);
   }, [navigate]);
 
   const saveOnboardingMutation = useMutation({
@@ -358,7 +358,7 @@ export const OnboardingFlow = ({ onComplete }: OnboardingFlowProps) => {
           error?.message ??
             "Saved your preferences, but we couldn't start the welcome chat automatically. You can open chat to continue.",
         );
-        navigate("/chat");
+        navigate("/");
       }
     },
     onError: (err: any) => {

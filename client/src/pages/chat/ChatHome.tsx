@@ -17,11 +17,12 @@ import { Menu, Home, Target } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { NotificationSetupModal } from "@/components/NotificationSetupModal";
+import { ModeToggle } from "@/components/ui/ModeToggle";
 
 export default function ChatHome() {
   const [, navigate] = useLocation();
-  const [match, params] = useRoute("/chat/:threadId");
-  const [isNew] = useRoute("/chat");
+  const [match, params] = useRoute("/:threadId");
+  const [isNew] = useRoute("/");
   const threadId = match ? (params as any).threadId : undefined;
   const queryClient = useQueryClient();
   const autoCreateGuard = useRef(false);
@@ -34,7 +35,20 @@ export default function ChatHome() {
   const [welcomePoll, setWelcomePoll] = useState(0);
   const hasShownNotificationModal = useRef(false);
   const [showNotificationSetup, setShowNotificationSetup] = useState(false);
-  const { user } = useAuth();
+  const { user, isLoading, isAuthenticated } = useAuth();
+
+  const handleReturnToOnboarding = () => {
+    localStorage.setItem("onboardingCompleted", "false");
+    localStorage.removeItem("bypassOnboarding");
+    queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+    window.location.reload();
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem("user");
+    localStorage.removeItem("token");
+    window.location.reload();
+  };
 
   // Calculate actual viewport height (excluding mobile browser UI)
   const [viewportHeight, setViewportHeight] = useState(() => {
@@ -91,11 +105,19 @@ export default function ChatHome() {
     };
   }, []);
 
+  // Redirect to landing if not authenticated
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated) {
+      navigate("/landing", { replace: true });
+    }
+  }, [isLoading, isAuthenticated, navigate]);
+
   // Fetch threads for left-nav list (top 5-7)
   const { data: threads = [] } = useQuery({
     queryKey: ["/api/chat/threads"],
     queryFn: async () => apiRequest("/api/chat/threads"),
     staleTime: 30_000,
+    enabled: !isLoading && isAuthenticated,
   });
   const activeThread = useMemo(() => threads.find((t: any) => t.id === threadId), [threads, threadId]);
 
@@ -114,6 +136,7 @@ export default function ChatHome() {
     refetchInterval: 10_000, // Refresh every 10s
     refetchOnMount: true,
     refetchOnWindowFocus: true,
+    enabled: !isLoading && isAuthenticated,
   });
 
   // Default behavior: if no thread selected, show empty chat home (do not create a thread)
@@ -123,7 +146,7 @@ export default function ChatHome() {
     const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : undefined;
     const urlHasNew = !!urlParams && urlParams.get('new') === '1';
     if (urlHasNew) return;
-    if (threads.length > 0) navigate(`/chat/${threads[0].id}`, { replace: true });
+    if (threads.length > 0) navigate(`/${threads[0].id}`, { replace: true });
   }, [threadId, threads.length, navigate]);
 
   // If optimize=1 on blank state, auto-send optimize prompt to agent after mount
@@ -140,7 +163,7 @@ export default function ChatHome() {
 
   // Defer creation; creation happens when sending first message
   const handleStartNew = async () => {
-    navigate('/chat');
+    navigate('/');
   };
 
   // Helper to send a quick action message and route to a special agent
@@ -180,7 +203,7 @@ export default function ChatHome() {
       await apiRequest(`/api/chat/threads/${deleteConfirm.threadId}`, { method: "DELETE" });
       await queryClient.invalidateQueries({ queryKey: ["/api/chat/threads"] });
       if (threadId === deleteConfirm.threadId) {
-        navigate("/chat");
+        navigate("/");
       }
       setDeleteConfirm(null);
     } catch (error) {
@@ -237,7 +260,7 @@ export default function ChatHome() {
         if (params.get("welcome") === "1") {
           params.delete("welcome");
           const nextQuery = params.toString();
-          navigate(nextQuery ? `/chat/${threadId}?${nextQuery}` : `/chat/${threadId}`);
+          navigate(nextQuery ? `/${threadId}?${nextQuery}` : `/${threadId}`);
         }
       })
       .catch((error: any) => {
@@ -252,6 +275,21 @@ export default function ChatHome() {
       }
     };
   }, [threadId, navigate, welcomePoll]);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return null;
+  }
 
   return (
     <>
@@ -269,7 +307,10 @@ export default function ChatHome() {
       style={{ height: `${viewportHeight}px` }}
     >
       {/* Desktop left nav + conversations list */}
-      <SharedLeftNav>
+      <SharedLeftNav
+        onReturnToOnboarding={handleReturnToOnboarding}
+        onLogout={handleLogout}
+      >
         <ConversationsList currentThreadId={threadId} />
       </SharedLeftNav>
 
@@ -292,7 +333,7 @@ export default function ChatHome() {
                         <img src="/goodhabit.ai(200 x 40 px).png" alt="GoodHabit" className="h-6" />
                       </div>
                       <nav className="px-2 py-2 space-y-1 flex-1 overflow-y-auto">
-                        <a href="/chat?new=1" className="flex items-center gap-3 px-4 py-2 rounded-lg bg-emerald-50 text-emerald-700">
+                        <a href="/?new=1" className="flex items-center gap-3 px-4 py-2 rounded-lg bg-emerald-50 text-emerald-700">
                           <Home className="w-4 h-4 text-emerald-700" />
                           <span className="text-sm font-medium">Home</span>
                         </a>
@@ -307,14 +348,20 @@ export default function ChatHome() {
                       <div className="p-3 border-t">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <button className="w-full text-left px-3 py-2 rounded-lg hover:bg-gray-50">
-                              <div className="text-sm font-semibold text-gray-900">{(user as any)?.firstName || 'User'} {(user as any)?.lastName || ''}</div>
-                              <div className="text-xs text-gray-500">{(user as any)?.email || ''}</div>
+                            <button className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-50">
+                              <div className="w-10 h-10 rounded-full border-2 border-black bg-white flex items-center justify-center text-sm font-bold shrink-0">
+                                {`${((user as any)?.firstName?.[0] || 'U').toUpperCase()}${((user as any)?.lastName?.[0] || '').toUpperCase()}`}
+                              </div>
+                              <div className="flex-1 text-left min-w-0">
+                                <div className="text-sm font-semibold text-gray-900 truncate">{(user as any)?.firstName || 'User'} {(user as any)?.lastName || ''}</div>
+                                <div className="text-xs text-gray-500 truncate">{(user as any)?.email || ''}</div>
+                              </div>
                             </button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="start" className="w-56">
                             <DropdownMenuItem onClick={() => window.location.assign('/profile')}>Your account</DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => { localStorage.removeItem('user'); localStorage.removeItem('token'); window.location.reload(); }}>Log Out</DropdownMenuItem>
+                            <DropdownMenuItem onClick={handleReturnToOnboarding}>Return to Onboarding</DropdownMenuItem>
+                            <DropdownMenuItem onClick={handleLogout}>Log Out</DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </div>
@@ -333,8 +380,10 @@ export default function ChatHome() {
                 </div>
               )}
             </div>
-            {/* Mobile profile icon */}
-            <div className="lg:hidden shrink-0">
+            <ModeToggle className="hidden md:flex shrink-0" />
+            {/* Mobile toggle + profile */}
+            <div className="lg:hidden shrink-0 flex items-center gap-2">
+              <ModeToggle className="md:hidden flex" />
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button className="w-9 h-9 rounded-full border-2 border-black bg-white flex items-center justify-center text-xs font-bold">
@@ -347,7 +396,8 @@ export default function ChatHome() {
                     <div className="text-xs text-gray-500">{(user as any)?.email}</div>
                   </div>
                   <DropdownMenuItem onClick={() => window.location.assign('/profile')}>Your account</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => { localStorage.removeItem('user'); localStorage.removeItem('token'); window.location.reload(); }}>Log Out</DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleReturnToOnboarding}>Return to Onboarding</DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleLogout}>Log Out</DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>

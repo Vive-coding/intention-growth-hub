@@ -24,21 +24,24 @@ function Router() {
 
   return (
     <Switch>
-      {/* New chat-first routes */}
-      <Route path="/chat" component={ChatHome} />
-      <Route path="/chat/:threadId" component={ChatHome} />
-      
-      {/* Test cards route - accessible from root */}
-      <Route path="/test-cards" component={TestCardsPage} />
-
-      {/* Temporary: keep existing index as fallback until we flip default */}
-      <Route path="/" component={Index} />
+      {/* Public landing page */}
       <Route path="/landing" component={Landing} />
+
+      {/* Dashboard/Journal mode */}
+      <Route path="/journal" component={Index} />
+
+      {/* Other explicit routes */}
       <Route path="/insights" component={InsightsScreen} />
       <Route path="/goals" component={GoalsScreen} />
       <Route path="/focus" component={FocusPage} />
       <Route path="/habits" component={HabitsScreen} />
-      {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+      <Route path="/test-cards" component={TestCardsPage} />
+
+      {/* Chat routes (placed after explicit ones to avoid collisions) */}
+      <Route path="/:threadId" component={ChatHome} />
+      <Route path="/" component={ChatHome} />
+
+      {/* Catch-all */}
       <Route component={NotFound} />
     </Switch>
   );

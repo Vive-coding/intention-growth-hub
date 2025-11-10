@@ -1,18 +1,30 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AuthModal } from "@/components/AuthModal";
 import { Target, TrendingUp, BookOpen, Users, Zap, Flame } from "lucide-react";
 import { Logo } from "@/components/ui/Logo";
+import { useAuth } from "@/hooks/useAuth";
+import { useLocation } from "wouter";
 
 export const Landing = () => {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [authMode, setAuthMode] = useState<'signup' | 'signin'>('signup');
+  const { user, isAuthenticated, isLoading } = useAuth();
+  const [, navigate] = useLocation();
 
   const handleAuthClick = (mode: 'signup' | 'signin') => {
     setAuthMode(mode);
     setShowAuthModal(true);
   };
+
+  useEffect(() => {
+    if (isLoading) return;
+    if (isAuthenticated) {
+      const hasCompletedOnboarding = (user as any)?.onboardingCompleted;
+      navigate(hasCompletedOnboarding ? "/" : "/journal", { replace: true });
+    }
+  }, [isLoading, isAuthenticated, user, navigate]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-blue-50">

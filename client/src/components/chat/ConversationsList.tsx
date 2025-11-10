@@ -24,7 +24,7 @@ export default function ConversationsList({ currentThreadId }: Props) {
 				<div className="text-[11px] tracking-wide uppercase text-gray-500">Conversations</div>
                 <button
                     className="p-1 rounded hover:bg-gray-100"
-                    onClick={() => navigate('/chat?new=1')}
+                    onClick={() => navigate('/?new=1')}
 					aria-label="New conversation"
 				>
 					<Plus className="w-4 h-4 text-gray-700" />
@@ -39,7 +39,7 @@ export default function ConversationsList({ currentThreadId }: Props) {
 							key={t.id}
 							className={`group relative w-full text-left px-4 py-3 hover:bg-gray-50 ${active ? 'bg-teal-50' : ''}`}
 						>
-							<button className="w-full text-left" onClick={() => navigate(`/chat/${t.id}`)}>
+							<button className="w-full text-left" onClick={() => navigate(`/${t.id}`)}>
 								<div className="flex items-center gap-2">
 									<MessageSquare className={`w-4 h-4 ${active ? 'text-teal-700' : 'text-gray-400'}`} />
 									<div className={`text-sm font-medium truncate ${active ? 'text-teal-800' : 'text-gray-800'}`}>{t.title || 'Daily Coaching'}</div>
@@ -60,7 +60,7 @@ export default function ConversationsList({ currentThreadId }: Props) {
                       await queryClient.refetchQueries({ queryKey: ["/api/chat/threads"] });
                       // If we deleted the active thread, navigate immediately
                       if (currentThreadId === t.id) {
-                        navigate('/chat');
+                        navigate('/');
                       }
                     } catch (err) {
                       console.error('Failed to delete thread', err);

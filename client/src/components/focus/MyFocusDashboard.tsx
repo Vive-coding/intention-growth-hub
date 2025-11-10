@@ -84,7 +84,7 @@ return (
             <button
               className="inline-flex items-center px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs sm:text-sm hover:bg-emerald-700 whitespace-nowrap"
               title="Start chat to Optimize My Focus"
-              onClick={() => { window.location.href = '/chat?new=1&optimize=1'; }}
+              onClick={() => { window.location.href = '/?new=1&optimize=1'; }}
             >
               Optimize focus
             </button>

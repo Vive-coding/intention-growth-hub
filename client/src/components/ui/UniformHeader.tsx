@@ -12,29 +12,40 @@ interface UniformHeaderProps {
   onNavigate: (screen: string) => void;
   onReturnToOnboarding: () => void;
   onLogout: () => void;
+  rightSlot?: React.ReactNode;
+  profileVisibility?: "all" | "mobile";
+  showLogo?: boolean;
 }
 
 export const UniformHeader: React.FC<UniformHeaderProps> = ({ 
   user, 
   onNavigate, 
   onReturnToOnboarding, 
-  onLogout 
+  onLogout,
+  rightSlot,
+  profileVisibility = "all",
+  showLogo = true,
 }) => {
   if (!user) return null;
 
   return (
     <header className="w-full bg-white/90 backdrop-blur-sm border-b border-gray-200 shadow-sm z-50">
-      <div className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 lg:py-4">
-        {/* Logo - Left side - Show on all screen sizes */}
-        <div className="flex items-center">
-          <Logo size="md" className="text-purple-600" />
+      <div className="flex items-center justify-between px-4 sm:px-6 py-3">
+        <div className="flex items-center min-h-[32px]">
+          {showLogo ? <Logo size="md" className="text-purple-600" /> : null}
         </div>
 
         {/* Profile Circle - Right side */}
-        <div className="flex items-center lg:absolute lg:right-6 lg:inset-y-0 lg:flex lg:items-center">
+        <div className="flex items-center gap-4">
+          {rightSlot}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="rounded-full w-10 h-10 sm:w-12 sm:h-12 p-0 border-2 border-black bg-white shadow-sm">
+              <Button
+                variant="ghost"
+                className={`rounded-full w-10 h-10 sm:w-12 sm:h-12 p-0 border-2 border-black bg-white shadow-sm ${
+                  profileVisibility === "mobile" ? "lg:hidden" : ""
+                }`}
+              >
                 <span className="w-9 h-9 sm:w-11 sm:h-11 rounded-full flex items-center justify-center text-sm sm:text-base font-bold tracking-wide text-black">
                   {`${(user?.firstName?.[0] || 'U').toUpperCase()}${(user?.lastName?.[0] || '').toUpperCase()}`}
                 </span>

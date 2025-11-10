@@ -97,7 +97,7 @@ export default function Composer({ threadId }: Props) {
         await queryClient.invalidateQueries({ queryKey: ["/api/chat/threads"] });
         targetThreadId = (t.id || (t as any).threadId) as string;
         // Navigate to the new thread view
-        navigate(`/chat/${targetThreadId}`, { replace: true });
+        navigate(`/${targetThreadId}`, { replace: true });
       }
 
       // Show user message immediately by adding it to the stream
