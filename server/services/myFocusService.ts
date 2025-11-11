@@ -12,6 +12,24 @@ import {
   userOnboardingProfiles,
 } from "../../shared/schema";
 
+function deriveInsightTitle(title?: string | null, explanation?: string | null): string {
+  const trimmedTitle = (title ?? "").trim();
+  if (trimmedTitle.length >= 4) {
+    return trimmedTitle;
+  }
+
+  const normalizedExplanation = (explanation ?? "").replace(/\s+/g, " ").trim();
+  if (normalizedExplanation.length === 0) {
+    return "Insight";
+  }
+
+  const firstSentence =
+    normalizedExplanation.split(/(?<=[\.!?])\s+/).find((sentence) => sentence.trim().length > 0) ??
+    normalizedExplanation;
+
+  return firstSentence.slice(0, 110);
+}
+
 export interface MyFocusData {
   priorityGoals: Array<{
     id: string;
@@ -227,7 +245,7 @@ export class MyFocusService {
     return results;
   }
 
-  private static async getHighLeverageHabits(userId: string, priorityGoalIds?: string[]) {
+  private static async getHighLeverageHabits(userId: string, priorityGoalIds?: string[]): Promise<any[]> {
     // If we have priority goals, ONLY show habits linked to those goal instances
     const limitToPriority = Array.isArray(priorityGoalIds) && priorityGoalIds.length > 0;
 
@@ -329,7 +347,7 @@ export class MyFocusService {
 
     return insightsData.map(i => ({
       id: i.id,
-      title: i.title,
+      title: deriveInsightTitle(i.title, i.explanation),
       explanation: i.explanation,
       confidence: i.confidence,
       lifeMetricIds: [], // TODO: Add lifeMetricIds to insights schema

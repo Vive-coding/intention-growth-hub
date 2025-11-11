@@ -3,6 +3,57 @@ import { z } from "zod";
 import { db } from "../../db";
 import { insights, insightLifeMetrics, insightVotes, lifeMetricDefinitions } from "../../../shared/schema";
 import { eq, and } from "drizzle-orm";
+import { ChatOpenAI } from "@langchain/openai";
+
+const titleModel = new ChatOpenAI({
+  model: "gpt-4o-mini",
+  temperature: 0.2,
+  maxTokens: 60,
+});
+
+async function generateInsightTitle(insightText: string): Promise<string> {
+  const trimmed = insightText.trim();
+  if (!trimmed) {
+    return "New Insight";
+  }
+
+  try {
+    const response = await titleModel.invoke([
+      {
+        role: "system",
+        content:
+          "You write short, descriptive headlines (6-10 words) that summarize personal insights. No punctuation at the end.",
+      },
+      {
+        role: "user",
+        content: `Insight text:\n${trimmed}\n\nProvide a concise headline capturing the central pattern.`,
+      },
+    ]);
+
+    const raw =
+      typeof response.content === "string"
+        ? response.content
+        : Array.isArray(response.content)
+        ? response.content
+            .map((part: any) => (typeof part?.text === "string" ? part.text : ""))
+            .join("")
+        : "";
+
+    const candidate = raw.split("\n")[0]?.trim();
+    if (candidate) {
+      return candidate.replace(/^["']|["']$/g, "");
+    }
+  } catch (error) {
+    console.warn("[shareInsightTool] Unable to generate title via model, using fallback.", error);
+  }
+
+  const firstSentence = trimmed.split(/[\n\.!?]/).find((sentence) => sentence.trim().length > 0);
+  if (firstSentence && firstSentence.trim().length > 0) {
+    return firstSentence.trim().slice(0, 100);
+  }
+
+  return trimmed.slice(0, 100);
+}
 
 /**
  * Tool: Share breakthrough insight
@@ -50,13 +101,14 @@ export const shareInsightTool = new DynamicStructuredTool({
         .limit(1);
       
       const lifeMetricIds = metric ? [metric.id] : [];
+      const generatedTitle = await generateInsightTitle(insight_text);
       
       // Create insight record (pending user vote)
       const [newInsight] = await db
         .insert(insights)
         .values({
           userId,
-          title: insight_text.slice(0, 100), // First 100 chars as title
+          title: generatedTitle,
           explanation: insight_text,
           confidence: 80, // Medium-high confidence
           themes: [] // Empty themes array for now
@@ -75,7 +127,7 @@ export const shareInsightTool = new DynamicStructuredTool({
       const result = {
         type: "insight",
         id: newInsight.id,
-        title: insight_text.slice(0, 100),
+        title: generatedTitle,
         explanation: insight_text,
         confidence: 80
       };

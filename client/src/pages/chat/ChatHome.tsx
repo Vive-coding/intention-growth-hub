@@ -18,6 +18,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { NotificationSetupModal } from "@/components/NotificationSetupModal";
 import { ModeToggle } from "@/components/ui/ModeToggle";
+import { HabitsSidePanel } from "@/components/chat/HabitsSidePanel";
 
 export default function ChatHome() {
   const [, navigate] = useLocation();
@@ -35,6 +36,7 @@ export default function ChatHome() {
   const [welcomePoll, setWelcomePoll] = useState(0);
   const hasShownNotificationModal = useRef(false);
   const [showNotificationSetup, setShowNotificationSetup] = useState(false);
+  const [showHabitsPanel, setShowHabitsPanel] = useState(false);
   const followupHandledRef = useRef(false);
   const { user, isLoading, isAuthenticated } = useAuth();
 
@@ -420,9 +422,13 @@ export default function ChatHome() {
               </div>
               {/* Habits completed counter */}
               {todayCompletions && todayCompletions.total > 0 && (
-                <div className="ml-2 px-2 py-1 bg-teal-100 text-teal-700 rounded-full text-xs font-medium shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setShowHabitsPanel(true)}
+                  className="ml-2 px-2 py-1 bg-teal-100 text-teal-700 rounded-full text-xs font-medium shrink-0 hover:bg-teal-200 transition-colors"
+                >
                   {todayCompletions.completed}/{todayCompletions.total} ✓
-                </div>
+                </button>
               )}
             </div>
             <ModeToggle className="hidden md:flex shrink-0" />
@@ -516,6 +522,15 @@ export default function ChatHome() {
           setShowOptimize(false);
           // Refresh relevant data post-optimization if needed later
         }}
+      />
+      <HabitsSidePanel
+        open={showHabitsPanel}
+        onOpenChange={setShowHabitsPanel}
+        todaySummary={
+          todayCompletions
+            ? { completed: todayCompletions.completed, total: todayCompletions.total }
+            : undefined
+        }
       />
       <CompleteHabitsModal open={showComplete} onClose={() => setShowComplete(false)} />
 

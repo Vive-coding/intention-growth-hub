@@ -1,10 +1,9 @@
 import { ChangeEvent, useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
-import { CheckCircle2, Check, Pencil, Loader2 } from "lucide-react";
 import { GoalDetailModal } from "@/components/GoalDetailModal";
-import { EditHabitWizardModal } from "@/components/EditHabitWizardModal";
 import { Button } from "@/components/ui/button";
+import { HabitsSidePanel } from "@/components/chat/HabitsSidePanel";
 
 // Simple color helpers to keep chips consistent with the rest of the app
 const getPillBg = (metricName?: string) => {
@@ -26,12 +25,10 @@ const getStoredFocusLimit = () => {
 
 export default function MyFocusDashboard() {
   const [selectedGoal, setSelectedGoal] = useState<any | null>(null);
-  const [selectedHabit, setSelectedHabit] = useState<any | null>(null);
   const queryClient = useQueryClient();
   const [updatingLimit, setUpdatingLimit] = useState(false);
-  const [completingHabitId, setCompletingHabitId] = useState<string | null>(null);
-  const [recentlyCompleted, setRecentlyCompleted] = useState<Set<string>>(() => new Set());
   const [currentLimit, setCurrentLimit] = useState<number>(getStoredFocusLimit);
+  const [showHabitsPanel, setShowHabitsPanel] = useState(false);
 
         const handleGoalClick = async (goal: any) => {
                 try {
@@ -58,25 +55,15 @@ export default function MyFocusDashboard() {
     refetchOnWindowFocus: false,
   });
 
-  const completedTodaySet = useMemo(() => {
-    if (!Array.isArray(completedTodayData)) return new Set<string>();
-    return new Set(
-      completedTodayData
-        .map((item: any) => item?.id || item?.habitDefinitionId || item?.habitId)
-        .filter(Boolean)
-    );
+  const completedTodayCount = useMemo(() => {
+    if (!Array.isArray(completedTodayData)) return 0;
+    const uniqueIds = new Set<string>();
+    completedTodayData.forEach((item: any) => {
+      const id = item?.id || item?.habitDefinitionId || item?.habitId;
+      if (id) uniqueIds.add(id);
+    });
+    return uniqueIds.size;
   }, [completedTodayData]);
-
-  useEffect(() => {
-    // Reset optimistic completions once the server data catches up
-    setRecentlyCompleted(new Set());
-  }, [completedTodayData]);
-
-  const effectiveCompletedSet = useMemo(() => {
-    const union = new Set<string>(completedTodaySet);
-    recentlyCompleted.forEach((id) => union.add(id));
-    return union;
-  }, [completedTodaySet, recentlyCompleted]);
 
   const serverLimit = data?.config?.maxGoals;
 
@@ -139,66 +126,15 @@ export default function MyFocusDashboard() {
     }
   };
 
-  const handleCompleteHabit = async (habit: any) => {
-    if (!habit?.id || completingHabitId) return;
-    if (effectiveCompletedSet.has(habit.id)) {
-      return;
-    }
-    setCompletingHabitId(habit.id);
-    try {
-      const body: Record<string, any> = {};
-      const firstGoal = Array.isArray(habit.linkedGoals) && habit.linkedGoals[0];
-      if (firstGoal?.id) {
-        body.goalId = firstGoal.id;
-      }
-
-      await apiRequest(`/api/goals/habits/${habit.id}/complete`, {
-        method: "POST",
-        body: JSON.stringify(body),
-      });
-
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["/api/my-focus"] }),
-        queryClient.invalidateQueries({ queryKey: ["/api/habits/today-completions"] }),
-        queryClient.invalidateQueries({ queryKey: ["/api/goals/habits/completed-today"] }),
-      ]);
-      setRecentlyCompleted((prev) => {
-        const next = new Set(prev);
-        next.add(habit.id);
-        return next;
-      });
-      await queryClient.refetchQueries({ queryKey: ["/api/my-focus"], type: "active" });
-      await queryClient.refetchQueries({ queryKey: ["/api/goals/habits/completed-today"], type: "active" });
-    } catch (error: any) {
-      console.error("Failed to complete habit", error);
-      if (error?.status === 409) {
-        alert(error?.message || "Habit already completed for this period.");
-      } else {
-        alert("We couldn't complete that habit right now. Please try again.");
-      }
-    } finally {
-      setCompletingHabitId(null);
-    }
-  };
-
   const priorityGoals = (data.priorityGoals || []).slice(0, currentLimit);
-  const goalPriorityMap = new Map<string, number>();
-  priorityGoals.forEach((goal, idx) => {
-    const rank = typeof goal.rank === 'number' ? goal.rank : idx + 1;
-    if (goal.id) goalPriorityMap.set(goal.id, rank);
-  });
-  const activeHabits = [...(data.highLeverageHabits || [])].sort((a: any, b: any) => {
-    const ranksA = (a.linkedGoals || []).map((goal: any) => goalPriorityMap.get(goal.id) ?? Number.MAX_SAFE_INTEGER);
-    const ranksB = (b.linkedGoals || []).map((goal: any) => goalPriorityMap.get(goal.id) ?? Number.MAX_SAFE_INTEGER);
-    const minA = ranksA.length > 0 ? Math.min(...ranksA) : Number.MAX_SAFE_INTEGER;
-    const minB = ranksB.length > 0 ? Math.min(...ranksB) : Number.MAX_SAFE_INTEGER;
-    if (minA !== minB) return minA - minB;
-    return String(a.title || '').localeCompare(String(b.title || ''));
-  });
+  const activeHabits = Array.isArray(data.highLeverageHabits) ? data.highLeverageHabits : [];
 	const insights = (data.keyInsights || []).slice(0, 3);
 	const optimization = data.pendingOptimization;
 
-  const isEmpty = priorityGoals.length === 0 && activeHabits.length === 0 && insights.length === 0;
+  const totalHabits = activeHabits.length;
+  const completedHabits = Math.min(completedTodayCount, totalHabits);
+
+  const isEmpty = priorityGoals.length === 0 && totalHabits === 0 && insights.length === 0;
 
 return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-blue-50 p-3 sm:p-6 lg:p-8">
@@ -209,7 +145,16 @@ return (
             <h1 className="text-xl sm:text-2xl font-semibold text-gray-900">My Focus</h1>
             <p className="text-xs sm:text-sm text-gray-600">Your top priorities and the habits that will help you achieve them</p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
+            {totalHabits > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowHabitsPanel(true)}
+                className="inline-flex items-center px-3 py-1.5 rounded-full bg-emerald-100 text-emerald-700 text-xs sm:text-sm font-medium hover:bg-emerald-200 transition-colors"
+              >
+                {completedHabits}/{totalHabits} ✓
+              </button>
+            )}
             <div className="flex items-center gap-2">
               <label htmlFor="focus-goal-limit" className="text-xs text-gray-600">
                 Focus goals
@@ -255,7 +200,7 @@ return (
         </section>
       )}
 
-      {/* Compact two-column layout: Goals and Habits side by side */}
+      {/* Compact two-column layout: Goals and supportive info */}
       <section className="grid gap-4 sm:gap-6 md:grid-cols-2">
         {/* Priority Goals */}
         <div className="space-y-3 sm:space-y-4 min-w-0">
@@ -297,102 +242,24 @@ return (
           </div>
         </div>
 
-        {/* Active Habits */}
+        {/* Key Insights */}
         <div className="space-y-3 sm:space-y-4 min-w-0">
           <div className="flex items-center justify-between">
-            <div className="text-sm sm:text-base font-semibold text-gray-800">Active Habits</div>
-            <a href="/habits" className="text-xs text-emerald-600 hover:text-emerald-700 hover:underline">All Habits →</a>
+            <div className="text-sm sm:text-base font-semibold text-gray-800">Key Insights</div>
+            <a href="/insights" className="text-xs text-emerald-600 hover:text-emerald-700 hover:underline">All Insights →</a>
           </div>
-          <div className="grid gap-2 sm:gap-3">
-            {activeHabits.length === 0 && (
-              <div className="text-xs sm:text-sm text-gray-600">No habits yet. Choose 2–3 high-leverage habits to track.</div>
+          <div className="grid gap-2">
+            {insights.length === 0 && (
+              <div className="text-xs sm:text-sm text-gray-600">No insights yet. Chat with your coach to generate insights.</div>
             )}
-            {activeHabits.map((h: any) => {
-              const isCompletedToday = effectiveCompletedSet.has(h.id);
-              const isCompleting = completingHabitId === h.id;
-              const primaryGoalTitle =
-                Array.isArray(h.linkedGoals) && h.linkedGoals.length > 0 ? h.linkedGoals[0].title : null;
-              const extraGoalCount =
-                Array.isArray(h.linkedGoals) && h.linkedGoals.length > 1 ? h.linkedGoals.length - 1 : 0;
-
-              return (
-                <div
-                  key={h.id}
-                  className={`rounded-xl border transition-all p-3 sm:p-4 flex items-center justify-between gap-3 ${
-                    isCompletedToday
-                      ? "bg-emerald-50 border-emerald-200 text-emerald-900"
-                      : "bg-white border-gray-200 hover:border-emerald-300 hover:shadow-md"
-                  }`}
-                >
-                  <div className="min-w-0 flex-1">
-                    <div className="font-medium text-sm sm:text-base truncate">{h.title}</div>
-                    <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] sm:text-xs text-gray-500">
-                      <span>Streak {Math.max(0, h.streak || 0)}d</span>
-                      {primaryGoalTitle && (
-                        <span className="inline-flex items-center gap-1">
-                          Focus goal:&nbsp;
-                          <span className="text-gray-700 truncate max-w-[140px] sm:max-w-[220px]">
-                            {primaryGoalTitle}
-                          </span>
-                          {extraGoalCount > 0 ? <span className="text-gray-400">+{extraGoalCount}</span> : null}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => handleCompleteHabit(h)}
-                      disabled={isCompletedToday || isCompleting}
-                      aria-label={
-                        isCompletedToday ? "Habit already completed today" : `Mark ${h.title} as completed`
-                      }
-                      className={`h-9 w-9 inline-flex items-center justify-center rounded-lg transition-colors ${
-                        isCompletedToday
-                          ? "bg-emerald-100 text-emerald-600 cursor-default"
-                          : "bg-emerald-600 text-white hover:bg-emerald-700"
-                      }`}
-                    >
-                      {isCompletedToday ? (
-                        <CheckCircle2 className="w-4 h-4" />
-                      ) : isCompleting ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <Check className="w-4 h-4" />
-                      )}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setSelectedHabit(h)}
-                      className="h-9 w-9 inline-flex items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:text-gray-700 hover:border-gray-300 transition-colors"
-                      aria-label={`Edit ${h.title}`}
-                    >
-                      <Pencil className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
+            {insights.map((i: any) => (
+              <div key={i.id} className="rounded-xl p-3 bg-white border border-gray-200 shadow-sm min-w-0">
+                <div className="font-medium text-sm sm:text-base text-gray-900 break-words">{i.title}</div>
+                <div className="text-xs text-gray-600 mt-1 break-words">{i.explanation}</div>
+              </div>
+            ))}
           </div>
         </div>
-      </section>
-
-      <section className="space-y-3 sm:space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="text-sm sm:text-base font-semibold text-gray-800">Key Insights</div>
-          <a href="/insights" className="text-xs text-emerald-600 hover:text-emerald-700 hover:underline">All Insights →</a>
-        </div>
-				<div className="grid gap-2">
-					{insights.length === 0 && (
-						<div className="text-xs sm:text-sm text-gray-600">No insights yet. Chat with your coach to generate insights.</div>
-					)}
-					{insights.map((i: any) => (
-						<div key={i.id} className="rounded-xl p-3 bg-white border border-gray-200 shadow-sm min-w-0">
-							<div className="font-medium text-sm sm:text-base text-gray-900 break-words">{i.title}</div>
-							<div className="text-xs text-gray-600 mt-1 break-words">{i.explanation}</div>
-						</div>
-					))}
-				</div>
       </section>
 
       {optimization && (
@@ -434,25 +301,11 @@ return (
                                 />
                         )}
 
-                        {/* Modal for Habit Editing */}
-                        {selectedHabit && (
-                                <EditHabitWizardModal
-                                        isOpen={!!selectedHabit}
-                                        onClose={() => setSelectedHabit(null)}
-                                        habit={{
-                                                id: selectedHabit.id,
-                                                title: selectedHabit.title,
-                                                description: selectedHabit.description,
-                                                category: selectedHabit.category
-                                        }}
-                                        onHabitUpdated={() => {
-                                                queryClient.invalidateQueries({ queryKey: ["/api/my-focus"] });
-                                                queryClient.invalidateQueries({ queryKey: ["habits"] });
-                                                queryClient.invalidateQueries({ queryKey: ["/api/goals"] });
-                                                setSelectedHabit(null);
-                                        }}
-                                />
-                        )}
+      <HabitsSidePanel
+        open={showHabitsPanel}
+        onOpenChange={setShowHabitsPanel}
+        todaySummary={totalHabits > 0 ? { completed: completedHabits, total: totalHabits } : undefined}
+      />
     </div>
     </div>
 	);
