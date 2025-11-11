@@ -42,6 +42,7 @@ interface AuthenticatedRequest extends Request {
 }
 
 const router = Router();
+const DEFAULT_GOAL_DURATION_DAYS = 30;
 
 // Helper function to promote a suggested habit to a habit definition
 async function promoteSuggestedHabit(
@@ -2371,16 +2372,67 @@ router.post("/", async (req: Request, res: Response) => {
     if (!userId) {
       return res.status(401).json({ message: "User not authenticated" });
     }
-    const { 
-      title, 
-      description, 
-      lifeMetricId, 
-      targetValue, 
-      targetDate, 
-      habitIds,              // Existing habit definition IDs
-      suggestedHabitIds,     // Suggested habit IDs to promote
-      habitTargets           // Frequency/target settings per habit
+    const {
+      title,
+      description,
+      lifeMetricId,
+      targetValue,
+      targetDate,
+      habitIds, // Existing habit definition IDs
+      suggestedHabitIds, // Suggested habit IDs to promote
+      habitTargets, // Frequency/target settings per habit
+      lifeMetricName,
     } = req.body;
+
+    const lifeMetricsForUser = await db
+      .select()
+      .from(lifeMetricDefinitions)
+      .where(eq(lifeMetricDefinitions.userId, userId));
+
+    let resolvedLifeMetric =
+      typeof lifeMetricId === "string"
+        ? lifeMetricsForUser.find((lm) => lm.id === lifeMetricId)
+        : undefined;
+
+    if (
+      !resolvedLifeMetric &&
+      typeof lifeMetricName === "string" &&
+      lifeMetricName.trim().length > 0
+    ) {
+      const normalizedRequestedMetric = lifeMetricName.trim().toLowerCase();
+      resolvedLifeMetric = lifeMetricsForUser.find(
+        (lm) => (lm.name || "").toLowerCase() === normalizedRequestedMetric,
+      );
+    }
+
+    if (!resolvedLifeMetric) {
+      return res.status(400).json({
+        message: "A valid lifeMetricId or lifeMetricName is required to create a goal.",
+      });
+    }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    let resolvedTargetDate: Date;
+    if (targetDate) {
+      const parsed = new Date(targetDate);
+      if (Number.isNaN(parsed.getTime())) {
+        return res
+          .status(400)
+          .json({ message: "Invalid targetDate format. Use ISO 8601 strings." });
+      }
+      if (parsed.getTime() < today.getTime()) {
+        return res
+          .status(400)
+          .json({ message: "Target date must be today or in the future." });
+      }
+      resolvedTargetDate = parsed;
+    } else {
+      resolvedTargetDate = new Date(today);
+      resolvedTargetDate.setDate(resolvedTargetDate.getDate() + DEFAULT_GOAL_DURATION_DAYS);
+    }
+    resolvedTargetDate.setHours(23, 59, 59, 999);
 
     // Create goal definition
     const [goalDefinition] = await db
@@ -2389,7 +2441,7 @@ router.post("/", async (req: Request, res: Response) => {
         userId,
         title,
         description,
-        lifeMetricId,
+        lifeMetricId: resolvedLifeMetric.id,
         unit: "count",
         isActive: true,
       })
@@ -2403,9 +2455,9 @@ router.post("/", async (req: Request, res: Response) => {
         userId,
         targetValue: targetValue ? parseInt(targetValue) || 1 : 1,
         currentValue: 0,
-        targetDate: targetDate ? new Date(targetDate) : null,
+        targetDate: resolvedTargetDate,
         status: "active",
-        monthYear: new Date().toISOString().slice(0, 7),
+        monthYear: resolvedTargetDate.toISOString().slice(0, 7),
       })
       .returning();
 
@@ -2475,10 +2527,7 @@ router.post("/", async (req: Request, res: Response) => {
 
     // Snapshot all life metrics once after goal creation
     try {
-      const metrics = await db
-        .select()
-        .from(lifeMetricDefinitions)
-        .where(eq(lifeMetricDefinitions.userId, userId));
+      const metrics = lifeMetricsForUser;
       for (const m of metrics) {
         await storage.upsertTodayProgressSnapshot(userId, m.name);
       }
@@ -2534,7 +2583,15 @@ router.put("/:id", async (req: Request, res: Response) => {
       return res.status(401).json({ message: "User not authenticated" });
     }
     const goalId = req.params.id;
-    const { title, description, targetValue, targetDate, status, lifeMetricId } = req.body;
+    const {
+      title,
+      description,
+      targetValue,
+      targetDate,
+      status,
+      lifeMetricId,
+      lifeMetricName,
+    } = req.body;
 
     // First, get the goal instance to find its definition
     const goalInstance = await db
@@ -2547,28 +2604,97 @@ router.put("/:id", async (req: Request, res: Response) => {
       return res.status(404).json({ error: "Goal not found" });
     }
 
-    // Update goal definition if title/description provided
-    if (title || description || lifeMetricId) {
+    const definitionUpdates: Record<string, any> = {};
+    if (typeof title === "string") {
+      definitionUpdates.title = title;
+    }
+    if (typeof description === "string") {
+      definitionUpdates.description = description;
+    }
+
+    if (lifeMetricId !== undefined || lifeMetricName !== undefined) {
+      const lifeMetricsForUser = await db
+        .select()
+        .from(lifeMetricDefinitions)
+        .where(eq(lifeMetricDefinitions.userId, userId));
+
+      let resolvedLifeMetric =
+        typeof lifeMetricId === "string"
+          ? lifeMetricsForUser.find((lm) => lm.id === lifeMetricId)
+          : undefined;
+
+      if (
+        !resolvedLifeMetric &&
+        typeof lifeMetricName === "string" &&
+        lifeMetricName.trim().length > 0
+      ) {
+        const normalizedRequestedMetric = lifeMetricName.trim().toLowerCase();
+        resolvedLifeMetric = lifeMetricsForUser.find(
+          (lm) => (lm.name || "").toLowerCase() === normalizedRequestedMetric,
+        );
+      }
+
+      if (!resolvedLifeMetric) {
+        return res.status(400).json({
+          message: "lifeMetricId or lifeMetricName must reference an existing life metric.",
+        });
+      }
+
+      definitionUpdates.lifeMetricId = resolvedLifeMetric.id;
+    }
+
+    if (Object.keys(definitionUpdates).length > 0) {
       await db
         .update(goalDefinitions)
-        .set({
-          title: title || undefined,
-          description: description || undefined,
-          lifeMetricId: lifeMetricId || undefined,
-        })
+        .set(definitionUpdates)
         .where(eq(goalDefinitions.id, goalInstance[0].goalDefinitionId));
     }
 
     // Update goal instance
-    const [updatedGoal] = await db
-      .update(goalInstances)
-      .set({
-        targetValue: targetValue ? parseInt(targetValue) : undefined,
-        targetDate: targetDate ? new Date(targetDate) : undefined,
-        status: status || "active",
-      })
-      .where(and(eq(goalInstances.id, goalId), eq(goalInstances.userId, userId)))
-      .returning();
+    const instanceUpdates: Record<string, any> = {};
+
+    if (targetValue !== undefined) {
+      const parsedTargetValue = parseInt(targetValue, 10);
+      if (Number.isNaN(parsedTargetValue)) {
+        return res.status(400).json({ message: "targetValue must be a number." });
+      }
+      instanceUpdates.targetValue = parsedTargetValue;
+    }
+
+    if (targetDate !== undefined) {
+      if (targetDate === null) {
+        // Skip changing the date if explicitly null to preserve existing value
+      } else {
+        const parsedTargetDate = new Date(targetDate);
+        if (Number.isNaN(parsedTargetDate.getTime())) {
+          return res.status(400).json({ message: "Invalid targetDate format." });
+        }
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        if (parsedTargetDate.getTime() < today.getTime()) {
+          return res
+            .status(400)
+            .json({ message: "Target date must be today or in the future." });
+        }
+        parsedTargetDate.setHours(23, 59, 59, 999);
+        instanceUpdates.targetDate = parsedTargetDate;
+      }
+    }
+
+    if (status !== undefined) {
+      instanceUpdates.status = status;
+    }
+
+    let updatedGoal;
+    if (Object.keys(instanceUpdates).length > 0) {
+      [updatedGoal] = await db
+        .update(goalInstances)
+        .set(instanceUpdates)
+        .where(and(eq(goalInstances.id, goalId), eq(goalInstances.userId, userId)))
+        .returning();
+    } else {
+      updatedGoal = goalInstance[0];
+    }
 
     if (!updatedGoal) {
       return res.status(404).json({ error: "Goal not found" });

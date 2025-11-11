@@ -12,6 +12,9 @@ interface Props {
     description?: string; 
     category?: string;
     priority?: string;
+    lifeMetricId?: string;
+    lifeMetricName?: string;
+    targetDate?: string;
   };
   habits?: Array<{ 
     id?: string; 
@@ -183,10 +186,31 @@ export default function GoalSuggestionCard({ goal, habits = [], onAccept, onView
       }
 
       // 2) Create goal
+      const payload: Record<string, any> = {
+        title: goal.title,
+        description: goal.description || '',
+      };
+
+      const inferredLifeMetric =
+        goal.lifeMetricId ||
+        goal.lifeMetricName ||
+        goal.category ||
+        (Array.isArray(onboardingProfile?.focusLifeMetrics) && onboardingProfile.focusLifeMetrics[0]);
+
+      if (goal.lifeMetricId) {
+        payload.lifeMetricId = goal.lifeMetricId;
+      } else if (typeof inferredLifeMetric === "string" && inferredLifeMetric.length > 0) {
+        payload.lifeMetricName = inferredLifeMetric;
+      }
+
+      if (typeof goal.targetDate === "string" && goal.targetDate.trim().length > 0) {
+        payload.targetDate = goal.targetDate;
+      }
+
       const createGoalResp = await fetch(`${apiBaseUrl}/api/goals`, {
         method: 'POST',
         headers,
-        body: JSON.stringify({ title: goal.title, description: goal.description || '' })
+        body: JSON.stringify(payload)
       });
       const created = await createGoalResp.json();
       const goalInstanceId = created?.goal?.id || created?.goal?.goalInstance?.id || created?.id;
