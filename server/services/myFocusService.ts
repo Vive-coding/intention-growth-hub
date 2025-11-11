@@ -9,6 +9,7 @@ import {
   lifeMetricDefinitions,
   myFocusOptimizations,
   myFocusPrioritySnapshots,
+  userOnboardingProfiles,
 } from "../../shared/schema";
 
 export interface MyFocusData {
@@ -36,6 +37,13 @@ export interface MyFocusData {
     frequency: string;
     streak: number;
     completionRate: number;
+    currentValue?: number;
+    targetValue?: number;
+    frequencySettings?: {
+      frequency?: string;
+      perPeriodTarget?: number;
+      periodsCount?: number;
+    } | null;
     linkedGoals: Array<{
       id: string;
       title: string;
@@ -46,7 +54,6 @@ export interface MyFocusData {
     title: string;
     explanation: string;
     confidence: number;
-    lifeMetricIds: string[];
   }>;
   priorityMeta?: {
     updatedAt: string;
@@ -56,6 +63,9 @@ export interface MyFocusData {
     summary?: string;
     recommendations: Array<{ type: string; title: string; description: string; targetId?: string }>;
     createdAt: string;
+  };
+  config?: {
+    maxGoals: number;
   };
 }
 
@@ -103,6 +113,14 @@ export class MyFocusService {
     const cached = this.cache.get(userId);
     if (this.CACHE_TTL_MS > 0 && cached && now - cached.ts < this.CACHE_TTL_MS) return cached.data;
 
+    const [profileRow] = await db
+      .select({ focusGoalLimit: userOnboardingProfiles.focusGoalLimit })
+      .from(userOnboardingProfiles)
+      .where(eq(userOnboardingProfiles.userId, userId))
+      .limit(1);
+    const configuredLimit = profileRow?.focusGoalLimit ?? 3;
+    const focusGoalLimit = Math.min(Math.max(configuredLimit, 3), 5);
+
     // Prefer latest snapshot for ordering/priorities
     const snapshot = await db
       .select()
@@ -117,8 +135,10 @@ export class MyFocusService {
       priorityGoals = hydrated.goals;
       priorityMeta = { updatedAt: hydrated.updatedAt, sourceThreadId: (snapshot[0] as any).sourceThreadId || undefined };
     } else {
-      priorityGoals = await this.getPriorityGoals(userId);
+      priorityGoals = await this.getPriorityGoals(userId, focusGoalLimit);
     }
+
+    priorityGoals = (priorityGoals || []).slice(0, focusGoalLimit);
 
     // Only show habits that actually move the current priority goals forward
     const priorityGoalIds = (priorityGoals || []).map(g => g.id).filter(Boolean);
@@ -126,12 +146,20 @@ export class MyFocusService {
     const keyInsights = await this.getKeyInsights(userId);
     const pendingOptimization = await this.getPendingOptimization(userId);
 
-    const data: MyFocusData = { priorityGoals, highLeverageHabits, keyInsights, ...(priorityMeta ? { priorityMeta } : {}), ...(pendingOptimization ? { pendingOptimization } : {}) };
+    const data: MyFocusData = {
+      priorityGoals,
+      highLeverageHabits,
+      keyInsights,
+      ...(priorityMeta ? { priorityMeta } : {}),
+      ...(pendingOptimization ? { pendingOptimization } : {}),
+      config: { maxGoals: focusGoalLimit },
+    };
     if (this.CACHE_TTL_MS > 0) this.cache.set(userId, { ts: now, data });
     return data;
   }
 
-  private static async getPriorityGoals(userId: string) {
+  private static async getPriorityGoals(userId: string, limit = 3) {
+    const max = Math.max(1, limit);
     const goals = await db
       .select({
         goalDef: goalDefinitions,
@@ -150,7 +178,7 @@ export class MyFocusService {
         )
       )
       .orderBy(desc(goalInstances.createdAt))
-      .limit(4);
+      .limit(max);
 
     // Compute progress the same way as the Goals page: habit-based (avg, max 90%) + manual offset
     const results: any[] = [];
@@ -231,10 +259,7 @@ export class MyFocusService {
       .where(and(...whereConditions))
       .orderBy(desc(habitDefinitions.createdAt));
 
-    // Only apply limit if NOT filtering by priority (fallback behavior)
-    const habits = limitToPriority 
-      ? await query  // No limit - show ALL habits linked to priority goals
-      : await query.limit(10);  // Limit only when showing all habits
+    const habits = await query;
 
     // Group habits by habit definition (dedupe if same habit is linked to multiple priority goals)
     const habitMap = new Map();
@@ -246,9 +271,12 @@ export class MyFocusService {
           id: h.habitDef.id,
           title: h.habitDef.name,
           description: h.habitDef.description || undefined,
-          frequency: 'daily', // Default frequency since it's not in schema
-          streak: h.habitInst?.goalSpecificStreak || 0,
+          frequency: (h.habitInst?.frequencySettings as any)?.frequency || 'daily',
+          streak: h.habitInst?.goalSpecificStreak || h.habitDef.globalStreak || 0,
           completionRate: 0, // TODO: Calculate from completions
+          currentValue: h.habitInst?.currentValue ?? null,
+          targetValue: h.habitInst?.targetValue ?? null,
+          frequencySettings: (h.habitInst?.frequencySettings as any) ?? null,
           linkedGoals: [],
         });
       }
@@ -270,12 +298,24 @@ export class MyFocusService {
     const result = Array.from(habitMap.values());
     
     // Fallback: if filtering by priority goals produced zero habits, show all active habits instead
-    // This prevents empty "Active Habits" section
     if (limitToPriority && result.length === 0) {
       console.log('[MyFocus] No habits found for priority goals, falling back to all active habits');
       return await this.getHighLeverageHabits(userId, undefined);
     }
     
+    if (priorityGoalIds && priorityGoalIds.length > 0) {
+      const priorityIndex = new Map<string, number>();
+      priorityGoalIds.forEach((id, idx) => priorityIndex.set(id, idx));
+      result.sort((a: any, b: any) => {
+        const ranksA = (a.linkedGoals || []).map((g: any) => priorityIndex.get(g.id) ?? Number.MAX_SAFE_INTEGER);
+        const ranksB = (b.linkedGoals || []).map((g: any) => priorityIndex.get(g.id) ?? Number.MAX_SAFE_INTEGER);
+        const minA = ranksA.length > 0 ? Math.min(...ranksA) : Number.MAX_SAFE_INTEGER;
+        const minB = ranksB.length > 0 ? Math.min(...ranksB) : Number.MAX_SAFE_INTEGER;
+        if (minA !== minB) return minA - minB;
+        return String(a.title || '').localeCompare(String(b.title || ''));
+      });
+    }
+
     return result;
   }
 

@@ -4,6 +4,8 @@ import { db } from "../../db";
 import { eq, desc, and, gte, inArray } from "drizzle-orm";
 import { habitDefinitions, habitCompletions, habitInstances, goalInstances, goalDefinitions } from "../../../shared/schema";
 import { MyFocusService } from "../../services/myFocusService";
+import { logHabitCompletion } from "../../services/habitCompletionService";
+import { z } from "zod";
 
 const REVIEW_PROGRESS_AGENT_SYSTEM_PROMPT = `You are a specialized progress review agent. Your role is to:
 
@@ -50,11 +52,29 @@ Your goal is to get a sense of what they've accomplished today and provide a per
 
 export class ReviewProgressAgent {
   private model: ChatOpenAI;
+  private extractionModel: ChatOpenAI;
+  private static readonly extractionSchema = z.object({
+    completions: z
+      .array(
+        z.object({
+          habitTitle: z.string(),
+          dates: z.array(z.string()).optional(),
+          occurrences: z.number().int().nonnegative().optional(),
+          confidence: z.number().optional(),
+        })
+      )
+      .default([]),
+  });
 
   constructor() {
     this.model = new ChatOpenAI({
       model: "gpt-4o-mini",
       temperature: 0.7,
+      maxTokens: 400,
+    });
+    this.extractionModel = new ChatOpenAI({
+      model: "gpt-4o-mini",
+      temperature: 0,
       maxTokens: 400,
     });
   }
@@ -63,11 +83,24 @@ export class ReviewProgressAgent {
     const { userId, userMessage, profile, workingSet, recentMessages } = context;
 
     // Get My Focus, recent habits and completion data
-    const [myFocus, recentHabits, completionData] = await Promise.all([
+    const [myFocus, recentHabits, initialCompletionData] = await Promise.all([
       MyFocusService.getMyFocus(userId),
       this.getRecentHabits(userId),
       this.getTodayCompletions(userId)
     ]);
+    let completionData = initialCompletionData;
+
+    const { summaries: loggedSummaries, updated } = await this.logHabitProgressFromMessage(
+      userId,
+      userMessage,
+      profile,
+      myFocus,
+      recentHabits
+    );
+
+    if (updated) {
+      completionData = await this.getTodayCompletions(userId);
+    }
 
     // Format recent messages for context
     const recentMessagesText = recentMessages
@@ -88,6 +121,12 @@ export class ReviewProgressAgent {
     ]);
 
     let finalText = response.content as string;
+
+    if (loggedSummaries.length > 0) {
+      finalText = `${loggedSummaries.join('\n')}
+
+${finalText}`.trim();
+    }
 
     // Generate habit review data for card rendering (prioritize My Focus high-leverage habits)
     const habitReview = this.generateHabitReviewData(recentHabits, completionData, myFocus);
@@ -183,7 +222,7 @@ export class ReviewProgressAgent {
     });
 
     // Show up to 6 prioritized habits to better match summary like "0/6"
-    const habitReviewHabits = sorted.slice(0, 6).map(habit => {
+    const habitReviewHabits = sorted.map(habit => {
       const habitCompletions = completionMap.get(habit.id) || [];
       const completed = habitCompletions.length > 0;
       
@@ -204,5 +243,157 @@ export class ReviewProgressAgent {
       type: 'habit_review',
       habits: habitReviewHabits
     };
+  }
+
+  private async logHabitProgressFromMessage(
+    userId: string,
+    userMessage: string,
+    profile: any,
+    myFocus: any,
+    recentHabits: any[],
+  ): Promise<{ summaries: string[]; updated: boolean }> {
+    const summaries: string[] = [];
+    const timezone = profile?.timezone || "UTC";
+    const today = new Intl.DateTimeFormat("en-CA", {
+      timeZone: timezone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date());
+
+    const candidateHabits: Array<{ id: string; title: string; linkedGoals?: any[] }> = [];
+    const seenIds = new Set<string>();
+    (myFocus?.highLeverageHabits || []).forEach((habit: any) => {
+      if (!habit?.id || seenIds.has(habit.id)) return;
+      seenIds.add(habit.id);
+      candidateHabits.push({ id: habit.id, title: habit.title, linkedGoals: habit.linkedGoals });
+    });
+    (recentHabits || []).forEach((habit: any) => {
+      const id = habit?.id;
+      if (!id || seenIds.has(id)) return;
+      seenIds.add(id);
+      candidateHabits.push({ id, title: habit.name || habit.title || "Habit" });
+    });
+
+    if (candidateHabits.length === 0) {
+      return { summaries, updated: false };
+    }
+
+    const candidateList = candidateHabits.map((habit) => `- ${habit.title}`).join("\n");
+
+    let extractions: z.infer<typeof ReviewProgressAgent.extractionSchema>;
+    try {
+      const parser = this.extractionModel.withStructuredOutput(
+        ReviewProgressAgent.extractionSchema,
+        { name: "habit_completion_extraction" }
+      );
+      extractions = await parser.invoke([
+        {
+          role: "system",
+          content: `You extract structured data about habit completions mentioned in a message. 
+The current date in the user's timezone (${timezone}) is ${today}. Use the provided list of habit titles exactly when possible. 
+If the user references multiple days, list each day in yyyy-mm-dd format. If dates are not explicit, infer likely recent days (today, yesterday, etc.). 
+Return JSON with a "completions" array.`,
+        },
+        {
+          role: "system",
+          content: `Candidate habits:\n${candidateList}`,
+        },
+        { role: "user", content: userMessage },
+      ]);
+    } catch (error) {
+      console.warn("[ReviewProgressAgent] Failed to extract habit completions", error);
+      return { summaries, updated: false };
+    }
+
+    const completions = extractions?.completions || [];
+    if (completions.length === 0) {
+      return { summaries, updated: false };
+    }
+
+    const habitByTitle = new Map<string, { id: string; title: string; linkedGoals?: any[] }>();
+    candidateHabits.forEach((habit) => {
+      habitByTitle.set(habit.title.toLowerCase(), habit);
+    });
+
+    const fallbackMatcher = (title: string) => {
+      const normalized = title.toLowerCase();
+      if (habitByTitle.has(normalized)) {
+        return habitByTitle.get(normalized)!;
+      }
+      for (const habit of candidateHabits) {
+        if (habit.title.toLowerCase().includes(normalized) || normalized.includes(habit.title.toLowerCase())) {
+          return habit;
+        }
+      }
+      return undefined;
+    };
+
+    const summariesFormatter = new Intl.DateTimeFormat("en-US", {
+      timeZone: timezone,
+      month: "short",
+      day: "numeric",
+    });
+
+    let loggedAny = false;
+
+    for (const entry of completions) {
+      const habit = fallbackMatcher(entry.habitTitle);
+      if (!habit) continue;
+
+      const rawDates = Array.isArray(entry.dates) ? entry.dates : [];
+      const occurrences = entry.occurrences ?? rawDates.length;
+
+      const datesToLog: string[] = [];
+      rawDates.forEach((date) => {
+        if (typeof date === "string" && date.trim().length >= 8) {
+          datesToLog.push(date.trim());
+        }
+      });
+
+      if (datesToLog.length === 0 && occurrences > 0) {
+        for (let i = 0; i < occurrences; i++) {
+          const inferred = new Date();
+          inferred.setUTCDate(inferred.getUTCDate() - i);
+          const iso = new Intl.DateTimeFormat("en-CA", {
+            timeZone: timezone,
+            year: "numeric",
+            month: "2-digit",
+            day: "2-digit",
+          }).format(inferred);
+          datesToLog.push(iso);
+        }
+      }
+
+      const loggedDates: string[] = [];
+      for (const dateStr of datesToLog) {
+        try {
+          const completionDate = new Date(`${dateStr}T12:00:00Z`);
+          await logHabitCompletion({
+            userId,
+            habitId: habit.id,
+            goalId: habit.linkedGoals?.[0]?.id,
+            completedAt: completionDate,
+          });
+          loggedAny = true;
+          loggedDates.push(dateStr);
+        } catch (error: any) {
+          if (error?.status === 409) {
+            continue;
+          }
+          console.warn("[ReviewProgressAgent] Failed to log habit completion", error);
+        }
+      }
+
+      if (loggedDates.length > 0) {
+        const formatted = loggedDates.map((dateStr) => {
+          const when = new Date(`${dateStr}T12:00:00Z`);
+          return summariesFormatter.format(when);
+        });
+        summaries.push(`Logged ${habit.title} for ${formatted.join(", ")}.`);
+      }
+    }
+
+    return { summaries, updated: loggedAny };
   }
 }

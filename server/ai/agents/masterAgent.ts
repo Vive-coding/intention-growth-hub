@@ -40,6 +40,7 @@ Remember: Your goal is to help them achieve their current focus OR intelligently
 
 export class MasterAgent {
   private model: ChatOpenAI;
+  private static readonly MAX_FOCUS_GOALS = 3;
 
   constructor() {
     this.model = new ChatOpenAI({
@@ -77,7 +78,7 @@ export class MasterAgent {
     const finalText = response.content as string;
 
     // Determine if we should suggest a special agent
-    const suggestedAgent = this.determineSuggestedAgent(userMessage, finalText, myFocus, needsSetup);
+    const suggestedAgent = this.determineSuggestedAgent(context, finalText, myFocus, needsSetup);
 
     return {
       finalText,
@@ -85,16 +86,38 @@ export class MasterAgent {
     };
   }
 
-  private determineSuggestedAgent(userMessage: string, agentResponse: string, myFocus: any, needsSetup: boolean): AgentType | undefined {
-    const message = userMessage.toLowerCase();
-    const response = agentResponse.toLowerCase();
+  private determineSuggestedAgent(context: AgentContext, _agentResponse: string, myFocus: any, needsSetup: boolean): AgentType | undefined {
+    const message = context.userMessage.toLowerCase();
+    const recentMessages = context.recentMessages || [];
 
-    // If user needs initial setup, suggest prioritize/optimize agent
-    if (needsSetup && (message.includes('start') || message.includes('begin') || message.includes('setup'))) {
+    const hasRecentGoalCard = recentMessages
+      .slice(-4)
+      .some((msg) => msg.role === 'assistant' && typeof msg.content === 'string' && msg.content.includes('goal_suggestion'));
+
+    const focusGoalCount = Array.isArray(myFocus?.priorityGoals) ? myFocus.priorityGoals.length : 0;
+    const maxGoals = Math.min(Math.max(Number(myFocus?.config?.maxGoals ?? MasterAgent.MAX_FOCUS_GOALS), 3), 5);
+    const genericGreeting = /^(hi|hello|hey|how are you|what's up|good (morning|afternoon|evening)|thanks|thank you)[!.\s]*$/;
+
+    const desireKeywords = /(i want to|i need to|i plan to|i'm planning to|i'd like to|i hope to|i'm hoping to|i aim to|i should|i'm trying to|need to focus|goal|goals|my goal)/;
+    const timelineKeywords = /(today|tonight|tomorrow|this week|this weekend|this month|next week|next month|by |before |after |in \d+ (day|days|week|weeks|month|months)|deadline)/;
+    const intentDetected = desireKeywords.test(message);
+    const timelineDetected = timelineKeywords.test(message);
+
+    // If the user has not yet set up focus goals or habits, prompt goal creation once meaningful context exists
+    if ((needsSetup || focusGoalCount === 0) && !hasRecentGoalCard && !genericGreeting.test(message)) {
+      return 'suggest_goals';
+    }
+
+    // If the user hints at new goals/timelines and we have capacity, proactively surface goal suggestions
+    if (!hasRecentGoalCard && focusGoalCount < maxGoals && intentDetected && timelineDetected) {
+      return 'suggest_goals';
+    }
+
+    if (!hasRecentGoalCard && focusGoalCount >= maxGoals && intentDetected) {
       return 'prioritize_optimize';
     }
 
-    // Only suggest special agents for very explicit requests
+    // Explicit requests remain supported
     if (message.includes('review my progress') || message.includes('check my habits') || message.includes('how am i doing')) {
       return 'review_progress';
     }
@@ -108,8 +131,6 @@ export class MasterAgent {
       return 'surprise_me';
     }
 
-    // Don't automatically suggest agents based on response content
-    // Let users explicitly request special interactions
     return undefined;
   }
 }

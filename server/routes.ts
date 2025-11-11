@@ -8,10 +8,10 @@ import insightsRouter from "./routes/insights";
 import chatRouter from "./routes/chat";
 import goalsRouter from "./routes/goals";
 import testCardsRouter from "./routes/testCards";
-
 import myFocusRouter from "./routes/myFocus";
 import { securityMiddleware } from "./middleware/security";
 import { InsightService } from "./services/insightService";
+import { GoalFollowUpService } from "./services/goalFollowUpService";
 import { db, ensureUsersTimezoneColumn } from "./db";
 import { and, eq, gte, lt, lte, sql as dsql, inArray, desc } from "drizzle-orm";
 import {
@@ -358,6 +358,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         coachingStyle,
         focusLifeMetrics,
         coachPersonality,
+        notificationEnabled,
+        notificationFrequency,
+        preferredNotificationTime,
       } = req.body ?? {};
 
       const sanitizedGoalSettingAbility = typeof goalSettingAbility === 'string' ? goalSettingAbility : null;
@@ -369,27 +372,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ? (focusLifeMetrics as any[]).map((value) => String(value)).filter(Boolean)
         : null;
       const sanitizedCoachPersonality = typeof coachPersonality === 'string' ? coachPersonality : null;
+      const sanitizedNotificationEnabled = typeof notificationEnabled === 'boolean' ? notificationEnabled : notificationEnabled === null ? null : undefined;
+      const sanitizedNotificationFrequency = typeof notificationFrequency === 'string' ? notificationFrequency : notificationFrequency === null ? null : undefined;
+      const sanitizedPreferredNotificationTime = typeof preferredNotificationTime === 'string' ? preferredNotificationTime : preferredNotificationTime === null ? null : undefined;
+
+      const insertValues: Record<string, any> = {
+        userId,
+        goalSettingAbility: sanitizedGoalSettingAbility,
+        habitBuildingAbility: sanitizedHabitBuildingAbility,
+        coachingStyle: sanitizedCoachingStyle,
+        focusLifeMetrics: sanitizedFocusMetrics,
+        coachPersonality: sanitizedCoachPersonality,
+      };
+
+      if (sanitizedNotificationEnabled !== undefined) {
+        insertValues.notificationEnabled = sanitizedNotificationEnabled;
+      }
+      if (sanitizedNotificationFrequency !== undefined) {
+        insertValues.notificationFrequency = sanitizedNotificationFrequency;
+      }
+      if (sanitizedPreferredNotificationTime !== undefined) {
+        insertValues.preferredNotificationTime = sanitizedPreferredNotificationTime;
+      }
+
+      const updateValues: Record<string, any> = {
+        goalSettingAbility: sanitizedGoalSettingAbility,
+        habitBuildingAbility: sanitizedHabitBuildingAbility,
+        coachingStyle: sanitizedCoachingStyle,
+        focusLifeMetrics: sanitizedFocusMetrics,
+        coachPersonality: sanitizedCoachPersonality,
+        updatedAt: new Date(),
+      };
+
+      if (sanitizedNotificationEnabled !== undefined) {
+        updateValues.notificationEnabled = sanitizedNotificationEnabled;
+      }
+      if (sanitizedNotificationFrequency !== undefined) {
+        updateValues.notificationFrequency = sanitizedNotificationFrequency;
+      }
+      if (sanitizedPreferredNotificationTime !== undefined) {
+        updateValues.preferredNotificationTime = sanitizedPreferredNotificationTime;
+      }
 
       const [profile] = await db
         .insert(userOnboardingProfiles)
-        .values({
-          userId,
-          goalSettingAbility: sanitizedGoalSettingAbility,
-          habitBuildingAbility: sanitizedHabitBuildingAbility,
-          coachingStyle: sanitizedCoachingStyle,
-          focusLifeMetrics: sanitizedFocusMetrics,
-          coachPersonality: sanitizedCoachPersonality,
-        })
+        .values(insertValues)
         .onConflictDoUpdate({
           target: userOnboardingProfiles.userId,
-          set: {
-            goalSettingAbility: sanitizedGoalSettingAbility,
-            habitBuildingAbility: sanitizedHabitBuildingAbility,
-            coachingStyle: sanitizedCoachingStyle,
-            focusLifeMetrics: sanitizedFocusMetrics,
-            coachPersonality: sanitizedCoachPersonality,
-            updatedAt: new Date(),
-          },
+          set: updateValues,
         })
         .returning();
 
@@ -1077,12 +1107,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Match the UI display limit of 6 habits
       const { MyFocusService } = await import('./services/myFocusService');
       const myFocus = await MyFocusService.getMyFocus(userId);
-      const focusHabitIds = (myFocus.highLeverageHabits || []).slice(0, 6).map((h: any) => h.id).filter(Boolean);
-      
+      const focusHabitIds = (myFocus.highLeverageHabits || []).map((h: any) => h.id).filter(Boolean);
+ 
       if (focusHabitIds.length === 0) {
         return res.json({ completed: 0, total: 0 });
       }
-      
+ 
       // Count total focus habits
       const total = focusHabitIds.length;
       
@@ -1506,6 +1536,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       } catch (e) {
         console.warn('Acceptance metrics aggregation failed', e);
+      }
+    });
+
+    cron.schedule('15 * * * *', async () => {
+      try {
+        await GoalFollowUpService.runScheduledCheckIns();
+      } catch (e) {
+        console.error('[cron] goal follow-up job failed', e);
       }
     });
   } catch (e) {

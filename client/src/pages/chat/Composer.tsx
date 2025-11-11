@@ -16,6 +16,18 @@ export default function Composer({ threadId }: Props) {
   const [, navigate] = useLocation();
   const pendingAgentTypeRef = useRef<string | undefined>(undefined);
 
+  useEffect(() => {
+    (window as any).chatComposer = {
+      setDraft: (draft: string) => setText(draft ?? ""),
+      focus: () => textareaRef.current?.focus(),
+    };
+    return () => {
+      if ((window as any).chatComposer) {
+        delete (window as any).chatComposer;
+      }
+    };
+  }, []);
+
   // Auto-resize textarea based on content
   useEffect(() => {
     const textarea = textareaRef.current;

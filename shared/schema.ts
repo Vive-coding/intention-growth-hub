@@ -59,6 +59,7 @@ export const userOnboardingProfiles = pgTable("user_onboarding_profiles", {
   completedAt: timestamp("completed_at"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
+  focusGoalLimit: integer("focus_goal_limit"),
 }, (table) => ({
   userUnique: uniqueIndex("user_onboarding_profiles_user_id_idx").on(table.userId),
 }));
@@ -334,6 +335,23 @@ export const chatContextSnapshots = pgTable("chat_context_snapshots", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// Notification followups
+export const notificationFollowups = pgTable("notification_followups", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  token: varchar("token", { length: 64 }).notNull().unique(),
+  status: varchar("status", { length: 20 }).default("pending").notNull(),
+  subject: text("subject"),
+  previewText: text("preview_text"),
+  payload: jsonb("payload"),
+  ctaPath: varchar("cta_path", { length: 255 }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+  sentAt: timestamp("sent_at"),
+  usedAt: timestamp("used_at"),
+  threadId: uuid("thread_id").references(() => chatThreads.id),
+});
+
 // Relations
 export const usersRelations = relations(users, ({ one, many }) => ({
   lifeMetrics: many(lifeMetricDefinitions),
@@ -344,6 +362,7 @@ export const usersRelations = relations(users, ({ one, many }) => ({
     fields: [users.id],
     references: [userOnboardingProfiles.userId],
   }),
+  notificationFollowups: many(notificationFollowups),
 }));
 
 export const lifeMetricDefinitionsRelations = relations(lifeMetricDefinitions, ({ one }) => ({

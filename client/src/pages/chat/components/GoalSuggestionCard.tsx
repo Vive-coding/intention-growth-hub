@@ -1,8 +1,9 @@
-import { useState, useEffect } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useState, useEffect, useMemo } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Trophy, Target, Check, Zap } from "lucide-react";
+import { Trophy, Target, Check, Zap, Loader2 } from "lucide-react";
 
 interface Props {
   goal: { 
@@ -24,6 +25,31 @@ interface Props {
   onView?: () => void;
 }
 
+const NOTIFICATION_FREQUENCY_LABELS: Record<string, string> = {
+  weekday: "weekdays",
+  twice_per_week: "twice per week",
+  weekly: "weekly",
+};
+
+const NOTIFICATION_TIME_LABELS: Record<string, string> = {
+  morning: "the morning",
+  afternoon: "the afternoon",
+  evening: "the evening",
+};
+
+const NOTIFICATION_FREQUENCY_OPTIONS = [
+  { value: "weekday", label: "Weekdays", description: "Quick weekday nudges" },
+  { value: "twice_per_week", label: "Twice per week", description: "Two check-ins to stay aligned" },
+  { value: "weekly", label: "Weekly", description: "One end-of-week reflection" },
+] as const;
+
+const NOTIFICATION_TIME_OPTIONS = [
+  { value: "morning", label: "Morning", description: "8–11am" },
+  { value: "afternoon", label: "Afternoon", description: "2–5pm" },
+  { value: "evening", label: "Evening", description: "6–9pm" },
+] as const;
+
+
 export default function GoalSuggestionCard({ goal, habits = [], onAccept, onView }: Props) {
   const queryClient = useQueryClient();
   const [selected, setSelected] = useState<Record<string, boolean>>(() => {
@@ -33,7 +59,33 @@ export default function GoalSuggestionCard({ goal, habits = [], onAccept, onView
   });
   const [accepting, setAccepting] = useState(false);
   const [accepted, setAccepted] = useState(false);
+  const [acceptedThisSession, setAcceptedThisSession] = useState(false);
   const [needsPrioritization, setNeedsPrioritization] = useState(false);
+  const [shouldOfferPrioritization, setShouldOfferPrioritization] = useState(false);
+  const [autoPrioritizationRequested, setAutoPrioritizationRequested] = useState(false);
+  const [goalCountAfterAdd, setGoalCountAfterAdd] = useState<number | null>(null);
+  const { data: onboardingProfile, isLoading: onboardingProfileLoading, refetch: refetchOnboardingProfile } = useQuery({
+    queryKey: ["/api/users/onboarding-profile"],
+    queryFn: async () => {
+      try {
+        return await apiRequest("/api/users/onboarding-profile");
+      } catch (error) {
+        console.warn("[GoalSuggestionCard] Failed to fetch onboarding profile", error);
+        return null;
+      }
+    },
+    staleTime: 60_000,
+  });
+  const [showNotificationPrompt, setShowNotificationPrompt] = useState(false);
+  const [notificationOptInChoice, setNotificationOptInChoice] = useState<"question" | "opt_in">("question");
+  const [notificationFrequency, setNotificationFrequency] = useState("weekday");
+  const [notificationTime, setNotificationTime] = useState("morning");
+  const [savingNotification, setSavingNotification] = useState(false);
+  const [notificationError, setNotificationError] = useState<string | null>(null);
+  
+  const defaultLimit = typeof window !== "undefined" ? Number(localStorage.getItem('focusGoalLimit') || '3') : 3;
+  const normalizedDefaultLimit = Math.min(Math.max(defaultLimit, 3), 5);
+  const [focusGoalLimit, setFocusGoalLimit] = useState(normalizedDefaultLimit);
   
   // Persist accepted state
   useEffect(() => {
@@ -46,6 +98,63 @@ export default function GoalSuggestionCard({ goal, habits = [], onAccept, onView
       localStorage.setItem(`goal_accepted_${goal.id || goal.title}`, 'true');
     }
   }, [accepted, goal.id, goal.title]);
+
+  useEffect(() => {
+    if (!onboardingProfile) return;
+    if (typeof onboardingProfile.notificationFrequency === "string") {
+      setNotificationFrequency(onboardingProfile.notificationFrequency);
+    }
+    if (typeof onboardingProfile.preferredNotificationTime === "string") {
+      setNotificationTime(onboardingProfile.preferredNotificationTime);
+    }
+  }, [onboardingProfile?.notificationFrequency, onboardingProfile?.preferredNotificationTime]);
+
+  useEffect(() => {
+    if (!acceptedThisSession) return;
+    if (onboardingProfileLoading) return;
+    if (typeof onboardingProfile?.notificationEnabled === "boolean") {
+      setShowNotificationPrompt(false);
+      return;
+    }
+    setNotificationOptInChoice("question");
+    setNotificationError(null);
+    setShowNotificationPrompt(true);
+  }, [acceptedThisSession, onboardingProfile?.notificationEnabled, onboardingProfileLoading]);
+
+  const notificationFollowUpMessage = useMemo(() => {
+    if (!onboardingProfile?.notificationEnabled) {
+      return null;
+    }
+
+    const frequencyValue = onboardingProfile.notificationFrequency || undefined;
+    const timeValue = onboardingProfile.preferredNotificationTime || undefined;
+
+    const frequencyPhrase = frequencyValue
+      ? frequencyValue === "twice_per_week"
+        ? "twice per week"
+        : frequencyValue === "weekly"
+          ? "once a week"
+          : `on ${NOTIFICATION_FREQUENCY_LABELS[frequencyValue] ?? frequencyValue}`
+      : null;
+    const timePhrase = timeValue ? `in ${NOTIFICATION_TIME_LABELS[timeValue] ?? timeValue}` : null;
+    const cadence = [frequencyPhrase, timePhrase].filter(Boolean).join(" ");
+
+    return `Your coach will follow up via email${cadence ? ` ${cadence}` : ""}.`;
+  }, [
+    onboardingProfile?.notificationEnabled,
+    onboardingProfile?.notificationFrequency,
+    onboardingProfile?.preferredNotificationTime,
+  ]);
+
+  const sendPrioritizeRequest = (message?: string) => {
+    const text =
+      message ?? "I just added a new goal. Please help me reprioritize my focus goals.";
+    if ((window as any).composeAndSend) {
+      (window as any).composeAndSend(text, 'prioritize_optimize');
+    } else if ((window as any).sendMessage) {
+      (window as any).sendMessage(text);
+    }
+  };
 
   const toggle = (key: string) => setSelected(prev => ({ ...prev, [key]: !prev[key] }));
 
@@ -63,6 +172,15 @@ export default function GoalSuggestionCard({ goal, habits = [], onAccept, onView
       const countResp = await fetch(`${apiBaseUrl}/api/goals/count/active`, { headers });
       const countData = await countResp.json();
       const activeGoalCount = countData.count || 0;
+      let limitForDecision = focusGoalLimit;
+      if (typeof countData.focusGoalLimit === 'number') {
+        const nextLimit = Math.min(Math.max(Number(countData.focusGoalLimit), 3), 5);
+        setFocusGoalLimit(nextLimit);
+        limitForDecision = nextLimit;
+        if (typeof window !== 'undefined') {
+          window.localStorage.setItem('focusGoalLimit', String(nextLimit));
+        }
+      }
 
       // 2) Create goal
       const createGoalResp = await fetch(`${apiBaseUrl}/api/goals`, {
@@ -95,16 +213,18 @@ export default function GoalSuggestionCard({ goal, habits = [], onAccept, onView
       }
 
       setAccepted(true);
-      
-      // 4) Check if prioritization needed and trigger if so
+      setAcceptedThisSession(true);
+
       const newGoalCount = activeGoalCount + 1;
-      if (newGoalCount > 3) {
-        // Need to trigger prioritization
-        setNeedsPrioritization(true);
-        // Send message to agent to trigger prioritize_optimize
-        if ((window as any).sendMessage) {
-          (window as any).sendMessage('I just added a new goal. Please help me prioritize my focus.');
-        }
+      setGoalCountAfterAdd(newGoalCount);
+      const shouldAutoPrioritize = newGoalCount > limitForDecision;
+      setNeedsPrioritization(shouldAutoPrioritize);
+      setShouldOfferPrioritization(shouldAutoPrioritize ? false : newGoalCount >= 2);
+      if (shouldAutoPrioritize) {
+        setAutoPrioritizationRequested(true);
+        sendPrioritizeRequest("I just added a new goal. Please help me reprioritize my focus goals.");
+      } else {
+        setAutoPrioritizationRequested(false);
       }
       
       // Invalidate queries to refresh "My Focus"
@@ -121,6 +241,61 @@ export default function GoalSuggestionCard({ goal, habits = [], onAccept, onView
     }
   };
 
+  const handleSaveNotificationPreference = async () => {
+    if (savingNotification) return;
+    setSavingNotification(true);
+    setNotificationError(null);
+    try {
+      await apiRequest("/api/users/notification-preferences", {
+        method: "POST",
+        body: JSON.stringify({
+          enabled: true,
+          frequency: notificationFrequency,
+          preferredTime: notificationTime,
+        }),
+      });
+      await refetchOnboardingProfile();
+      setShowNotificationPrompt(false);
+      setNotificationOptInChoice("question");
+      setAcceptedThisSession(false);
+    } catch (error: any) {
+      setNotificationError(error?.message ?? "Failed to save notification preference.");
+    } finally {
+      setSavingNotification(false);
+    }
+  };
+
+  const handleDeclineNotification = async () => {
+    if (savingNotification) return;
+    setSavingNotification(true);
+    setNotificationError(null);
+    try {
+      await apiRequest("/api/users/notification-preferences", {
+        method: "POST",
+        body: JSON.stringify({
+          enabled: false,
+          frequency: null,
+          preferredTime: null,
+        }),
+      });
+      await refetchOnboardingProfile();
+      setShowNotificationPrompt(false);
+      setNotificationOptInChoice("question");
+      setAcceptedThisSession(false);
+    } catch (error: any) {
+      setNotificationError(error?.message ?? "Failed to update notification preference.");
+    } finally {
+      setSavingNotification(false);
+    }
+  };
+
+  const handlePrioritizeClick = () => {
+    setShouldOfferPrioritization(false);
+    setNeedsPrioritization(false);
+    setAutoPrioritizationRequested(true);
+    sendPrioritizeRequest("Let's prioritize my focus goals.");
+  };
+
   return (
     <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-2xl p-3 sm:p-4 md:p-6 shadow-lg min-w-0 overflow-hidden">
       {/* Header */}
@@ -135,7 +310,7 @@ export default function GoalSuggestionCard({ goal, habits = [], onAccept, onView
           </div>
         </div>
         {accepted && !needsPrioritization && (
-          <Badge className="bg-teal-600 text-white text-xs px-3 py-1">Added to My Focus</Badge>
+          <Badge className="bg-teal-600 text-white text-xs px-3 py-1">Goal accepted</Badge>
         )}
         {accepted && needsPrioritization && (
           <Badge className="bg-orange-600 text-white text-xs px-3 py-1">Needs Prioritization</Badge>
@@ -252,18 +427,192 @@ export default function GoalSuggestionCard({ goal, habits = [], onAccept, onView
           </>
         ) : needsPrioritization ? (
           <div className="flex-1 bg-orange-50 border border-orange-200 rounded-xl p-3 text-sm text-orange-800">
-            You have 4+ active goals. Reprioritization is being triggered. This goal is not yet in "My Focus".
+            You now have more than {focusGoalLimit} active focus goals.{" "}
+            {autoPrioritizationRequested
+              ? "I asked your coach to reprioritize them so you can stay focused."
+              : "Let’s prioritize to decide which ones stay in \"My Focus\"."}
           </div>
         ) : (
-          <Button 
-            variant="outline"
-            className="flex-1 px-6 py-3 rounded-xl border-teal-300 text-teal-700"
-            onClick={() => (window.location.href = '/focus')}
-          >
-            View My Focus
-          </Button>
+          <div className="flex-1 bg-teal-50 border border-teal-200 rounded-xl p-3 text-sm text-teal-800">
+            Goal added to My Focus. I’ll keep this thread open so we can plan next steps whenever you’re ready.
+          </div>
         )}
       </div>
+
+      {accepted && notificationFollowUpMessage && (
+        <div className="mt-4 rounded-xl border border-emerald-100 bg-white/80 p-4 text-sm text-emerald-800 shadow-sm">
+          {notificationFollowUpMessage}
+        </div>
+      )}
+
+      {accepted && shouldOfferPrioritization && (
+        <div className="mt-3 rounded-2xl border border-blue-200 bg-blue-50 p-4 shadow-sm">
+          <div className="text-sm font-semibold text-blue-900">
+            {goalCountAfterAdd && goalCountAfterAdd > 1
+              ? `You now have ${goalCountAfterAdd} active focus goals${focusGoalLimit ? ` (limit ${focusGoalLimit})` : ''}. Want help prioritizing them?`
+              : "Want help prioritizing your focus goals?"}
+          </div>
+          <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+            <Button
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+              onClick={handlePrioritizeClick}
+            >
+              Yes, prioritize my focus
+            </Button>
+            <Button
+              variant="ghost"
+              className="text-blue-700"
+              onClick={() => setShouldOfferPrioritization(false)}
+            >
+              Maybe later
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {accepted && !showNotificationPrompt && !notificationFollowUpMessage && !onboardingProfileLoading && (
+        <div className="mt-4 text-xs text-emerald-700">
+          Want gentle reminders later? You can enable email check-ins anytime from settings.
+        </div>
+      )}
+
+      {accepted && !showNotificationPrompt && onboardingProfile?.notificationEnabled !== true && !onboardingProfileLoading && (
+        <div className="mt-3">
+          <Button
+            variant="ghost"
+            className="px-0 text-sm text-emerald-700 hover:text-emerald-800"
+            onClick={() => {
+              setNotificationOptInChoice("question");
+              setNotificationError(null);
+              setShowNotificationPrompt(true);
+            }}
+          >
+            Enable email check-ins
+          </Button>
+        </div>
+      )}
+
+      {accepted && showNotificationPrompt && (
+        <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4 shadow-inner">
+          {notificationOptInChoice === "question" ? (
+            <div className="space-y-3">
+              <div className="text-sm font-semibold text-emerald-900">
+                Stay accountable with gentle email check-ins?
+              </div>
+              <p className="text-sm text-emerald-800">
+                Your coach can nudge you by email when it’s time to review progress on your focus goals.
+              </p>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Button
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                  onClick={() => {
+                    setNotificationOptInChoice("opt_in");
+                  }}
+                >
+                  Yes, enable check-ins
+                </Button>
+                <Button
+                  variant="outline"
+                  className="border-emerald-400 text-emerald-700"
+                  onClick={handleDeclineNotification}
+                  disabled={savingNotification}
+                >
+                  {savingNotification ? (
+                    <span className="flex items-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Saving...
+                    </span>
+                  ) : (
+                    "Not now"
+                  )}
+                </Button>
+              </div>
+              <p className="text-xs text-emerald-700">
+                You can adjust or disable these anytime from Settings → Notifications.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Best time of day</p>
+                <div className="mt-2 grid gap-2 sm:grid-cols-3">
+                  {NOTIFICATION_TIME_OPTIONS.map((option) => {
+                    const isSelected = notificationTime === option.value;
+                    return (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() => setNotificationTime(option.value)}
+                        className={`rounded-2xl border px-3 py-3 text-left transition ${
+                          isSelected
+                            ? "border-emerald-500 bg-white shadow"
+                            : "border-emerald-200 bg-white/70 hover:bg-white"
+                        }`}
+                      >
+                        <div className="text-sm font-semibold text-emerald-900">{option.label}</div>
+                        <div className="text-xs text-emerald-700">{option.description}</div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Follow-up cadence</p>
+                <div className="mt-2 grid gap-2 sm:grid-cols-3">
+                  {NOTIFICATION_FREQUENCY_OPTIONS.map((option) => {
+                    const isSelected = notificationFrequency === option.value;
+                    return (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() => setNotificationFrequency(option.value)}
+                        className={`rounded-2xl border px-3 py-3 text-left transition ${
+                          isSelected
+                            ? "border-emerald-500 bg-white shadow"
+                            : "border-emerald-200 bg-white/70 hover:bg-white"
+                        }`}
+                      >
+                        <div className="text-sm font-semibold text-emerald-900">{option.label}</div>
+                        <div className="text-xs text-emerald-700">{option.description}</div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              {notificationError && (
+                <p className="text-xs text-rose-600">{notificationError}</p>
+              )}
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Button
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                  onClick={handleSaveNotificationPreference}
+                  disabled={savingNotification}
+                >
+                  {savingNotification ? (
+                    <span className="flex items-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Saving...
+                    </span>
+                  ) : (
+                    "Save email follow-ups"
+                  )}
+                </Button>
+                <Button
+                  variant="outline"
+                  className="border-emerald-300 text-emerald-700"
+                  onClick={() => {
+                    setNotificationOptInChoice("question");
+                    setNotificationError(null);
+                  }}
+                  disabled={savingNotification}
+                >
+                  Back
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

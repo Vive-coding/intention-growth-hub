@@ -8,6 +8,7 @@ import {
   habitInstances,
   myFocusOptimizations,
   myFocusPrioritySnapshots,
+  userOnboardingProfiles,
 } from "../../shared/schema";
 
 const router = Router();
@@ -28,6 +29,41 @@ router.get("/", async (req: any, res) => {
   } catch (e) {
     console.error("[my-focus] failed", e);
     res.status(500).json({ message: "Failed to get My Focus data" });
+  }
+});
+
+router.post("/config", async (req: any, res) => {
+  try {
+    const userId = req.user?.id || req.user?.claims?.sub;
+    if (!userId) return res.status(401).json({ message: "Unauthorized" });
+
+    const { maxGoals } = req.body || {};
+    const parsed = Number(maxGoals);
+    if (![3, 4, 5].includes(parsed)) {
+      return res.status(400).json({ message: "maxGoals must be 3, 4, or 5" });
+    }
+
+    const now = new Date();
+    const [profile] = await db
+      .insert(userOnboardingProfiles)
+      .values({
+        userId,
+        focusGoalLimit: parsed,
+        updatedAt: now,
+      } as any)
+      .onConflictDoUpdate({
+        target: userOnboardingProfiles.userId,
+        set: {
+          focusGoalLimit: parsed,
+          updatedAt: now,
+        },
+      })
+      .returning({ focusGoalLimit: userOnboardingProfiles.focusGoalLimit });
+
+    res.json({ maxGoals: profile?.focusGoalLimit ?? parsed });
+  } catch (e) {
+    console.error("[my-focus] update config failed", e);
+    res.status(500).json({ message: "Failed to update focus configuration" });
   }
 });
 

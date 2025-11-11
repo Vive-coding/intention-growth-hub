@@ -206,7 +206,6 @@ export default function ConversationStream({ threadId }: Props) {
                         <GoalSuggestionCard
                           goal={payload.goal}
                           habits={payload.habits}
-                          onAccept={() => (window.location.href = '/goals')}
                           onView={() => (window.location.href = '/goals')}
                         />
                       );
@@ -219,7 +218,6 @@ export default function ConversationStream({ threadId }: Props) {
                               key={idx}
                               goal={item.goal}
                               habits={item.habits}
-                              onAccept={() => (window.location.href = '/goals')}
                               onView={() => (window.location.href = '/goals')}
                             />
                           ))}

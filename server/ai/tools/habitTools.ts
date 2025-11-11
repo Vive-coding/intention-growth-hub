@@ -51,9 +51,8 @@ export const reviewDailyHabitsTool = new DynamicStructuredTool({
       const dateStr = targetDate.toISOString().split('T')[0];
 
       // Limit to My Focus high-leverage habits only (priority)
-      // Match the UI display limit of 6 habits
       const myFocus = await MyFocusService.getMyFocus(userId);
-      const focusHabitIds = (myFocus.highLeverageHabits || []).slice(0, 6).map((h: any) => h.id).filter(Boolean);
+      const focusHabitIds = (myFocus.highLeverageHabits || []).map((h: any) => h.id).filter(Boolean);
 
       let habits;
       if (focusHabitIds.length > 0) {

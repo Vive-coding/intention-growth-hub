@@ -35,6 +35,7 @@ export default function ChatHome() {
   const [welcomePoll, setWelcomePoll] = useState(0);
   const hasShownNotificationModal = useRef(false);
   const [showNotificationSetup, setShowNotificationSetup] = useState(false);
+  const followupHandledRef = useRef(false);
   const { user, isLoading, isAuthenticated } = useAuth();
 
   const handleReturnToOnboarding = () => {
@@ -275,6 +276,50 @@ export default function ChatHome() {
       }
     };
   }, [threadId, navigate, welcomePoll]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (followupHandledRef.current) return;
+    if (isLoading || !isAuthenticated) return;
+
+    const params = new URLSearchParams(window.location.search);
+    const followupToken = params.get("followup");
+    if (!followupToken) return;
+
+    followupHandledRef.current = true;
+
+    const redeem = async () => {
+      try {
+        const result = await apiRequest("/api/chat/followups/redeem", {
+          method: "POST",
+          body: JSON.stringify({ token: followupToken }),
+        });
+
+        if (result?.prefill) {
+          (window as any).chatComposer?.setDraft?.(result.prefill);
+          (window as any).chatComposer?.focus?.();
+        }
+
+        if (result?.threadId) {
+          await queryClient.invalidateQueries({ queryKey: ["/api/chat/threads"] });
+          navigate(`/${result.threadId}`, { replace: true });
+        }
+      } catch (error) {
+        console.error("[ChatHome] Follow-up redemption failed", error);
+        if (typeof window !== "undefined" && typeof window.alert === "function") {
+          window.alert("We couldn't open that coach check-in link. It may have expired.");
+        }
+      } finally {
+        params.delete("followup");
+        const next = params.toString();
+        const basePath = window.location.pathname.split("?")[0];
+        const nextUrl = next ? `${basePath}?${next}` : basePath;
+        window.history.replaceState({}, "", nextUrl);
+      }
+    };
+
+    redeem();
+  }, [isLoading, isAuthenticated, navigate, queryClient]);
 
   if (isLoading) {
     return (

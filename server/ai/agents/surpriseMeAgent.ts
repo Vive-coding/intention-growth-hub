@@ -3,6 +3,7 @@ import { AgentContext, AgentResponse, InsightData } from "./types";
 import { db } from "../../db";
 import { eq, desc } from "drizzle-orm";
 import { insights, lifeMetricDefinitions } from "../../../shared/schema";
+import { z } from "zod";
 
 const SURPRISE_ME_AGENT_SYSTEM_PROMPT = `You are a specialized insight discovery agent. Your role is to:
 
@@ -37,14 +38,33 @@ IMPORTANT OUTPUT RULES:
 
 Your goal is to provide insights that create genuine surprise and self-discovery. Focus on patterns they might not have noticed about themselves.`;
 
+const SURPRISE_RESPONSE_SCHEMA = z.object({
+  message: z.string().describe("The conversational response delivered to the user."),
+  startNewThread: z.boolean().default(false).describe("Whether this insight would be better delivered in a separate thread."),
+  insight: z.object({
+    title: z.string().describe("Short headline summarizing the novel insight."),
+    explanation: z.string().describe("Concise explanation of the pattern or trait discovered."),
+    confidence: z.number().min(0).max(100).describe("Confidence (0-100)."),
+    noveltyReason: z.string().describe("Why this insight is non-obvious or surprising."),
+    actionableNextStep: z.string().optional().describe("Optional suggestion for how the user can leverage the insight."),
+    lifeMetricNames: z.array(z.string()).default([]).describe("Life metrics that relate to this insight."),
+  }),
+});
+
 export class SurpriseMeAgent {
   private model: ChatOpenAI;
+  private structuredModel: ChatOpenAI;
 
   constructor() {
     this.model = new ChatOpenAI({
       model: "gpt-4o-mini",
       temperature: 0.8, // Higher temperature for more creative insights
       maxTokens: 400,
+    });
+    this.structuredModel = new ChatOpenAI({
+      model: "gpt-4o-mini",
+      temperature: 0.3,
+      maxTokens: 600,
     });
   }
 
@@ -71,25 +91,69 @@ export class SurpriseMeAgent {
       .replace('{recentMessages}', recentMessagesText)
       .replace('{lifeMetrics}', JSON.stringify(lifeMetrics, null, 2));
 
-    const response = await this.model.invoke([
-      { role: 'system', content: prompt },
-      { role: 'user', content: userMessage }
-    ]);
+    const parser = this.structuredModel.withStructuredOutput(SURPRISE_RESPONSE_SCHEMA, {
+      name: "surprise_me_response",
+    });
 
-    const finalText = response.content as string;
+    let structured: z.infer<typeof SURPRISE_RESPONSE_SCHEMA>;
+    let noveltyCheck = { isGeneric: false, reasons: [] as string[], score: 1 };
+    let retryInstruction = "";
 
-    // Extract insights from the response for tracking
-    const insightData = this.extractInsights(finalText, userMessage);
+    for (let attempt = 0; attempt < 2; attempt++) {
+      structured = await parser.invoke([
+        {
+          role: 'system',
+          content: `${prompt}\n\nProduce a JSON response following the provided schema. Avoid repeating any existing insights. Focus on traits that are genuinely surprising.${retryInstruction}`,
+        },
+        { role: 'user', content: userMessage },
+      ]);
 
-    // If we have insight data, append it to the response for persistence
-    let finalResponse = finalText;
-    if (insightData) {
-      finalResponse += `\n\n---json---\n${JSON.stringify(insightData)}`;
+      const candidateExplanation = [structured.insight.explanation, structured.insight.noveltyReason]
+        .filter(Boolean)
+        .join("\n\n");
+      noveltyCheck = this.assessNovelty(structured.insight.title, candidateExplanation);
+      console.log('[SurpriseMeAgent] Novelty check', {
+        attempt: attempt + 1,
+        score: noveltyCheck.score,
+        generic: noveltyCheck.isGeneric,
+        reasons: noveltyCheck.reasons,
+      });
+
+      if (!noveltyCheck.isGeneric) {
+        break;
+      }
+      retryInstruction = `\n\nThe previous insight felt generic because: ${noveltyCheck.reasons.join(", ")}. Provide a more unexpected observation tied to specific evidence from the context.`;
     }
 
+    const mappedLifeMetricIds = this.mapLifeMetricNames(structured.insight.lifeMetricNames, lifeMetrics);
+    const explanationParts = [structured.insight.explanation.trim()];
+    if (structured.insight.noveltyReason) {
+      explanationParts.push(`Why this is unique: ${structured.insight.noveltyReason.trim()}`);
+    }
+    if (structured.insight.actionableNextStep) {
+      explanationParts.push(`Next step: ${structured.insight.actionableNextStep.trim()}`);
+    }
+
+    const insightData: InsightData = {
+      type: 'insight',
+      title: structured.insight.title.trim(),
+      explanation: explanationParts.join('\n\n'),
+      confidence: Math.min(100, Math.max(0, Math.round(structured.insight.confidence))),
+      lifeMetricIds: mappedLifeMetricIds,
+    };
+
+    const finalText = structured.message.trim();
+    const responsePayload = `${finalText}\n\n---json---\n${JSON.stringify(insightData)}`;
+
     return {
-      finalText: finalResponse,
-      structuredData: insightData,
+      finalText: responsePayload,
+      structuredData: {
+        ...insightData,
+        startNewThread: structured.startNewThread ?? false,
+        noveltyScore: noveltyCheck.score,
+        noveltyWarnings: noveltyCheck.reasons,
+      },
+      cta: structured.startNewThread ? 'Start new insight thread' : undefined,
     };
   }
 
@@ -113,55 +177,51 @@ export class SurpriseMeAgent {
     return metrics;
   }
 
-  private extractInsights(response: string, userMessage: string): InsightData | undefined {
-    // Look for insight patterns in the response
-    const message = userMessage.toLowerCase();
-    
-    // If user is asking for insights or the response contains insight-like content
-    if (message.includes('surprise') || message.includes('insight') || 
-        message.includes('pattern') || message.includes('unexpected') ||
-        response.toLowerCase().includes('interesting') ||
-        response.toLowerCase().includes('pattern') ||
-        response.toLowerCase().includes('notice')) {
-      
-      // Generate a contextual insight based on conversation
-      return this.generateContextualInsight(userMessage, response);
+  private mapLifeMetricNames(names: string[] | undefined, metrics: any[]): string[] {
+    if (!Array.isArray(names) || names.length === 0) return [];
+    const normalized = names.map((name) => name.toLowerCase().trim()).filter(Boolean);
+    if (normalized.length === 0) return [];
+    const matches: string[] = [];
+    for (const metric of metrics) {
+      const metricName = String(metric.name || '').toLowerCase();
+      if (normalized.includes(metricName)) {
+        matches.push(metric.id);
+      }
     }
-
-    return undefined;
+    return matches;
   }
 
-  private generateContextualInsight(userMessage: string, response: string): InsightData {
-    // Generate contextual insights based on conversation patterns
-    // This is a simplified version - in production, this would be more sophisticated
-    
-    const insights = [
-      {
-        title: "You're a natural connector",
-        explanation: "I notice you consistently bring up relationships and collaboration in our conversations. You seem to naturally think about how things connect and how people work together, which is a valuable skill that might be underutilized in your current goals.",
-        confidence: 85,
-        lifeMetricIds: ["e6edc742-9901-41f6-b5ce-853937976562"] // Relationships
-      },
-      {
-        title: "You optimize for learning over comfort",
-        explanation: "Your questions and goals consistently show a pattern of choosing growth over comfort. You're naturally drawn to challenges that will teach you something new, even when they're difficult.",
-        confidence: 90,
-        lifeMetricIds: ["46b4b639-6e25-409d-8cd0-7905fc71bbbe"] // Personal Development
-      },
-      {
-        title: "You think in systems",
-        explanation: "When you describe problems or goals, you naturally think about how different parts connect and influence each other. This systems thinking is a powerful skill that could be leveraged more intentionally.",
-        confidence: 80,
-        lifeMetricIds: ["cbae9b81-9841-4e33-8ca5-3abf41e75104"] // Career Growth
-      }
+  private assessNovelty(title: string, explanation: string) {
+    const text = `${title} ${explanation}`.toLowerCase();
+    const genericIndicators = [
+      { phrase: 'work-life balance', reason: 'mentions work-life balance' },
+      { phrase: 'stay positive', reason: 'contains generic encouragement' },
+      { phrase: 'keep up the good work', reason: 'encourages without new information' },
+      { phrase: 'consistency is key', reason: 'states obvious habit advice' },
+      { phrase: 'focus on your goals', reason: 'generic goal reminder' },
+      { phrase: 'take care of yourself', reason: 'generic self-care message' },
     ];
 
-    // Return a random insight for now - in production, this would be more sophisticated
-    const randomInsight = insights[Math.floor(Math.random() * insights.length)];
-    
-    return {
-      type: 'insight',
-      ...randomInsight
-    };
+    const reasons: string[] = [];
+    for (const indicator of genericIndicators) {
+      if (text.includes(indicator.phrase)) {
+        reasons.push(indicator.reason);
+      }
+    }
+
+    if (title.trim().length < 8) {
+      reasons.push('insight title too short');
+    }
+    const wordCount = explanation.trim().split(/\s+/).length;
+    if (wordCount < 30) {
+      reasons.push('explanation lacks depth');
+    }
+    if (!/[0-9]/.test(explanation) && !/(project|habit|pattern|conversation|journal|thread)/i.test(explanation)) {
+      reasons.push('missing references to specific behavior');
+    }
+
+    const isGeneric = reasons.length > 0;
+    const score = Math.max(0, 1 - reasons.length * 0.25);
+    return { isGeneric, reasons, score: Number(score.toFixed(2)) };
   }
 }

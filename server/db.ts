@@ -148,3 +148,45 @@ export async function ensureChatTables(): Promise<void> {
     console.warn('ensureChatTables: failed to create chat_context_snapshots', e);
   }
 }
+
+export async function ensureNotificationTables(): Promise<void> {
+  try { await client`CREATE EXTENSION IF NOT EXISTS "pgcrypto"`; } catch {}
+  try {
+    await client`
+      CREATE TABLE IF NOT EXISTS "notification_followups" (
+        "id" uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+        "user_id" varchar NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
+        "token" varchar(64) NOT NULL UNIQUE,
+        "status" varchar(20) DEFAULT 'pending' NOT NULL,
+        "subject" text,
+        "preview_text" text,
+        "payload" jsonb,
+        "cta_path" varchar(255),
+        "created_at" timestamp DEFAULT now() NOT NULL,
+        "expires_at" timestamp NOT NULL,
+        "sent_at" timestamp,
+        "used_at" timestamp,
+        "thread_id" uuid REFERENCES "chat_threads"("id")
+      )
+    `;
+  } catch (e) {
+    console.warn('ensureNotificationTables: failed to create notification_followups', e);
+  }
+  try {
+    await client`CREATE INDEX IF NOT EXISTS notification_followups_user_status_idx ON "notification_followups" ("user_id", "status")`;
+  } catch (e) {
+    console.warn('ensureNotificationTables: failed to create user_status index', e);
+  }
+}
+
+export async function ensureOnboardingProfileColumns(): Promise<void> {
+  try { await client`CREATE EXTENSION IF NOT EXISTS "pgcrypto"`; } catch {}
+  try {
+    await client`
+      ALTER TABLE "user_onboarding_profiles"
+      ADD COLUMN IF NOT EXISTS "focus_goal_limit" integer
+    `;
+  } catch (e) {
+    console.warn('ensureOnboardingProfileColumns: failed to add focus_goal_limit', e);
+  }
+}

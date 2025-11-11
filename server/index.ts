@@ -18,7 +18,7 @@ console.log('Loaded environment variables:', {
 
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
-import { ensureUsersTimezoneColumn, ensureFeedbackTables, ensureChatTables } from "./db";
+import { ensureUsersTimezoneColumn, ensureFeedbackTables, ensureChatTables, ensureNotificationTables, ensureOnboardingProfileColumns } from "./db";
 import { setupVite, serveStatic, log } from "./vite";
 
 const app = express();
@@ -92,6 +92,8 @@ app.use((req, res, next) => {
   await ensureUsersTimezoneColumn();
   await ensureFeedbackTables();
   try { await ensureChatTables(); } catch (e) { console.warn('ensureChatTables failed', e); }
+  try { await ensureNotificationTables(); } catch (e) { console.warn('ensureNotificationTables failed', e); }
+  try { await ensureOnboardingProfileColumns(); } catch (e) { console.warn('ensureOnboardingProfileColumns failed', e); }
   const server = await registerRoutes(app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {

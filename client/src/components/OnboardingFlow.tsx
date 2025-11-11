@@ -20,6 +20,9 @@ type StepKey =
   | "coaching_style"
   | "coach_personality"
   | "life_metrics"
+  | "notification_opt_in"
+  | "notification_time"
+  | "notification_frequency"
   | "start_conversation";
 
 interface ChoiceOption {
@@ -185,6 +188,81 @@ const onboardingSteps: OnboardingStep[] = [
     ],
   },
   {
+    key: "notification_opt_in",
+    type: "choice",
+    title: "Would you like gentle email check-ins?",
+    question: "Should your coach send a quick email when it’s time to review progress?",
+    helperText: "Opt in to stay accountable—your coach can always adjust the cadence later.",
+    options: [
+      {
+        value: "opt_in",
+        label: "Yes, keep me accountable",
+        description: "Send friendly reminders so I stay on top of my goals.",
+        icon: "📬",
+      },
+      {
+        value: "opt_out",
+        label: "Not right now",
+        description: "I’ll come back when I’m ready for email nudges.",
+        icon: "🔕",
+      },
+    ],
+  },
+  {
+    key: "notification_time",
+    type: "choice",
+    title: "When should check-ins arrive?",
+    question: "Pick the time of day that works best for quick reflections.",
+    helperText: "We’ll do our best to land in your inbox when you can actually respond.",
+    options: [
+      {
+        value: "morning",
+        label: "Morning",
+        description: "8–11am • Start the day with a quick alignment",
+        icon: "🌅",
+      },
+      {
+        value: "afternoon",
+        label: "Afternoon",
+        description: "2–5pm • Midday reset to keep momentum",
+        icon: "🌤",
+      },
+      {
+        value: "evening",
+        label: "Evening",
+        description: "6–9pm • Wind down and reflect before tomorrow",
+        icon: "🌙",
+      },
+    ],
+  },
+  {
+    key: "notification_frequency",
+    type: "choice",
+    title: "How often should we check in?",
+    question: "Choose the cadence that feels supportive, not spammy.",
+    helperText: "You can update this anytime from your profile settings.",
+    options: [
+      {
+        value: "weekday",
+        label: "Weekdays",
+        description: "Monday–Friday nudges to keep momentum all week",
+        icon: "📅",
+      },
+      {
+        value: "twice_per_week",
+        label: "Twice per week",
+        description: "Two focused touchpoints to track progress",
+        icon: "⏱",
+      },
+      {
+        value: "weekly",
+        label: "Weekly",
+        description: "One thoughtful recap at the end of the week",
+        icon: "🪴",
+      },
+    ],
+  },
+  {
     key: "start_conversation",
     type: "action",
     title: "You’re ready for your first conversation",
@@ -203,9 +281,41 @@ export const OnboardingFlow = ({ onComplete }: OnboardingFlowProps) => {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [prefillApplied, setPrefillApplied] = useState(false);
 
-  const totalSteps = onboardingSteps.length;
+  const shouldSkipStep = useCallback(
+    (stepKey: StepKey) => {
+      if (stepKey === "notification_time" || stepKey === "notification_frequency") {
+        return responses.notification_opt_in !== "opt_in";
+      }
+      return false;
+    },
+    [responses.notification_opt_in],
+  );
+
+  const findNextStepIndex = useCallback(
+    (startIndex: number, direction: 1 | -1) => {
+      let nextIndex = startIndex;
+      while (true) {
+        nextIndex += direction;
+        if (nextIndex < 0 || nextIndex >= onboardingSteps.length) {
+          return Math.min(Math.max(nextIndex, 0), onboardingSteps.length - 1);
+        }
+        const candidate = onboardingSteps[nextIndex];
+        if (!candidate || !shouldSkipStep(candidate.key)) {
+          return nextIndex;
+        }
+      }
+    },
+    [shouldSkipStep],
+  );
+
   const currentStep = onboardingSteps[currentStepIndex];
-  const isLastStep = currentStepIndex === totalSteps - 1;
+  const visibleSteps = useMemo(
+    () => onboardingSteps.filter((step) => !shouldSkipStep(step.key)),
+    [shouldSkipStep],
+  );
+  const displayStepIndex = Math.max(visibleSteps.findIndex((step) => step.key === currentStep.key), 0);
+  const displayTotalSteps = visibleSteps.length;
+  const isLastStep = displayStepIndex === displayTotalSteps - 1;
 
   const { data: existingProfile } = useQuery({
     queryKey: ["/api/users/onboarding-profile"],
@@ -219,6 +329,19 @@ export const OnboardingFlow = ({ onComplete }: OnboardingFlowProps) => {
     },
     staleTime: 60_000,
   });
+
+  useEffect(() => {
+    if (!shouldSkipStep(currentStep.key)) {
+      return;
+    }
+    setCurrentStepIndex((prev) => {
+      const forward = findNextStepIndex(prev, 1);
+      if (forward !== prev) {
+        return forward;
+      }
+      return findNextStepIndex(prev, -1);
+    });
+  }, [currentStep.key, findNextStepIndex, shouldSkipStep]);
 
   useEffect(() => {
     if (!existingProfile || prefillApplied) return;
@@ -238,6 +361,15 @@ export const OnboardingFlow = ({ onComplete }: OnboardingFlowProps) => {
     }
     if (Array.isArray(existingProfile.focusLifeMetrics) && existingProfile.focusLifeMetrics.length > 0) {
       nextResponses.life_metrics = existingProfile.focusLifeMetrics;
+    }
+    if (typeof existingProfile.notificationEnabled === "boolean") {
+      nextResponses.notification_opt_in = existingProfile.notificationEnabled ? "opt_in" : "opt_out";
+    }
+    if (existingProfile.preferredNotificationTime) {
+      nextResponses.notification_time = existingProfile.preferredNotificationTime;
+    }
+    if (existingProfile.notificationFrequency) {
+      nextResponses.notification_frequency = existingProfile.notificationFrequency;
     }
 
     setResponses((prev) => ({ ...prev, ...nextResponses }));
@@ -294,6 +426,16 @@ export const OnboardingFlow = ({ onComplete }: OnboardingFlowProps) => {
     const coachPersonality = typeof responses.coach_personality === "string"
       ? getSingleLabel("coach_personality", responses.coach_personality)
       : undefined;
+    const notificationOptIn = responses.notification_opt_in === "opt_in";
+    const notificationTime = typeof responses.notification_time === "string"
+      ? getSingleLabel("notification_time", responses.notification_time as string)
+      : undefined;
+    const notificationFrequency = typeof responses.notification_frequency === "string"
+      ? getSingleLabel("notification_frequency", responses.notification_frequency as string)
+      : undefined;
+    const notificationSummaryValue = notificationOptIn
+      ? [notificationFrequency, notificationTime].filter(Boolean).join(" • ")
+      : undefined;
 
     return [
       { title: "Goal-setting experience", value: goalSetting },
@@ -301,6 +443,7 @@ export const OnboardingFlow = ({ onComplete }: OnboardingFlowProps) => {
       { title: "Preferred coaching style", value: coaching?.join(", ") },
       { title: "Coach personality", value: coachPersonality },
       { title: "Focus areas", value: focusAreas?.join(", ") },
+      { title: "Email check-ins", value: notificationSummaryValue },
     ].filter((item) => Boolean(item.value));
   }, [
     getMultiLabels,
@@ -310,6 +453,60 @@ export const OnboardingFlow = ({ onComplete }: OnboardingFlowProps) => {
     responses.coaching_style,
     responses.coach_personality,
     responses.life_metrics,
+    responses.notification_frequency,
+    responses.notification_opt_in,
+    responses.notification_time,
+  ]);
+
+  const notificationSummaryMessage = useMemo(() => {
+    const resolveLabel = (key: StepKey, value: string | undefined) => {
+      if (!value) return undefined;
+      return getSingleLabel(key, value);
+    };
+
+    if (responses.notification_opt_in === "opt_in") {
+      const frequencyLabel = resolveLabel(
+        "notification_frequency",
+        typeof responses.notification_frequency === "string" ? responses.notification_frequency : undefined,
+      );
+      const timeLabel = resolveLabel(
+        "notification_time",
+        typeof responses.notification_time === "string" ? responses.notification_time : undefined,
+      );
+      const pieces = [
+        frequencyLabel ? frequencyLabel.toLowerCase() : undefined,
+        timeLabel ? `in the ${timeLabel.toLowerCase()}` : undefined,
+      ].filter(Boolean);
+      const cadence = pieces.length > 0 ? ` ${pieces.join(" ")}` : "";
+      return `We’ll email quick check-ins${cadence} so your coach can follow up when it matters.`;
+    }
+
+    if (existingProfile?.notificationEnabled) {
+      const frequencyLabel = resolveLabel(
+        "notification_frequency",
+        existingProfile.notificationFrequency || undefined,
+      );
+      const timeLabel = resolveLabel(
+        "notification_time",
+        existingProfile.preferredNotificationTime || undefined,
+      );
+      const pieces = [
+        frequencyLabel ? frequencyLabel.toLowerCase() : undefined,
+        timeLabel ? `in the ${timeLabel.toLowerCase()}` : undefined,
+      ].filter(Boolean);
+      const cadence = pieces.length > 0 ? ` ${pieces.join(" ")}` : "";
+      return `Your coach will continue emailing gentle check-ins${cadence}.`;
+    }
+
+    return null;
+  }, [
+    existingProfile?.notificationEnabled,
+    existingProfile?.notificationFrequency,
+    existingProfile?.preferredNotificationTime,
+    getSingleLabel,
+    responses.notification_frequency,
+    responses.notification_opt_in,
+    responses.notification_time,
   ]);
 
   const startWelcomeConversation = useCallback(async () => {
@@ -341,6 +538,9 @@ export const OnboardingFlow = ({ onComplete }: OnboardingFlowProps) => {
       coachingStyle: string[];
       coachPersonality: string | null;
       focusLifeMetrics: string[];
+      notificationEnabled: boolean | null;
+      notificationFrequency: string | null;
+      preferredNotificationTime: string | null;
     }) => {
       return apiRequest("/api/users/onboarding-profile", {
         method: "POST",
@@ -392,13 +592,13 @@ export const OnboardingFlow = ({ onComplete }: OnboardingFlowProps) => {
     if (!validateStep(currentStep)) {
       return;
     }
-    setCurrentStepIndex((prev) => Math.min(prev + 1, totalSteps - 1));
+    setCurrentStepIndex((prev) => findNextStepIndex(prev, 1));
   };
 
   const handleBack = () => {
     setError(null);
     setSubmitError(null);
-    setCurrentStepIndex((prev) => Math.max(prev - 1, 0));
+    setCurrentStepIndex((prev) => findNextStepIndex(prev, -1));
   };
 
   const handleSkip = () => {
@@ -406,6 +606,26 @@ export const OnboardingFlow = ({ onComplete }: OnboardingFlowProps) => {
   };
 
   const handleChoiceSelect = (stepKey: StepKey, value: string) => {
+    if (stepKey === "notification_opt_in") {
+      setResponses((prev) => {
+        const next: OnboardingResponses = { ...prev, notification_opt_in: value };
+        if (value === "opt_in") {
+          if (typeof prev.notification_time !== "string") {
+            next.notification_time = (existingProfile?.preferredNotificationTime as string | undefined) ?? "morning";
+          }
+          if (typeof prev.notification_frequency !== "string") {
+            next.notification_frequency = (existingProfile?.notificationFrequency as string | undefined) ?? "weekday";
+          }
+        } else {
+          delete next.notification_time;
+          delete next.notification_frequency;
+        }
+        return next;
+      });
+      setError(null);
+      return;
+    }
+
     setResponses((prev) => ({ ...prev, [stepKey]: value }));
     setError(null);
   };
@@ -428,12 +648,27 @@ export const OnboardingFlow = ({ onComplete }: OnboardingFlowProps) => {
     if (saveOnboardingMutation.isPending) return;
     setSubmitError(null);
 
+    const notificationEnabled = responses.notification_opt_in === "opt_in"
+      ? true
+      : responses.notification_opt_in === "opt_out"
+        ? false
+        : null;
+    const notificationFrequency = notificationEnabled
+      ? (typeof responses.notification_frequency === "string" ? responses.notification_frequency : null)
+      : null;
+    const preferredNotificationTime = notificationEnabled
+      ? (typeof responses.notification_time === "string" ? responses.notification_time : null)
+      : null;
+
     const payload = {
       goalSettingAbility: typeof responses.goal_setting_ability === "string" ? responses.goal_setting_ability : null,
       habitBuildingAbility: typeof responses.habit_building === "string" ? responses.habit_building : null,
       coachingStyle: Array.isArray(responses.coaching_style) ? (responses.coaching_style as string[]) : [],
       coachPersonality: typeof responses.coach_personality === "string" ? responses.coach_personality : null,
       focusLifeMetrics: Array.isArray(responses.life_metrics) ? (responses.life_metrics as string[]) : [],
+      notificationEnabled,
+      notificationFrequency,
+      preferredNotificationTime,
     };
 
     saveOnboardingMutation.mutate(payload);
@@ -531,7 +766,7 @@ export const OnboardingFlow = ({ onComplete }: OnboardingFlowProps) => {
           </div>
                 <div className="space-y-2">
                   <p className="text-sm font-medium uppercase tracking-wide text-emerald-600">
-                    Step {currentStepIndex + 1} of {totalSteps}
+                    Step {displayStepIndex + 1} of {displayTotalSteps}
                   </p>
                   <h1 className="text-2xl font-semibold text-slate-900 sm:text-3xl">
                     {currentStep.title}
@@ -545,7 +780,9 @@ export const OnboardingFlow = ({ onComplete }: OnboardingFlowProps) => {
                   <div className="h-2 w-full overflow-hidden rounded-full bg-emerald-100">
                     <div
                       className="h-full rounded-full bg-emerald-500 transition-all"
-                      style={{ width: `${((currentStepIndex + 1) / totalSteps) * 100}%` }}
+                      style={{
+                        width: `${displayTotalSteps === 0 ? 0 : ((displayStepIndex + 1) / displayTotalSteps) * 100}%`,
+                      }}
                     />
                   </div>
                 </div>
@@ -585,6 +822,11 @@ export const OnboardingFlow = ({ onComplete }: OnboardingFlowProps) => {
                     <p className="text-sm text-slate-600 text-center">
                       {currentStep.actionDescription}
                     </p>
+                  )}
+                  {notificationSummaryMessage && (
+                    <div className="rounded-2xl border border-emerald-100 bg-white p-4 text-sm text-slate-700 shadow-sm">
+                      {notificationSummaryMessage}
+                    </div>
                   )}
                 </div>
               ) : (

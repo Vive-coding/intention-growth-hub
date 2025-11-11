@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "../db";
 import { eq, desc } from "drizzle-orm";
-import { chatThreads, chatMessages, users } from "../../shared/schema";
+import { chatThreads, chatMessages, users, notificationFollowups } from "../../shared/schema";
 import { ChatThreadService } from "../services/chatThreadService";
 import { streamLifeCoachReply } from "../ai/lifeCoachService";
 import { MyFocusService } from "../services/myFocusService";
@@ -459,6 +459,95 @@ router.post("/respond", async (req: any, res) => {
       res.write(`data: ${JSON.stringify({ type: 'error', message: 'Failed to respond' })}\n\n`);
       res.end();
     } catch {}
+  }
+});
+
+router.post("/followups/redeem", async (req: any, res) => {
+  try {
+    const userId = req.user?.id || req.user?.claims?.sub;
+    if (!userId) return res.status(401).json({ message: "Unauthorized" });
+
+    const { token } = req.body || {};
+    if (!token || typeof token !== "string") {
+      return res.status(400).json({ message: "token is required" });
+    }
+
+    const [followup] = await db
+      .select()
+      .from(notificationFollowups)
+      .where(eq(notificationFollowups.token, token))
+      .limit(1);
+
+    if (!followup || followup.userId !== userId) {
+      return res.status(404).json({ message: "Follow-up link not found" });
+    }
+
+    const now = new Date();
+    if (followup.expiresAt && followup.expiresAt.getTime() < now.getTime()) {
+      await db
+        .update(notificationFollowups)
+        .set({ status: "expired" })
+        .where(eq(notificationFollowups.id, followup.id));
+      return res.status(410).json({ message: "This check-in link has expired." });
+    }
+
+    if (followup.status === "used" && followup.threadId) {
+      return res.json({ threadId: followup.threadId, alreadyRedeemed: true });
+    }
+
+    const payload = (followup as any).payload || {};
+    const goals = Array.isArray(payload.goals) ? payload.goals : [];
+    const goalLines = goals.map((g: any) => {
+      const progress = typeof g.progress === "number" ? `${g.progress}%` : g.progress || "in progress";
+      return `• ${g.title}${progress ? ` — ${progress}` : ""}`;
+    });
+
+    const [userRow] = await db
+      .select({ firstName: users.firstName })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+    const firstName = userRow?.firstName || "there";
+
+    const assistantMessageLines = [
+      `Hi ${firstName}, thanks for opening this check-in.`,
+      goalLines.length > 0
+        ? `Here’s what I’m seeing for your focus goals:\n${goalLines.join("\n")}`
+        : `I’d love to hear how your focus goals felt this week.`,
+      `Share what felt smooth and where you might need backup—I'm ready to help you plan the next step.`,
+    ].filter(Boolean);
+
+    const assistantMessage = assistantMessageLines.join("\n\n");
+    const title = goals.length > 0 ? `Coach check-in: ${goals[0].title}` : "Coach check-in";
+
+    const thread = await ChatThreadService.createThread({
+      userId,
+      title,
+      isTest: false,
+      privacyScope: null,
+      summary: null,
+    } as any);
+
+    await ChatThreadService.appendMessage({
+      threadId: thread.id,
+      role: "assistant",
+      content: assistantMessage,
+      status: "complete",
+    } as any);
+
+    await db
+      .update(notificationFollowups)
+      .set({ status: "used", usedAt: now, threadId: thread.id })
+      .where(eq(notificationFollowups.id, followup.id));
+
+    const prefill = goals.length > 0
+      ? `Here’s how ${goals[0].title} has been going...`
+      : "Here’s how my focus goals felt this week...";
+
+    res.json({ threadId: thread.id, prefill });
+  } catch (e) {
+    console.error("[chat] redeem follow-up failed", e);
+    res.status(500).json({ message: "Failed to redeem follow-up" });
   }
 });
 

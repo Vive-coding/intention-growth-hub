@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { db } from "../db";
 import { HabitOptimizationService } from "../services/habitOptimizationService";
+import { logHabitCompletion } from "../services/habitCompletionService";
 
 console.log('=== GOALS ROUTES FILE === Loading goals routes file...');
 import { and, eq, desc, sql, inArray, gte, lt, lte } from "drizzle-orm";
@@ -16,6 +17,7 @@ import {
   lifeMetricDefinitions,
   users,
   feedbackEvents,
+  userOnboardingProfiles,
   type GoalDefinition,
   type GoalInstance,
   type SuggestedGoal,
@@ -166,14 +168,14 @@ async function getUserTodayWindow(userId: string) {
       }
     });
     
-    return { start: adjustedStartUTC, end: adjustedEndUTC };
+    return { start: adjustedStartUTC, end: adjustedEndUTC, offsetMs };
   } catch (error) {
     console.error('getUserTodayWindow error:', error);
     // Fallback to server's local day
     const now = new Date();
     const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-    return { start, end };
+    return { start, end, offsetMs: 0 };
   }
 }
 
@@ -1410,7 +1412,7 @@ router.get("/habits/today", async (req: Request, res: Response) => {
     }
 
     // Today window (user timezone aware)
-    const { start: today, end: tomorrow } = await getUserTodayWindow(userId);
+    const { start: today, end: tomorrow, offsetMs } = await getUserTodayWindow(userId);
     
     console.log('=== TIMEZONE WINDOW ===');
     console.log('Today start:', today.toISOString());
@@ -1656,7 +1658,7 @@ router.get("/habits/completed-today", async (req: Request, res: Response) => {
       }
 
       // Today window (user timezone aware)
-      const { start: today, end: tomorrow } = await getUserTodayWindow(userId);
+      const { start: today, end: tomorrow, offsetMs } = await getUserTodayWindow(userId);
       
       // Single consolidated log for time window
       console.log('COMPLETED-TODAY:', {
@@ -1752,26 +1754,59 @@ router.get("/habits/completed-today", async (req: Request, res: Response) => {
         ))
         .orderBy(desc(habitCompletions.completedAt));
 
-      let currentStreak = 0;
-      let longestStreak = 0;
-      let lastCompletionDate: Date | null = null;
+      const msPerDay = 24 * 60 * 60 * 1000;
+      const normalizeToLocalDay = (date: Date) => {
+        const shifted = new Date(date.getTime() + (offsetMs ?? 0));
+        shifted.setUTCHours(0, 0, 0, 0);
+        return shifted.getTime();
+      };
 
-      for (const completion of completions) {
-        if (lastCompletionDate === null) {
-          currentStreak = 1;
-        } else {
-          const daysDiff = Math.floor(
-            (lastCompletionDate.getTime() - completion.completedAt.getTime()) / (1000 * 60 * 60 * 24)
-          );
-          if (daysDiff === 1) {
-            currentStreak++;
+      const uniqueDayTimestamps: number[] = [];
+      const seenDays = new Set<number>();
+      for (const comp of completions) {
+        const dayTs = normalizeToLocalDay(comp.completedAt);
+        if (seenDays.has(dayTs)) continue;
+        seenDays.add(dayTs);
+        uniqueDayTimestamps.push(dayTs);
+      }
+
+      let currentStreak = 0;
+      if (uniqueDayTimestamps.length > 0) {
+        currentStreak = 1;
+        for (let i = 1; i < uniqueDayTimestamps.length; i++) {
+          const diffDays = Math.round((uniqueDayTimestamps[i - 1] - uniqueDayTimestamps[i]) / msPerDay);
+          if (diffDays === 1) {
+            currentStreak += 1;
           } else {
-            currentStreak = 1;
+            break;
           }
         }
-        longestStreak = Math.max(longestStreak, currentStreak);
-        lastCompletionDate = completion.completedAt;
       }
+
+      let longestStreak = uniqueDayTimestamps.length > 0 ? 1 : 0;
+      if (uniqueDayTimestamps.length > 0) {
+        let run = 1;
+        for (let i = 1; i < uniqueDayTimestamps.length; i++) {
+          const diffDays = Math.round((uniqueDayTimestamps[i - 1] - uniqueDayTimestamps[i]) / msPerDay);
+          if (diffDays === 1) {
+            run += 1;
+          } else if (diffDays > 1) {
+            run = 1;
+          }
+          if (run > longestStreak) {
+            longestStreak = run;
+          }
+        }
+      }
+
+      // Update habit definition with new global stats
+      await db
+        .update(habitDefinitions)
+        .set({
+          globalCompletions: completions.length,
+          globalStreak: longestStreak,
+        })
+        .where(eq(habitDefinitions.id, habit.id));
 
       return {
         ...habit,
@@ -1796,214 +1831,23 @@ router.post("/habits/:id/complete", async (req: Request, res: Response) => {
       return res.status(401).json({ message: "User not authenticated" });
     }
     const habitId = req.params.id;
-    const { notes, goalId } = req.body; // goalId is optional; if missing, fan-out to all associated goals
+    const { notes, goalId, completedAt } = req.body || {};
 
-    // Check if habit exists
-    const habit = await db
-      .select()
-      .from(habitDefinitions)
-      .where(and(eq(habitDefinitions.id, habitId), eq(habitDefinitions.userId, userId)))
-      .limit(1);
-
-    if (!habit[0]) {
-      return res.status(404).json({ error: "Habit not found" });
-    }
-
-    // Check for frequency-aware completion limits
-    const { start: today, end: tomorrow } = await getUserTodayWindow(userId);
-    
-    // Check for duplicate completions within timezone window
-
-    // Get the habit's frequency settings from the first associated goal
-    const habitInstance = await db
-      .select({ frequencySettings: habitInstances.frequencySettings })
-      .from(habitInstances)
-      .where(eq(habitInstances.habitDefinitionId, habitId))
-      .limit(1);
-
-    if (habitInstance.length > 0 && habitInstance[0].frequencySettings) {
-      const { frequency, perPeriodTarget } = habitInstance[0].frequencySettings as { frequency: string; perPeriodTarget: number; periodsCount: number };
-      
-      // Calculate the current period based on frequency
-      let periodStart: Date;
-      let periodEnd: Date;
-      
-      switch (frequency) {
-        case 'daily':
-          periodStart = today;
-          periodEnd = tomorrow;
-          break;
-        case 'weekly':
-          const dayOfWeek = today.getDay();
-          const daysFromMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-          periodStart = new Date(today);
-          periodStart.setDate(today.getDate() - daysFromMonday);
-          periodStart.setHours(0, 0, 0, 0);
-          periodEnd = new Date(periodStart);
-          periodEnd.setDate(periodStart.getDate() + 6);
-          periodEnd.setHours(23, 59, 59, 999);
-          break;
-        case 'monthly':
-          periodStart = new Date(today.getFullYear(), today.getMonth(), 1);
-          periodEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0, 23, 59, 59, 999);
-          break;
-        default:
-          // Fallback to daily
-          periodStart = today;
-          periodEnd = tomorrow;
-      }
-
-      // Check completions in the current period
-      const completionsInPeriod = await db
-        .select()
-        .from(habitCompletions)
-        .where(and(
-          eq(habitCompletions.habitDefinitionId, habitId),
-          eq(habitCompletions.userId, userId),
-          gte(habitCompletions.completedAt, periodStart),
-          lte(habitCompletions.completedAt, periodEnd)
-        ));
-
-      // Frequency check: ${completionsInPeriod.length}/${perPeriodTarget} for ${frequency} period
-
-      // If already completed enough times for this period, prevent further completions
-      if (completionsInPeriod.length >= perPeriodTarget) {
-        console.log(`Habit already completed ${completionsInPeriod.length}/${perPeriodTarget} times for this ${frequency} period, skipping duplicate completion`);
-        return res.status(409).json({ 
-          error: `Habit already completed ${perPeriodTarget} times for this ${frequency} period`,
-          completion: completionsInPeriod[0],
-          frequency,
-          perPeriodTarget,
-          completionsInPeriod: completionsInPeriod.length
-        });
-      }
-    } else {
-      // Fallback: if no frequency settings, use daily check
-      const existingTodayCompletion = await db
-        .select()
-        .from(habitCompletions)
-        .where(and(
-          eq(habitCompletions.habitDefinitionId, habitId),
-          eq(habitCompletions.userId, userId),
-          gte(habitCompletions.completedAt, today),
-          lt(habitCompletions.completedAt, tomorrow)
-        ))
-        .limit(1);
-
-      if (existingTodayCompletion.length > 0) {
-        console.log('Habit already completed today (no frequency settings), skipping duplicate completion');
-        return res.status(409).json({ 
-          error: "Habit already completed today",
-          completion: existingTodayCompletion[0]
-        });
-      }
-    }
-
-    // Create completion record
-    const now = new Date();
-    
-    const [completion] = await db
-      .insert(habitCompletions)
-      .values({
-        habitDefinitionId: habitId,
-        userId,
-        notes: notes || null,
-        completedAt: now,
-      })
-      .returning();
-
-    // Update habit's global stats
-    const completions = await db
-      .select()
-      .from(habitCompletions)
-      .where(eq(habitCompletions.habitDefinitionId, habitId))
-      .orderBy(desc(habitCompletions.completedAt));
-
-    let currentStreak = 0;
-    let lastCompletionDate: Date | null = null;
-
-    for (const comp of completions) {
-      if (lastCompletionDate === null) {
-        currentStreak = 1;
-      } else {
-        const daysDiff = Math.floor(
-          (lastCompletionDate.getTime() - comp.completedAt.getTime()) / (1000 * 60 * 60 * 24)
-        );
-        if (daysDiff === 1) {
-          currentStreak++;
-        } else {
-          currentStreak = 1;
-        }
-      }
-      lastCompletionDate = comp.completedAt;
-    }
-
-    // Update habit definition with new global stats
-    await db
-      .update(habitDefinitions)
-      .set({
-        globalCompletions: completions.length,
-        globalStreak: currentStreak,
-      })
-      .where(eq(habitDefinitions.id, habitId));
-
-    // Update goal-specific progress: single goal or fan-out to all associated goals if goalId omitted
-    const targetHabitInstances = goalId
-      ? await db
-          .select()
-          .from(habitInstances)
-          .where(and(eq(habitInstances.habitDefinitionId, habitId), eq(habitInstances.goalInstanceId, goalId)))
-      : await db
-          .select()
-          .from(habitInstances)
-          .innerJoin(goalInstances, eq(habitInstances.goalInstanceId, goalInstances.id))
-          .where(and(eq(habitInstances.habitDefinitionId, habitId), eq(goalInstances.userId, userId), eq(goalInstances.status, 'active')));
-
-    for (const hiRow of targetHabitInstances as any[]) {
-      const hi = hiRow.habit_instances || hiRow; // support join/no-join shapes
-      const newCurrentValue = (hi.currentValue || 0) + 1;
-      await db
-        .update(habitInstances)
-        .set({ currentValue: newCurrentValue, goalSpecificStreak: currentStreak })
-        .where(eq(habitInstances.id, hi.id));
-
-      try {
-        console.log(`🔄 SNAPSHOT-TRIGGER: Starting snapshot for habit instance ${hi.id.substring(0, 8)}...`);
-        
-        const goalJoin = await db
-          .select({ def: goalDefinitions, inst: goalInstances, metric: lifeMetricDefinitions })
-          .from(goalInstances)
-          .innerJoin(goalDefinitions, eq(goalInstances.goalDefinitionId, goalDefinitions.id))
-          .innerJoin(lifeMetricDefinitions, eq(goalDefinitions.lifeMetricId, lifeMetricDefinitions.id))
-          .where(and(eq(goalInstances.id, hi.goalInstanceId), eq(goalInstances.userId, userId)))
-          .limit(1);
-          
-        console.log(`🔍 SNAPSHOT-TRIGGER: Goal join query returned ${goalJoin.length} results`);
-        
-        if (goalJoin[0]) {
-          const lifeMetricName = goalJoin[0].metric.name;
-          console.log(`📊 SNAPSHOT-TRIGGER: Calling upsertTodayProgressSnapshot for user ${userId.substring(0, 8)}... and metric "${lifeMetricName}"`);
-          
-          await storage.upsertTodayProgressSnapshot(userId, lifeMetricName);
-          
-          console.log(`✅ SNAPSHOT-TRIGGER: Successfully created/updated snapshot for "${lifeMetricName}"`);
-        } else {
-          console.log(`⚠️  SNAPSHOT-TRIGGER: No goal join found for habit instance ${hi.id.substring(0, 8)}...`);
-        }
-      } catch (e) {
-        console.error('❌ SNAPSHOT-TRIGGER: Detailed error in snapshot upsert after habit completion:', {
-          error: e instanceof Error ? e.message : String(e),
-          stack: e instanceof Error ? e.stack : undefined,
-          habitInstanceId: hi.id,
-          userId: userId.substring(0, 8) + '...',
-          timestamp: new Date().toISOString()
-        });
-      }
-    }
+    const completion = await logHabitCompletion({
+      userId,
+      habitId,
+      goalId,
+      notes,
+      completedAt: completedAt ? new Date(completedAt) : undefined,
+    });
 
     res.json(completion);
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error completing habit:", error);
+    if (error?.status) {
+      res.status(error.status).json({ error: error.message });
+      return;
+    }
     res.status(500).json({ error: "Failed to complete habit" });
   }
 });
@@ -2827,28 +2671,32 @@ router.post("/:id/archive", async (req: Request, res: Response) => {
 // Count active goals for a user
 router.get("/count/active", async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user?.id;
-    
+    const userId = (req as any).user?.id || (req as any).user?.claims?.sub;
     if (!userId) {
       return res.status(401).json({ message: "User not authenticated" });
     }
 
-    // Count active, non-archived goals
-    const results = await db
-      .select({ id: goalInstances.id })
+    const [row] = await db
+      .select({ count: sql<number>`COUNT(*)` })
       .from(goalInstances)
-      .innerJoin(goalDefinitions, eq(goalInstances.goalDefinitionId, goalDefinitions.id))
       .where(and(
         eq(goalInstances.userId, userId),
-        eq(goalInstances.status, "active"),
-        eq(goalInstances.archived, false),
-        eq(goalDefinitions.archived, false)
+        eq(goalInstances.status, 'active'),
+        eq(goalInstances.archived, false)
       ));
 
-    res.json({ count: results.length });
+    const [profileRow] = await db
+      .select({ focusGoalLimit: userOnboardingProfiles.focusGoalLimit })
+      .from(userOnboardingProfiles)
+      .where(eq(userOnboardingProfiles.userId, userId))
+      .limit(1);
+    const configuredLimit = profileRow?.focusGoalLimit ?? 3;
+    const focusGoalLimit = Math.min(Math.max(configuredLimit, 3), 5);
+
+    res.json({ count: Number(row?.count || 0), focusGoalLimit });
   } catch (error) {
     console.error("Error counting active goals:", error);
-    res.status(500).json({ error: "Failed to count goals" });
+    res.status(500).json({ message: "Failed to count active goals" });
   }
 });
 
