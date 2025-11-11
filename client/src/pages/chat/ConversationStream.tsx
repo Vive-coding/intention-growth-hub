@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
@@ -24,6 +24,26 @@ export default function ConversationStream({ threadId }: Props) {
   const [, navigate] = useLocation();
   const [recentlyCompleted, setRecentlyCompleted] = useState<Record<string, boolean>>({});
   const [habitCardSubmitted, setHabitCardSubmitted] = useState<Record<string, boolean>>({});
+  const useIsomorphicLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
+  const scrollContainerRef = useRef<HTMLElement | null>(null);
+  const autoScrollRef = useRef(true);
+
+  const resolveScrollContainer = () => {
+    if (typeof window === "undefined") return null;
+    if (scrollContainerRef.current && scrollContainerRef.current.isConnected) {
+      return scrollContainerRef.current;
+    }
+
+    const bottomElement = bottomRef.current;
+    if (!bottomElement) return null;
+
+    const container = bottomElement.closest('[data-chat-scroll-container="true"]') as HTMLElement | null;
+    if (container) {
+      scrollContainerRef.current = container;
+    }
+
+    return container;
+  };
 
   // Fetch messages for the thread
   const { data: messages = [], error: messagesError } = useQuery({
@@ -50,6 +70,31 @@ export default function ConversationStream({ threadId }: Props) {
     }
   }, [messagesError, threadId, navigate]);
 
+  useEffect(() => {
+    const container = resolveScrollContainer();
+    if (!container) return;
+
+    const handleScroll = () => {
+      const { scrollTop, scrollHeight, clientHeight } = container;
+      autoScrollRef.current = scrollHeight - (scrollTop + clientHeight) < 120;
+    };
+
+    container.addEventListener('scroll', handleScroll);
+    handleScroll();
+
+    return () => {
+      container.removeEventListener('scroll', handleScroll);
+    };
+  }, [threadId]);
+
+  useEffect(() => {
+    autoScrollRef.current = true;
+    const container = resolveScrollContainer();
+    if (container) {
+      container.scrollTop = container.scrollHeight;
+    }
+  }, [threadId]);
+
   // Clear optimistic message when we get fresh messages, but only if we're not currently streaming
   useEffect(() => {
     if (messages.length > 0 && !isStreaming && !isThinking) {
@@ -59,9 +104,13 @@ export default function ConversationStream({ threadId }: Props) {
 
   // Note: We navigate away on explicit 404 via onError above to avoid loops
 
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, streamingText, optimisticUserMessage, isThinking]);
+  useIsomorphicLayoutEffect(() => {
+    const container = resolveScrollContainer();
+    if (!container) return;
+    if (!autoScrollRef.current) return;
+
+    container.scrollTo({ top: container.scrollHeight, behavior: 'auto' });
+  }, [messages.length, streamingText, optimisticUserMessage, isThinking]);
 
   // Debug: Log when payloads are detected
   useEffect(() => {

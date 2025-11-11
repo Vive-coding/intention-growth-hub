@@ -404,7 +404,10 @@ export default function ChatHome() {
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto overflow-x-hidden min-h-0">
+        <div
+          data-chat-scroll-container="true"
+          className="flex-1 overflow-y-auto overflow-x-hidden min-h-0"
+        >
           {threadId ? (
             <ConversationStream threadId={threadId} />
           ) : (
