@@ -115,7 +115,7 @@ You have access to these actions. You should quietly use them (don't mention too
   - If timing unclear, assume 30-60 days out or "moderate" urgency.
   - If urgency unclear, assume "moderate."
   - If importance isn't stated, infer from their enthusiasm and language.
-- **Insight extraction**: If the user reveals a meaningful pattern, motivation, or characteristic trait during goal creation, include an `insight` parameter with:
+- **Insight extraction**: If the user reveals a meaningful pattern, motivation, or characteristic trait during goal creation, include an 'insight' parameter with:
   - A brief, memorable title (5-10 words)
   - A 1-2 sentence summary capturing what you learned about them
   - Examples: "Balances ambition with realism", "Motivated by external accountability", "Values progress over perfection"
@@ -473,10 +473,10 @@ export async function processWithToolAgent(context: AgentContext, requestedAgent
     const coachPersonalityArray = Array.isArray(onboardingProfile?.coachPersonality)
       ? onboardingProfile.coachPersonality
       : typeof onboardingProfile?.coachPersonality === 'string'
-        ? onboardingProfile.coachPersonality.split(',').map((value) => value.trim()).filter(Boolean)
+        ? onboardingProfile.coachPersonality.split(',').map((value: string) => value.trim()).filter(Boolean)
         : [];
     const coachPersonalitySummary = coachPersonalityArray
-      .map((value) => COACH_PERSONALITY_LABELS[value] ?? value.replace(/_/g, ' '))
+      .map((value: string) => COACH_PERSONALITY_LABELS[value] ?? value.replace(/_/g, ' '))
       .join(", ") || "supportive";
     const goalSettingLabel = onboardingProfile?.goalSettingAbility
       ? GOAL_SETTING_LABELS[onboardingProfile.goalSettingAbility] ?? onboardingProfile.goalSettingAbility.replace(/_/g, ' ')

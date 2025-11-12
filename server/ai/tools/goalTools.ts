@@ -1,7 +1,7 @@
 import { DynamicStructuredTool } from "@langchain/core/tools";
 import { z } from "zod";
 import { db } from "../../db";
-import { goalDefinitions, goalInstances, habitDefinitions, lifeMetricDefinitions } from "../../../shared/schema";
+import { goalDefinitions, goalInstances, habitDefinitions, lifeMetricDefinitions, insights } from "../../../shared/schema";
 import { eq, and, desc } from "drizzle-orm";
 
 /**

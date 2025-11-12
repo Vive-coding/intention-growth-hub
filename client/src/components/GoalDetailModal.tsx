@@ -188,8 +188,8 @@ export const GoalDetailModal = ({
   // Edit goal panel state
   const [editTitle, setEditTitle] = useState(goalData.title);
   const [editDescription, setEditDescription] = useState(goalData.description || "");
-  // Initialize with a placeholder value that will be replaced once lifeMetrics loads
-  const [editLifeMetricId, setEditLifeMetricId] = useState(goalData.lifeMetric?.id || "");
+  // Initialize with empty string - will be set once lifeMetrics loads
+  const [editLifeMetricId, setEditLifeMetricId] = useState("");
   const [editTargetDate, setEditTargetDate] = useState("");
   
   // Update progress when goal data changes
@@ -204,10 +204,7 @@ export const GoalDetailModal = ({
       setEditTitle(goalData.title);
       setEditDescription(goalData.description || "");
       
-      // Set life metric ID if available
-      if (goalData.lifeMetric?.id) {
-        setEditLifeMetricId(goalData.lifeMetric.id);
-      }
+      // Life metric ID will be set by the useEffect below that watches lifeMetrics
       
       if (goalData.targetDate) {
         const date = new Date(goalData.targetDate);
@@ -309,7 +306,7 @@ export const GoalDetailModal = ({
       // Set life metric
       if (lifeMetrics.length > 0) {
         console.log('Searching for life metric:', goalData.lifeMetric.name);
-        console.log('Available life metrics:', lifeMetrics.map(m => ({id: m.id, name: m.name})));
+        console.log('Available life metrics:', lifeMetrics.map((m: any) => ({id: m.id, name: m.name})));
         
         const currentLifeMetric = lifeMetrics.find((metric: any) => 
           metric.name === goalData.lifeMetric.name
@@ -556,9 +553,9 @@ export const GoalDetailModal = ({
     } catch (error) {
       console.error('❌ Error archiving goal:', error);
       console.error('❌ Error details:', {
-        message: error.message,
-        status: (error as any).status,
-        data: (error as any).data
+        message: (error as any)?.message,
+        status: (error as any)?.status,
+        data: (error as any)?.data
       });
       toast({
         title: 'Error',
@@ -642,7 +639,8 @@ export const GoalDetailModal = ({
       console.error('Error completing habit:', error);
       
       // Check if it's a duplicate completion error
-      if (error.message && error.message.includes('already completed today')) {
+      const errorMessage = (error as any)?.message || '';
+      if (errorMessage.includes('already completed today')) {
         toast({
           title: 'Already completed!',
           description: 'You have already completed this habit today.',
@@ -1497,9 +1495,9 @@ export const GoalDetailModal = ({
             <div className="flex-1 overflow-y-auto overflow-x-hidden">
               <div className="space-y-6">
                 {selectedHabitIds.map((habitId) => {
-                  const habit = existingHabits.find(h => h.id === habitId) || 
-                               recommendedHabits.find(h => h.id === habitId) ||
-                               dashboardSuggestedHabits.find(h => h.id === habitId);
+                  const habit = existingHabits.find((h: any) => h.id === habitId) || 
+                               recommendedHabits.find((h: any) => h.id === habitId) ||
+                               dashboardSuggestedHabits.find((h: any) => h.id === habitId);
                   const targets = habitTargets[habitId] || {frequency: "daily", perPeriodTarget: 1, periodsCount: 7};
                   
                   return (

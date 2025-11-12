@@ -2447,7 +2447,8 @@ router.post("/", async (req: Request, res: Response) => {
         : undefined;
 
     if (!resolvedLifeMetric && typeof lifeMetricName === "string" && lifeMetricName.trim().length > 0) {
-      resolvedLifeMetric = await createLifeMetric(lifeMetricName);
+      const created = await createLifeMetric(lifeMetricName);
+      if (created) resolvedLifeMetric = created;
     }
 
     if (!resolvedLifeMetric) {
@@ -2456,7 +2457,8 @@ router.post("/", async (req: Request, res: Response) => {
         resolvedLifeMetric = lifeMetricsForUser[0];
       } else {
         // Create a default focus area when none exist yet
-        resolvedLifeMetric = await createLifeMetric("Personal Growth");
+        const defaultMetric = await createLifeMetric("Personal Growth");
+        if (defaultMetric) resolvedLifeMetric = defaultMetric;
       }
     }
 
