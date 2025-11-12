@@ -18,6 +18,26 @@ import { HumanMessage, AIMessage, SystemMessage } from "@langchain/core/messages
 import { MyFocusService } from "../services/myFocusService";
 import { createTracingCallbacks, generateTraceTags, generateTraceMetadata } from "./utils/langsmithTracing";
 
+const GOAL_SETTING_LABELS: Record<string, string> = {
+  achiever: "I set and achieve goals",
+  idea_person: "I think of goals but don't track them",
+  go_with_flow: "I go with the flow",
+};
+
+const HABIT_CONFIDENCE_LABELS: Record<string, string> = {
+  build_new: "I want to build new habits",
+  same_routine: "I like the same routine",
+  always_building: "I consistently build new habits",
+  unsure: "I'm not sure",
+};
+
+const COACH_PERSONALITY_LABELS: Record<string, string> = {
+  patient_encouraging: "patient & encouraging",
+  tough_but_fair: "tough but fair",
+  brutally_honest: "direct & candid",
+  cheerleader: "cheerleader energy",
+};
+
 const LIFE_COACH_PROMPT = `You are an experienced life coach helping the user make steady, meaningful progress through intentional goals and consistent habits.
 
 ## Your Personality and Voice
@@ -289,6 +309,11 @@ export async function createLifeCoachAgentWithTools(tools: any[], mode?: string,
   // Build complete system prompt with mode and context
   let systemPrompt = LIFE_COACH_PROMPT;
   
+  // Add current date context for accurate date references
+  const today = new Date();
+  const formattedDate = today.toISOString().split('T')[0]; // YYYY-MM-DD
+  systemPrompt += `\n\n**CURRENT DATE:** ${formattedDate}\n\nWhen creating goals or setting target dates, always use dates that are ${formattedDate} or later. Never use past dates.`;
+  
   // Add mode and context instructions
   if (mode || contextInstructions) {
     systemPrompt += `\n\nACTIVE MODE: ${mode || "Standard Coaching"}`;
@@ -404,12 +429,42 @@ export async function processWithToolAgent(context: AgentContext, requestedAgent
 - Reinforcing that habits must be kept to progress goals`;
   } else if (requestedAgentType === 'onboarding_welcome') {
     mode = "Onboarding Welcome";
+    const focusAreasArray = Array.isArray(onboardingProfile?.focusLifeMetrics)
+      ? onboardingProfile.focusLifeMetrics
+      : typeof onboardingProfile?.focusLifeMetrics === 'string'
+        ? [onboardingProfile.focusLifeMetrics]
+        : [];
+    const focusAreas = focusAreasArray.length > 0
+      ? focusAreasArray.join(" and ")
+      : "your growth journey";
+    const coachPersonalityArray = Array.isArray(onboardingProfile?.coachPersonality)
+      ? onboardingProfile.coachPersonality
+      : typeof onboardingProfile?.coachPersonality === 'string'
+        ? onboardingProfile.coachPersonality.split(',').map((value) => value.trim()).filter(Boolean)
+        : [];
+    const coachPersonalitySummary = coachPersonalityArray
+      .map((value) => COACH_PERSONALITY_LABELS[value] ?? value.replace(/_/g, ' '))
+      .join(", ") || "supportive";
+    const goalSettingLabel = onboardingProfile?.goalSettingAbility
+      ? GOAL_SETTING_LABELS[onboardingProfile.goalSettingAbility] ?? onboardingProfile.goalSettingAbility.replace(/_/g, ' ')
+      : null;
+    const habitLabel = onboardingProfile?.habitBuildingAbility
+      ? HABIT_CONFIDENCE_LABELS[onboardingProfile.habitBuildingAbility] ?? onboardingProfile.habitBuildingAbility.replace(/_/g, ' ')
+      : null;
+    const goalSettingDescriptor = goalSettingLabel
+      ? `They describe their goal style as "${goalSettingLabel}."`
+      : '';
+    const habitDescriptor = habitLabel
+      ? `Habit relationship: "${habitLabel}."`
+      : '';
+
     contextInstructions = `You are greeting the user immediately after they finished onboarding. They have not typed anything yet.
-- Lead with a warm, personal welcome that references their onboarding preferences (confidence, focus areas, coaching style, notification choices) and mirror their requested coach personality.
-- Ask how they're feeling or what's been top-of-mind today, then invite them to share what feels most important to work on and why it matters.
-- Ask one or two thoughtful follow-up questions to surface a concrete first goal.
+- Lead with a warm, personal welcome that mirrors their requested coach personality (${coachPersonalitySummary}).
+- Reference their selected focus areas (${focusAreas}) within the first two sentences. Make it sound specific and excited, not generic.
+- Incorporate what they shared about their goal-setting and habit-building confidence. (${goalSettingDescriptor} ${habitDescriptor})
+- Ask one engaging question that invites them to share how they're feeling today, and follow up with at least one question that digs into their focus areas or upcoming milestones. Use concrete examples (e.g. “Tell me more about your next big dream opportunity or fitness milestone”).
 - As soon as you have enough detail, call create_goal_with_habits to co-create their first goal and 1–3 supportive habits.
-- Keep the tone supportive, energetic, and aligned with their preferred coaching style and personality.`;
+- Keep the tone supportive, energetic, and aligned with their preferred coaching energy. Avoid generic platitudes; surface something interesting from their onboarding details.`;
   } else if (requestedAgentType === 'review_progress') {
     mode = "Review Progress";
     contextInstructions = `You are helping the user review their progress. This conversation is about:
@@ -484,13 +539,23 @@ Note: You have this context for the start of the conversation. For updates, call
       const focusAreas = Array.isArray(source.focusLifeMetrics) && source.focusLifeMetrics.length > 0
         ? source.focusLifeMetrics.join(", ")
         : "all areas";
+      const coachPersonalityList = Array.isArray(source.coachPersonality)
+        ? source.coachPersonality
+        : typeof source.coachPersonality === 'string'
+          ? source.coachPersonality.split(',').map((value) => value.trim()).filter(Boolean)
+          : [];
+      const coachPersonalitySummary = coachPersonalityList.length > 0
+        ? coachPersonalityList.map((value) => COACH_PERSONALITY_LABELS[value] ?? value.replace(/_/g, ' ')).join(", ")
+        : "default";
+      const goalSettingLabel = GOAL_SETTING_LABELS[source.goalSettingAbility] ?? source.goalSettingAbility;
+      const habitLabel = HABIT_CONFIDENCE_LABELS[source.habitBuildingAbility] ?? source.habitBuildingAbility;
       const hasFirstGoal = !!source.firstGoalCreated;
       const hasFirstChat = !!source.firstChatSession;
       const onboardingSummary = `- Stage: ${stage}
-- Goal-setting confidence: ${source.goalSettingAbility}
-- Habit-building confidence: ${source.habitBuildingAbility}
+- Goal-setting confidence: ${goalSettingLabel}
+- Habit-building confidence: ${habitLabel}
 - Preferred coaching style: ${coachingPref}
-- Preferred coach personality: ${source.coachPersonality || "default"}
+- Preferred coach personality: ${coachPersonalitySummary}
 - Focus areas: ${focusAreas}
 - First goal created: ${hasFirstGoal ? "Yes" : "No"}
 - First chat session completed: ${hasFirstChat ? "Yes" : "No"}`;
@@ -543,6 +608,10 @@ Note: You have this context for the start of the conversation. For updates, call
     console.log("[processWithToolAgent] Input:", userMessage);
     console.log("[processWithToolAgent] Chat history length:", chatHistory.length);
     
+    // Ensure globals are set immediately before invocation (safeguard against other requests mutating them)
+    (global as any).__TOOL_USER_ID__ = userId;
+    (global as any).__TOOL_THREAD_ID__ = context.threadId;
+    
     // Invoke agent with tools
     // Pass userId and threadId via config for tools to access
     let result;
@@ -590,6 +659,9 @@ Note: You have this context for the start of the conversation. For updates, call
               }
             },
             handleToolStart: (tool: any, input: string) => {
+              // Re-assert tool context just before each execution
+              (global as any).__TOOL_USER_ID__ = userId;
+              (global as any).__TOOL_THREAD_ID__ = context.threadId;
               console.log(`\n🔧 [Tool Execution Started]: ${tool?.name || 'unknown'}`);
               console.log(`   Input: ${input}`);
             },

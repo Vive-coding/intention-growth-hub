@@ -65,7 +65,12 @@ export function NotificationSetupModal({ open, onClose, onSaved }: NotificationS
     const savedFrequency = (onboardingProfile.notificationFrequency || "daily") as "daily" | "every_2_days" | "weekly";
     setFrequency(FREQUENCY_OPTIONS.some((option) => option.value === savedFrequency) ? savedFrequency : "daily");
 
-    const savedTime = (onboardingProfile.preferredNotificationTime || "morning") as "morning" | "afternoon" | "evening";
+    const rawPreferredTime = Array.isArray(onboardingProfile.preferredNotificationTime)
+      ? onboardingProfile.preferredNotificationTime[0] ?? "morning"
+      : typeof onboardingProfile.preferredNotificationTime === "string"
+        ? onboardingProfile.preferredNotificationTime.split(",")[0]?.trim() || "morning"
+        : "morning";
+    const savedTime = rawPreferredTime as "morning" | "afternoon" | "evening";
     setPreferredTime(TIME_OPTIONS.some((option) => option.value === savedTime) ? savedTime : "morning");
 
     setPhoneNumber(onboardingProfile.phoneNumber ?? "");

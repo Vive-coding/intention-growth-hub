@@ -108,7 +108,18 @@ export default function GoalSuggestionCard({ goal, habits = [], onAccept, onView
       setNotificationFrequency(onboardingProfile.notificationFrequency);
     }
     if (typeof onboardingProfile.preferredNotificationTime === "string") {
-      setNotificationTime(onboardingProfile.preferredNotificationTime);
+      const [primaryTime] = onboardingProfile.preferredNotificationTime
+        .split(",")
+        .map((entry: string) => entry.trim())
+        .filter(Boolean);
+      if (primaryTime) {
+        setNotificationTime(primaryTime);
+      }
+    } else if (
+      Array.isArray(onboardingProfile.preferredNotificationTime) &&
+      onboardingProfile.preferredNotificationTime.length > 0
+    ) {
+      setNotificationTime(onboardingProfile.preferredNotificationTime[0]);
     }
   }, [onboardingProfile?.notificationFrequency, onboardingProfile?.preferredNotificationTime]);
 
@@ -130,7 +141,11 @@ export default function GoalSuggestionCard({ goal, habits = [], onAccept, onView
     }
 
     const frequencyValue = onboardingProfile.notificationFrequency || undefined;
-    const timeValue = onboardingProfile.preferredNotificationTime || undefined;
+    const rawTimes = typeof onboardingProfile.preferredNotificationTime === "string"
+      ? onboardingProfile.preferredNotificationTime.split(",").map((entry: string) => entry.trim()).filter(Boolean)
+      : Array.isArray(onboardingProfile.preferredNotificationTime)
+        ? onboardingProfile.preferredNotificationTime
+        : [];
 
     const frequencyPhrase = frequencyValue
       ? frequencyValue === "twice_per_week"
@@ -139,7 +154,9 @@ export default function GoalSuggestionCard({ goal, habits = [], onAccept, onView
           ? "once a week"
           : `on ${NOTIFICATION_FREQUENCY_LABELS[frequencyValue] ?? frequencyValue}`
       : null;
-    const timePhrase = timeValue ? `in ${NOTIFICATION_TIME_LABELS[timeValue] ?? timeValue}` : null;
+    const timePhrase = rawTimes.length > 0
+      ? `in ${rawTimes.map((time) => NOTIFICATION_TIME_LABELS[time] ?? time).join(" & the ")}`
+      : null;
     const cadence = [frequencyPhrase, timePhrase].filter(Boolean).join(" ");
 
     return `Your coach will follow up via email${cadence ? ` ${cadence}` : ""}.`;

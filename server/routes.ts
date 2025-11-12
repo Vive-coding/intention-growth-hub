@@ -23,6 +23,8 @@ import {
   habitCompletions,
   userOnboardingProfiles,
   users,
+  suggestedGoals,
+  suggestedHabits,
 } from "../shared/schema";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -371,10 +373,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const sanitizedFocusMetrics = Array.isArray(focusLifeMetrics)
         ? (focusLifeMetrics as any[]).map((value) => String(value)).filter(Boolean)
         : null;
-      const sanitizedCoachPersonality = typeof coachPersonality === 'string' ? coachPersonality : null;
+      const coachPersonalityArray = Array.isArray(coachPersonality)
+        ? (coachPersonality as any[]).map((value) => String(value)).filter(Boolean)
+        : undefined;
+      const sanitizedCoachPersonality = coachPersonalityArray
+        ? coachPersonalityArray.join(',')
+        : typeof coachPersonality === 'string'
+          ? coachPersonality
+          : coachPersonality === null
+            ? null
+            : undefined;
       const sanitizedNotificationEnabled = typeof notificationEnabled === 'boolean' ? notificationEnabled : notificationEnabled === null ? null : undefined;
-      const sanitizedNotificationFrequency = typeof notificationFrequency === 'string' ? notificationFrequency : notificationFrequency === null ? null : undefined;
-      const sanitizedPreferredNotificationTime = typeof preferredNotificationTime === 'string' ? preferredNotificationTime : preferredNotificationTime === null ? null : undefined;
+      const notificationTimeArray = Array.isArray(preferredNotificationTime)
+        ? (preferredNotificationTime as any[]).map((value) => String(value)).filter(Boolean)
+        : undefined;
+      const sanitizedPreferredNotificationTime = notificationTimeArray
+        ? notificationTimeArray.join(',')
+        : typeof preferredNotificationTime === 'string'
+          ? preferredNotificationTime
+          : preferredNotificationTime === null
+            ? null
+            : undefined;
 
       const insertValues: Record<string, any> = {
         userId,

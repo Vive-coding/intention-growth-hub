@@ -2389,26 +2389,62 @@ router.post("/", async (req: Request, res: Response) => {
       .from(lifeMetricDefinitions)
       .where(eq(lifeMetricDefinitions.userId, userId));
 
+    const palette = [
+      "#10B981", // emerald
+      "#6366F1", // indigo
+      "#F59E0B", // amber
+      "#EC4899", // pink
+      "#0EA5E9", // sky
+      "#8B5CF6", // violet
+    ];
+
+    const createLifeMetric = async (name: string) => {
+      const trimmed = name.trim();
+      if (!trimmed) return null;
+      const normalized = trimmed.toLowerCase();
+      const existingMatch = lifeMetricsForUser.find(
+        (metric) => (metric.name || "").toLowerCase() === normalized,
+      );
+      if (existingMatch) {
+        return existingMatch;
+      }
+
+      const color = palette[lifeMetricsForUser.length % palette.length];
+      const [createdMetric] = await db
+        .insert(lifeMetricDefinitions)
+        .values({
+          userId,
+          name: trimmed,
+          description: null,
+          color,
+        })
+        .returning();
+
+      lifeMetricsForUser.push(createdMetric);
+      return createdMetric;
+    };
+
     let resolvedLifeMetric =
       typeof lifeMetricId === "string"
         ? lifeMetricsForUser.find((lm) => lm.id === lifeMetricId)
         : undefined;
 
-    if (
-      !resolvedLifeMetric &&
-      typeof lifeMetricName === "string" &&
-      lifeMetricName.trim().length > 0
-    ) {
-      const normalizedRequestedMetric = lifeMetricName.trim().toLowerCase();
-      resolvedLifeMetric = lifeMetricsForUser.find(
-        (lm) => (lm.name || "").toLowerCase() === normalizedRequestedMetric,
-      );
+    if (!resolvedLifeMetric && typeof lifeMetricName === "string" && lifeMetricName.trim().length > 0) {
+      resolvedLifeMetric = await createLifeMetric(lifeMetricName);
     }
 
     if (!resolvedLifeMetric) {
-      return res.status(400).json({
-        message: "A valid lifeMetricId or lifeMetricName is required to create a goal.",
-      });
+      // Fallback to the user's first metric if any exist
+      if (lifeMetricsForUser.length > 0) {
+        resolvedLifeMetric = lifeMetricsForUser[0];
+      } else {
+        // Create a default focus area when none exist yet
+        resolvedLifeMetric = await createLifeMetric("Personal Growth");
+      }
+    }
+
+    if (!resolvedLifeMetric) {
+      return res.status(500).json({ message: "Failed to resolve a life metric for the new goal." });
     }
 
     const today = new Date();

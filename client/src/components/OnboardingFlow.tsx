@@ -7,6 +7,8 @@ import { Heart, ChevronRight, ChevronLeft, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { apiRequest } from "@/lib/queryClient";
 import { useLocation } from "wouter";
+import { StepIndicator } from "@/components/StepIndicator";
+import { onboardingIllustrations } from "@/assets/onboardingIllustrations";
 
 interface OnboardingFlowProps {
   onComplete: () => void;
@@ -46,8 +48,6 @@ interface OnboardingStep {
 }
 
 type OnboardingResponses = Partial<Record<StepKey, string | string[]>>;
-
-const DEFAULT_COACHING_STYLES = ["support", "accountability", "suggestions"] as const;
 const DEFAULT_NOTIFICATION_TIME = "morning";
 
 const parseDelimitedValues = (value?: string | null): string[] => {
@@ -267,6 +267,32 @@ const onboardingSteps: OnboardingStep[] = [
   },
 ];
 
+const mapLegacyGoalSetting = (value: string): string => {
+  switch (value) {
+    case "new":
+      return "idea_person";
+    case "experienced":
+      return "achiever";
+    case "struggling":
+      return "go_with_flow";
+    default:
+      return value;
+  }
+};
+
+const mapLegacyHabitConfidence = (value: string): string => {
+  switch (value) {
+    case "new":
+      return "build_new";
+    case "some_success":
+      return "always_building";
+    case "need_help":
+      return "unsure";
+    default:
+      return value;
+  }
+};
+
 export const OnboardingFlow = ({ onComplete }: OnboardingFlowProps) => {
   const [, navigate] = useLocation();
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
@@ -342,26 +368,40 @@ export const OnboardingFlow = ({ onComplete }: OnboardingFlowProps) => {
 
     const nextResponses: OnboardingResponses = {};
     if (existingProfile.goalSettingAbility) {
-      nextResponses.goal_setting_ability = existingProfile.goalSettingAbility;
+      nextResponses.goal_setting_ability = mapLegacyGoalSetting(existingProfile.goalSettingAbility);
     }
     if (existingProfile.habitBuildingAbility) {
-      nextResponses.habit_building = existingProfile.habitBuildingAbility;
+      nextResponses.habit_building = mapLegacyHabitConfidence(existingProfile.habitBuildingAbility);
     }
-    if (Array.isArray(existingProfile.coachingStyle) && existingProfile.coachingStyle.length > 0) {
-      nextResponses.coaching_style = existingProfile.coachingStyle;
+
+    const storedCoachPersonality = existingProfile.coachPersonality;
+    if (Array.isArray(storedCoachPersonality)) {
+      nextResponses.coach_personality = storedCoachPersonality as string[];
+    } else {
+      const parsed = parseDelimitedValues(storedCoachPersonality);
+      if (parsed.length > 0) {
+        nextResponses.coach_personality = parsed;
+      }
     }
-    if (existingProfile.coachPersonality) {
-      nextResponses.coach_personality = existingProfile.coachPersonality;
-    }
+
     if (Array.isArray(existingProfile.focusLifeMetrics) && existingProfile.focusLifeMetrics.length > 0) {
       nextResponses.life_metrics = existingProfile.focusLifeMetrics;
     }
+
     if (typeof existingProfile.notificationEnabled === "boolean") {
       nextResponses.notification_opt_in = existingProfile.notificationEnabled ? "opt_in" : "opt_out";
     }
-    if (existingProfile.preferredNotificationTime) {
-      nextResponses.notification_time = existingProfile.preferredNotificationTime;
+
+    const storedNotificationTime = existingProfile.preferredNotificationTime;
+    if (Array.isArray(storedNotificationTime)) {
+      nextResponses.notification_time = storedNotificationTime as string[];
+    } else {
+      const parsedTimes = parseDelimitedValues(storedNotificationTime);
+      if (parsedTimes.length > 0) {
+        nextResponses.notification_time = parsedTimes;
+      }
     }
+
     if (existingProfile.notificationFrequency) {
       nextResponses.notification_frequency = existingProfile.notificationFrequency;
     }
@@ -411,31 +451,24 @@ export const OnboardingFlow = ({ onComplete }: OnboardingFlowProps) => {
     const habitBuilding = typeof responses.habit_building === "string"
       ? getSingleLabel("habit_building", responses.habit_building)
       : undefined;
-    const coaching = Array.isArray(responses.coaching_style)
-      ? getMultiLabels("coaching_style", responses.coaching_style as string[])
-      : undefined;
+    const coachEnergySelections = getMultiLabels("coach_personality", ensureArray(responses.coach_personality));
     const focusAreas = Array.isArray(responses.life_metrics)
       ? getMultiLabels("life_metrics", responses.life_metrics as string[])
       : undefined;
-    const coachPersonality = Array.isArray(responses.coach_personality)
-      ? getMultiLabels("coach_personality", responses.coach_personality as string[])
-      : undefined;
     const notificationOptIn = responses.notification_opt_in === "opt_in";
-    const notificationTime = Array.isArray(responses.notification_time)
-      ? getMultiLabels("notification_time", responses.notification_time as string[])
-      : undefined;
+    const notificationTimeSelections = getMultiLabels("notification_time", ensureArray(responses.notification_time));
     const notificationFrequency = typeof responses.notification_frequency === "string"
-      ? getSingleLabel("notification_frequency", responses.notification_frequency as string)
+      ? getSingleLabel("notification_frequency", responses.notification_frequency)
       : undefined;
+
     const notificationSummaryValue = notificationOptIn
-      ? [notificationFrequency, notificationTime?.join(", ")].filter(Boolean).join(" • ")
+      ? [notificationFrequency, notificationTimeSelections?.join(" • ")].filter(Boolean).join(" • ")
       : undefined;
 
     return [
-      { title: "Goal-setting experience", value: goalSetting },
-      { title: "Habit-building confidence", value: habitBuilding },
-      { title: "Preferred coaching style", value: coaching?.join(", ") },
-      { title: "Coach personality", value: coachPersonality?.join(", ") },
+      { title: "How you approach goals", value: goalSetting },
+      { title: "Habit relationship", value: habitBuilding },
+      { title: "Coach energy", value: coachEnergySelections?.join(", ") },
       { title: "Focus areas", value: focusAreas?.join(", ") },
       { title: "Email check-ins", value: notificationSummaryValue },
     ].filter((item) => Boolean(item.value));
@@ -444,7 +477,6 @@ export const OnboardingFlow = ({ onComplete }: OnboardingFlowProps) => {
     getSingleLabel,
     responses.goal_setting_ability,
     responses.habit_building,
-    responses.coaching_style,
     responses.coach_personality,
     responses.life_metrics,
     responses.notification_frequency,
@@ -453,43 +485,38 @@ export const OnboardingFlow = ({ onComplete }: OnboardingFlowProps) => {
   ]);
 
   const notificationSummaryMessage = useMemo(() => {
-    const resolveLabel = (key: StepKey, value: string | undefined) => {
-      if (!value) return undefined;
-      return getSingleLabel(key, value);
+    const resolveLabels = (key: StepKey, values: string[] | undefined) => {
+      const labels = getMultiLabels(key, values);
+      return labels?.map((label) => label.toLowerCase()) ?? [];
     };
 
     if (responses.notification_opt_in === "opt_in") {
-      const frequencyLabel = resolveLabel(
-        "notification_frequency",
-        typeof responses.notification_frequency === "string" ? responses.notification_frequency : undefined,
-      );
-      const timeLabel = resolveLabel(
-        "notification_time",
-        Array.isArray(responses.notification_time) ? responses.notification_time.join(", ") : undefined,
-      );
-      const pieces = [
-        frequencyLabel ? frequencyLabel.toLowerCase() : undefined,
-        timeLabel ? `at ${timeLabel.toLowerCase()}` : undefined,
-      ].filter(Boolean);
-      const cadence = pieces.length > 0 ? ` ${pieces.join(" ")}` : "";
-      return `We’ll email quick check-ins${cadence} so your coach can follow up when it matters.`;
+      const times = resolveLabels("notification_time", ensureArray(responses.notification_time));
+      const primaryFrequency = typeof responses.notification_frequency === "string"
+        ? getSingleLabel("notification_frequency", responses.notification_frequency)?.toLowerCase()
+        : undefined;
+      const cadenceParts = [primaryFrequency, times.length > 0 ? `in the ${times.join(" & the ")}` : undefined]
+        .filter(Boolean)
+        .join(" ");
+      return cadenceParts
+        ? `We’ll email quick check-ins ${cadenceParts} so your coach can follow up when it matters.`
+        : "We’ll email quick check-ins to keep you supported.";
     }
 
     if (existingProfile?.notificationEnabled) {
-      const frequencyLabel = resolveLabel(
-        "notification_frequency",
-        existingProfile.notificationFrequency || undefined,
-      );
-      const timeLabel = resolveLabel(
-        "notification_time",
-        Array.isArray(existingProfile.preferredNotificationTime) ? existingProfile.preferredNotificationTime.join(", ") : undefined,
-      );
-      const pieces = [
-        frequencyLabel ? frequencyLabel.toLowerCase() : undefined,
-        timeLabel ? `at ${timeLabel.toLowerCase()}` : undefined,
-      ].filter(Boolean);
-      const cadence = pieces.length > 0 ? ` ${pieces.join(" ")}` : "";
-      return `Your coach will continue emailing gentle check-ins${cadence}.`;
+      const storedTimes = Array.isArray(existingProfile.preferredNotificationTime)
+        ? existingProfile.preferredNotificationTime
+        : parseDelimitedValues(existingProfile.preferredNotificationTime);
+      const times = resolveLabels("notification_time", storedTimes);
+      const frequencyLabel = existingProfile.notificationFrequency
+        ? getSingleLabel("notification_frequency", existingProfile.notificationFrequency)?.toLowerCase()
+        : undefined;
+      const cadenceParts = [frequencyLabel, times.length > 0 ? `in the ${times.join(" & the ")}` : undefined]
+        .filter(Boolean)
+        .join(" ");
+      return cadenceParts
+        ? `Your coach will continue emailing gentle check-ins ${cadenceParts}.`
+        : "Your coach will continue emailing gentle check-ins.";
     }
 
     return null;
@@ -497,6 +524,7 @@ export const OnboardingFlow = ({ onComplete }: OnboardingFlowProps) => {
     existingProfile?.notificationEnabled,
     existingProfile?.notificationFrequency,
     existingProfile?.preferredNotificationTime,
+    getMultiLabels,
     getSingleLabel,
     responses.notification_frequency,
     responses.notification_opt_in,
@@ -530,13 +558,13 @@ export const OnboardingFlow = ({ onComplete }: OnboardingFlowProps) => {
       goalSettingAbility: string | null;
       habitBuildingAbility: string | null;
       coachingStyle: string[];
-      coachPersonality: string[];
+      coachPersonality: string | null;
       focusLifeMetrics: string[];
       notificationEnabled: boolean | null;
       notificationFrequency: string | null;
-      preferredNotificationTime: string[] | null;
+      preferredNotificationTime: string | null;
     }) => {
-      return apiRequest("/api/users/onboarding-profile", {
+      await apiRequest("/api/users/onboarding-profile", {
         method: "POST",
         body: JSON.stringify(payload),
       });
@@ -604,11 +632,10 @@ export const OnboardingFlow = ({ onComplete }: OnboardingFlowProps) => {
       setResponses((prev) => {
         const next: OnboardingResponses = { ...prev, notification_opt_in: value };
         if (value === "opt_in") {
-          if (typeof prev.notification_time !== "string") {
-            next.notification_time = (existingProfile?.preferredNotificationTime as string[] | undefined) ?? ["morning"];
-          }
+          const currentTimes = ensureArray(prev.notification_time);
+          next.notification_time = currentTimes.length > 0 ? currentTimes : [DEFAULT_NOTIFICATION_TIME];
           if (typeof prev.notification_frequency !== "string") {
-            next.notification_frequency = (existingProfile?.notificationFrequency as string | undefined) ?? "weekday";
+            next.notification_frequency = existingProfile?.notificationFrequency ?? "weekday";
           }
         } else {
           delete next.notification_time;
@@ -626,7 +653,7 @@ export const OnboardingFlow = ({ onComplete }: OnboardingFlowProps) => {
 
   const handleMultiSelect = (stepKey: StepKey, value: string) => {
     setResponses((prev) => {
-      const existing = Array.isArray(prev[stepKey]) ? (prev[stepKey] as string[]) : [];
+      const existing = ensureArray(prev[stepKey]);
       const isSelected = existing.includes(value);
       const updated = isSelected ? existing.filter((item) => item !== value) : [...existing, value];
       return { ...prev, [stepKey]: updated };
@@ -650,19 +677,21 @@ export const OnboardingFlow = ({ onComplete }: OnboardingFlowProps) => {
     const notificationFrequency = notificationEnabled
       ? (typeof responses.notification_frequency === "string" ? responses.notification_frequency : null)
       : null;
-    const preferredNotificationTime = notificationEnabled
-      ? (Array.isArray(responses.notification_time) ? responses.notification_time : null)
-      : null;
+    const notificationTimeSelections = notificationEnabled ? ensureArray(responses.notification_time) : [];
+    const coachPersonalitySelections = ensureArray(responses.coach_personality);
 
     const payload = {
       goalSettingAbility: typeof responses.goal_setting_ability === "string" ? responses.goal_setting_ability : null,
       habitBuildingAbility: typeof responses.habit_building === "string" ? responses.habit_building : null,
-      coachingStyle: Array.isArray(responses.coaching_style) ? (responses.coaching_style as string[]) : [],
-      coachPersonality: Array.isArray(responses.coach_personality) ? (responses.coach_personality as string[]) : [],
+      coachingStyle: [],
+      coachPersonality: coachPersonalitySelections.length > 0 ? coachPersonalitySelections.join(",") : null,
       focusLifeMetrics: Array.isArray(responses.life_metrics) ? (responses.life_metrics as string[]) : [],
       notificationEnabled,
       notificationFrequency,
-      preferredNotificationTime,
+      preferredNotificationTime:
+        notificationEnabled && notificationTimeSelections.length > 0
+          ? notificationTimeSelections.join(",")
+          : null,
     };
 
     saveOnboardingMutation.mutate(payload);
@@ -795,6 +824,21 @@ export const OnboardingFlow = ({ onComplete }: OnboardingFlowProps) => {
 
               {currentStep.type === "action" ? (
                 <div className="space-y-6">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
+                    <Button
+                      onClick={handleSubmit}
+                      disabled={saveOnboardingMutation.isPending}
+                      className="w-full sm:w-auto bg-emerald-500 text-white shadow-lg hover:bg-emerald-600"
+                    >
+                      {saveOnboardingMutation.isPending ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving...
+                        </>
+                      ) : (
+                        currentStep.actionLabel ?? "Start Chat"
+                      )}
+                    </Button>
+                  </div>
                   {summaryItems.length > 0 && (
                     <div className="rounded-2xl border border-emerald-100 bg-emerald-50/70 p-5 text-left shadow-sm">
                       <p className="text-sm font-medium uppercase tracking-wide text-emerald-700">
@@ -807,9 +851,9 @@ export const OnboardingFlow = ({ onComplete }: OnboardingFlowProps) => {
                               {item.title}
                             </p>
                             <p className="text-base text-emerald-900">{item.value}</p>
-          </div>
-            ))}
-          </div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   )}
                   {currentStep.actionDescription && (
@@ -855,21 +899,7 @@ export const OnboardingFlow = ({ onComplete }: OnboardingFlowProps) => {
                   </Button>
                 )}
 
-                {currentStep.type === "action" && (
-                  <Button
-                    onClick={handleSubmit}
-                    disabled={saveOnboardingMutation.isPending}
-                    className="flex-1 bg-emerald-500 text-white shadow-lg hover:bg-emerald-600"
-                  >
-                    {saveOnboardingMutation.isPending ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving...
-                      </>
-                    ) : (
-                      currentStep.actionLabel ?? "Start Chat"
-              )}
-            </Button>
-                )}
+                {currentStep.type === "action" && null}
               </div>
             
               {!isLastStep && (
