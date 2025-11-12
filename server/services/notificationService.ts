@@ -56,7 +56,17 @@ export class NotificationService {
       .where(eq(userOnboardingProfiles.notificationEnabled, true));
 
     // TODO: add persistence for last notification timestamps and respect frequency cadence
-    return rows.filter((row) => (row.preferredNotificationTime ?? timePeriod) === timePeriod);
+    return rows.filter((row) => {
+      // Handle multi-select notification times (can be array or comma-separated string)
+      const timePrefs = typeof row.preferredNotificationTime === 'string'
+        ? row.preferredNotificationTime.split(',').map(t => t.trim())
+        : Array.isArray(row.preferredNotificationTime)
+          ? row.preferredNotificationTime
+          : [row.preferredNotificationTime];
+      
+      // User matches if current timePeriod is in their preferences (or if no preference, send in current period)
+      return timePrefs.some(pref => pref === timePeriod) || (timePrefs.length === 0 || timePrefs[0] === null);
+    });
   }
 
   static generateNotificationMessage(profile: { coachingStyle?: string[] | null; firstName?: string | null; }): string {

@@ -1,87 +1,78 @@
-import nodemailer, { type Transporter, type SendMailOptions } from "nodemailer";
+import formData from "form-data";
+import Mailgun from "mailgun.js";
 
 interface EmailOptions {
   to: string;
   subject: string;
   html: string;
   text?: string;
-  headers?: SendMailOptions["headers"];
+  headers?: Record<string, string>;
 }
 
-let transporterPromise: Promise<Transporter | null> | null = null;
+let mailgunClient: any = null;
 
-async function createTransporter(): Promise<Transporter | null> {
-  const smtpUrl = process.env.SMTP_URL;
-  const host = process.env.SMTP_HOST;
-  const port = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : undefined;
-  const user = process.env.SMTP_USER;
-  const pass = process.env.SMTP_PASS;
+function getMailgunClient() {
+  if (mailgunClient) {
+    return mailgunClient;
+  }
 
-  try {
-    if (smtpUrl) {
-      return nodemailer.createTransport(smtpUrl);
-    }
+  const apiKey = process.env.MAILGUN_API_KEY;
+  const domain = process.env.MAILGUN_DOMAIN;
 
-    if (host) {
-      if (!port) {
-        console.warn("[EmailService] SMTP_HOST provided without SMTP_PORT – cannot configure transporter.");
-        return null;
-      }
-
-      const secure = process.env.SMTP_SECURE ? process.env.SMTP_SECURE === "true" : port === 465;
-
-      return nodemailer.createTransport({
-        host,
-        port,
-        secure,
-        auth: user && pass ? { user, pass } : undefined,
-      });
-    }
-  } catch (error) {
-    console.error("[EmailService] Failed to configure transporter", error);
+  if (!apiKey || !domain) {
+    console.warn("[EmailService] MAILGUN_API_KEY or MAILGUN_DOMAIN not configured. Email will be disabled.");
     return null;
   }
 
-  console.warn("[EmailService] No SMTP configuration found. Set SMTP_URL or SMTP_HOST/SMTP_PORT.");
-  return null;
-}
+  const mailgun = new Mailgun(formData);
+  mailgunClient = mailgun.client({
+    username: "api",
+    key: apiKey,
+  });
 
-async function getTransporter(): Promise<Transporter | null> {
-  if (!transporterPromise) {
-    transporterPromise = createTransporter();
-  }
-  return transporterPromise;
+  console.log("[EmailService] ✅ Mailgun client initialized for domain:", domain);
+  return mailgunClient;
 }
 
 export async function sendEmail(options: EmailOptions): Promise<void> {
   const fromAddress = process.env.NOTIFICATION_EMAIL_FROM;
+  const domain = process.env.MAILGUN_DOMAIN;
+
   if (!fromAddress) {
     console.warn("[EmailService] NOTIFICATION_EMAIL_FROM is not configured. Email will not be sent.");
     return;
   }
 
-  const transporter = await getTransporter();
-  if (!transporter) {
-    console.warn("[EmailService] Transporter unavailable. Email send skipped.");
+  if (!domain) {
+    console.warn("[EmailService] MAILGUN_DOMAIN is not configured. Email will not be sent.");
+    return;
+  }
+
+  const client = getMailgunClient();
+  if (!client) {
+    console.warn("[EmailService] Mailgun client unavailable. Email send skipped.");
     console.log("[EmailService] Email payload:", options);
     return;
   }
 
   try {
-    const info = await transporter.sendMail({
+    const messageData = {
       from: fromAddress,
       to: options.to,
       subject: options.subject,
       html: options.html,
-      text: options.text,
-      headers: options.headers,
-    });
+      text: options.text || undefined,
+      "h:Reply-To": fromAddress,
+      ...options.headers,
+    };
+
+    const response = await client.messages.create(domain, messageData);
 
     if (process.env.NODE_ENV !== "production") {
-      console.log("[EmailService] Email dispatched (preview)", info);
+      console.log("[EmailService] ✅ Email sent via Mailgun:", response.id);
     }
   } catch (error) {
-    console.error("[EmailService] Failed to send email", error);
+    console.error("[EmailService] Failed to send email via Mailgun:", error);
     throw error;
   }
 }

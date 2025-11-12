@@ -188,7 +188,8 @@ export const GoalDetailModal = ({
   // Edit goal panel state
   const [editTitle, setEditTitle] = useState(goalData.title);
   const [editDescription, setEditDescription] = useState(goalData.description || "");
-  const [editLifeMetricId, setEditLifeMetricId] = useState("");
+  // Initialize with a placeholder value that will be replaced once lifeMetrics loads
+  const [editLifeMetricId, setEditLifeMetricId] = useState(goalData.lifeMetric?.id || "");
   const [editTargetDate, setEditTargetDate] = useState("");
   
   // Update progress when goal data changes
@@ -202,6 +203,12 @@ export const GoalDetailModal = ({
       console.log('Initializing edit form with fresh goal data:', goalData);
       setEditTitle(goalData.title);
       setEditDescription(goalData.description || "");
+      
+      // Set life metric ID if available
+      if (goalData.lifeMetric?.id) {
+        setEditLifeMetricId(goalData.lifeMetric.id);
+      }
+      
       if (goalData.targetDate) {
         const date = new Date(goalData.targetDate);
         const formattedDate = date.toISOString().split('T')[0];
@@ -253,6 +260,20 @@ export const GoalDetailModal = ({
     },
     retry: 1, // Always fetch life metrics, not just when edit panel is open
   });
+  
+  // Initialize life metric ID whenever lifeMetrics loads or modal opens
+  // This ensures the correct life metric is selected even if lifeMetrics loads after the modal opens
+  useEffect(() => {
+    if (isOpen && lifeMetrics.length > 0 && goalData.lifeMetric?.name) {
+      const currentLifeMetric = lifeMetrics.find((metric: any) => 
+        metric.name === goalData.lifeMetric.name
+      );
+      if (currentLifeMetric && editLifeMetricId !== currentLifeMetric.id) {
+        setEditLifeMetricId(currentLifeMetric.id);
+        console.log('✅ Initialized life metric ID:', currentLifeMetric.id, 'for', goalData.lifeMetric.name);
+      }
+    }
+  }, [isOpen, lifeMetrics, goalData.lifeMetric?.name, editLifeMetricId]);
   
   // Initialize edit form when edit panel opens for the first time
   useEffect(() => {
@@ -459,11 +480,14 @@ export const GoalDetailModal = ({
       const updates = {
         title: editTitle.trim(),
         description: editDescription.trim(),
-        lifeMetricId: editLifeMetricId,
+        // Only include lifeMetricId if we have a valid value, otherwise omit to keep existing
+        ...(editLifeMetricId ? { lifeMetricId: editLifeMetricId } : {}),
         targetDate: editTargetDate || null,
       };
       
       console.log('Saving goal updates:', updates);
+      console.log('Current editLifeMetricId:', editLifeMetricId);
+      console.log('Original goal life metric:', goalData.lifeMetric);
       
       const response = await apiRequest(`/api/goals/${goalData.id}`, {
         method: 'PUT',

@@ -133,12 +133,6 @@ export async function streamLifeCoachReply(params: {
         hasStructuredData: !!result.structuredData,
         structuredDataType: result.structuredData?.type
       });
-      
-      // Send structured data immediately if available (before streaming text)
-      if (result.structuredData && onStructuredData) {
-        console.log('[lifeCoachService] 🎴 Sending structured data immediately:', result.structuredData.type);
-        onStructuredData(result.structuredData);
-      }
     } catch (error) {
       console.error('[lifeCoachService] Tool agent error:', error);
       // Fallback to old system on error
@@ -153,13 +147,19 @@ export async function streamLifeCoachReply(params: {
     result = await agentRouter.processMessage(agentContext, requestedAgentType);
   }
 
-  // Stream the response
+  // Stream the text response FIRST
   const words = result.finalText.split(' ');
   for (let i = 0; i < words.length; i++) {
     const word = words[i];
     onToken(i === 0 ? word : ` ${word}`);
     // Small delay to simulate streaming
     await new Promise(resolve => setTimeout(resolve, 50));
+  }
+
+  // THEN send structured data after text is fully streamed
+  if (result.structuredData && onStructuredData) {
+    console.log('[lifeCoachService] 🎴 Sending structured data AFTER text stream:', result.structuredData.type);
+    onStructuredData(result.structuredData);
   }
 
   return {

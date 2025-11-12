@@ -152,10 +152,14 @@ Returns: Interactive card with goal + habit suggestions`,
       title: z.string(),
       frequency: z.string(),
       reasoning: z.string()
-    })).optional().describe("Custom habit suggestions (auto-generated if not provided)")
+    })).optional().describe("Custom habit suggestions (auto-generated if not provided)"),
+    insight: z.object({
+      title: z.string().describe("Brief, memorable title for the insight (5-10 words)"),
+      summary: z.string().describe("The insight about the user's pattern, motivation, or characteristic (1-2 sentences)")
+    }).optional().describe("Optional insight to remember about the user's motivations, patterns, or characteristics revealed during goal setting")
   }),
   
-  func: async ({ goal_data, habit_suggestions }, config) => {
+  func: async ({ goal_data, habit_suggestions, insight }, config) => {
     // Try to get userId from config first, then fallback to global variable
     let userId = (config as any)?.configurable?.userId;
     if (!userId) {
@@ -167,6 +171,24 @@ Returns: Interactive card with goal + habit suggestions`,
     }
     
     try {
+      // Auto-save insight if provided
+      if (insight) {
+        try {
+          await db.insert(insights).values({
+            userId,
+            title: insight.title,
+            summary: insight.summary,
+            source: 'goal_creation',
+            isFavorite: false,
+            createdAt: new Date(),
+          });
+          console.log('✅ Auto-saved insight during goal creation:', insight.title);
+        } catch (error) {
+          console.error('Failed to save insight during goal creation:', error);
+          // Don't fail the entire goal creation if insight save fails
+        }
+      }
+      
       // Auto-generate habits if not provided
       const habits = habit_suggestions || await generateHabitSuggestions(
         goal_data.title,

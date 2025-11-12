@@ -2049,18 +2049,35 @@ router.post("/:goalId/habits", async (req: Request, res: Response) => {
       return res.status(404).json({ error: "Habit not found" });
     }
 
-    // Check if association already exists
+    // Check if association already exists (should be unique per goal-habit pair)
+    // Note: Since we hard-delete associations, if one exists, it's active
     const existingAssociation = await db
       .select()
       .from(habitInstances)
       .where(and(
         eq(habitInstances.goalInstanceId, goalInstanceId),
-        eq(habitInstances.habitDefinitionId, habitDefinitionId)
+        eq(habitInstances.habitDefinitionId, habitDefinitionId),
+        eq(habitInstances.userId, userId) // Ensure we're checking for this user only
       ))
       .limit(1);
 
     if (existingAssociation[0]) {
-      return res.status(400).json({ error: "Habit already associated with this goal" });
+      console.log('🟡 Duplicate habit association attempt:', {
+        goalInstanceId,
+        habitDefinitionId,
+        userId,
+        existingAssociationId: existingAssociation[0].id,
+        existingAssociationDetails: existingAssociation[0]
+      });
+      
+      // Instead of failing, return the existing association with a 200 status
+      // This makes the operation idempotent and prevents frontend errors
+      console.log('✅ Returning existing habit association instead of error');
+      return res.status(200).json({ 
+        ...existingAssociation[0],
+        alreadyExists: true,
+        message: "Habit is already associated with this goal"
+      });
     }
 
     // Calculate proper frequency settings based on goal target date
