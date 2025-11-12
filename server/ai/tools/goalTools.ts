@@ -72,6 +72,55 @@ async function generateHabitSuggestions(goalTitle: string, lifeMetric: string, u
   return suggestions.slice(0, 3); // Max 3 suggestions
 }
 
+async function resolveGoalInstance(userId: string, identifier: string) {
+  const [instance] = await db
+    .select()
+    .from(goalInstances)
+    .where(
+      and(
+        eq(goalInstances.id, identifier),
+        eq(goalInstances.userId, userId)
+      )
+    )
+    .limit(1);
+
+  if (instance) {
+    const [definition] = await db
+      .select()
+      .from(goalDefinitions)
+      .where(eq(goalDefinitions.id, instance.goalDefinitionId))
+      .limit(1);
+
+    return { instance, definition };
+  }
+
+  const [byDefinition] = await db
+    .select({
+      inst: goalInstances,
+      def: goalDefinitions,
+    })
+    .from(goalDefinitions)
+    .innerJoin(goalInstances, eq(goalInstances.goalDefinitionId, goalDefinitions.id))
+    .where(
+      and(
+        eq(goalDefinitions.id, identifier),
+        eq(goalDefinitions.userId, userId),
+        eq(goalInstances.userId, userId)
+      )
+    )
+    .orderBy(desc(goalInstances.createdAt))
+    .limit(1);
+
+  if (!byDefinition) {
+    return null;
+  }
+
+  return {
+    instance: byDefinition.inst,
+    definition: byDefinition.def,
+  };
+}
+
 /**
  * Tool 1: Create goal with linked habits
  */
@@ -272,21 +321,13 @@ export const updateGoalProgressTool = new DynamicStructuredTool({
     }
     
     try {
-      // Get goal instance
-      const [instance] = await db
-        .select()
-        .from(goalInstances)
-        .where(
-          and(
-            eq(goalInstances.id, goal_id),
-            eq(goalInstances.userId, userId)
-          )
-        )
-        .limit(1);
-      
-      if (!instance) {
+      const resolved = await resolveGoalInstance(userId, goal_id);
+      if (!resolved) {
         throw new Error("Goal instance not found");
       }
+
+      const instance = resolved.instance;
+      const goalInstanceId = instance.id;
       
       // Simple progress parsing (can be enhanced with AI)
       const currentProgress = instance.currentValue || 0;
@@ -308,14 +349,10 @@ export const updateGoalProgressTool = new DynamicStructuredTool({
           status: newValue >= targetValue ? "completed" : instance.status,
           completedAt: newValue >= targetValue ? new Date() : instance.completedAt
         })
-        .where(eq(goalInstances.id, goal_id));
+        .where(eq(goalInstances.id, goalInstanceId));
       
       // Get goal definition for title
-      const [goalDef] = await db
-        .select()
-        .from(goalDefinitions)
-        .where(eq(goalDefinitions.id, instance.goalDefinitionId))
-        .limit(1);
+      const goalDef = resolved.definition;
       
       const milestoneReached = (currentPercentage < 25 && newPercentage >= 25) ||
                                 (currentPercentage < 50 && newPercentage >= 50) ||
@@ -323,7 +360,7 @@ export const updateGoalProgressTool = new DynamicStructuredTool({
       
       return {
         type: "progress_update",
-        goal_id: goal_id,
+        goal_id: goalInstanceId,
         goal_title: goalDef?.title || "Goal",
         old_progress: currentPercentage,
         new_progress: newPercentage,
@@ -366,21 +403,14 @@ export const completeGoalTool = new DynamicStructuredTool({
     }
     
     try {
-      // Get goal instance first to verify it exists and belongs to user
-      const [instance] = await db
-        .select()
-        .from(goalInstances)
-        .where(
-          and(
-            eq(goalInstances.id, goal_id),
-            eq(goalInstances.userId, userId)
-          )
-        )
-        .limit(1);
+      const resolved = await resolveGoalInstance(userId, goal_id);
       
-      if (!instance) {
+      if (!resolved) {
         throw new Error(`Goal instance not found: ${goal_id}`);
       }
+
+      const instance = resolved.instance;
+      const goalInstanceId = instance.id;
       
       // Update goal instance to completed
       await db
@@ -392,24 +422,20 @@ export const completeGoalTool = new DynamicStructuredTool({
         })
         .where(
           and(
-            eq(goalInstances.id, goal_id),
+            eq(goalInstances.id, goalInstanceId),
             eq(goalInstances.userId, userId)
           )
         );
       
-      const [goalDef] = await db
-        .select()
-        .from(goalDefinitions)
-        .where(eq(goalDefinitions.id, instance.goalDefinitionId))
-        .limit(1);
-      
+      const goalDef = resolved.definition;
+    
       if (!goalDef) {
         throw new Error(`Goal definition not found for instance: ${goal_id}`);
       }
       
       return {
         type: "goal_celebration",
-        goal_id: goal_id,
+        goal_id: goalInstanceId,
         goal_title: goalDef.title,
         completed_date: new Date().toISOString(),
         reflection: reflection || "",
@@ -452,6 +478,15 @@ export const adjustGoalTool = new DynamicStructuredTool({
     }
     
     try {
+      const resolved = await resolveGoalInstance(userId, goal_id);
+      if (!resolved) {
+        throw new Error("Goal instance not found");
+      }
+
+      const instance = resolved.instance;
+      const goalInstanceId = instance.id;
+      const goalDefinitionId = resolved.definition?.id;
+
       // Update goal instance or definition based on what's being changed
       if (changes.targetDate) {
         await db
@@ -459,32 +494,23 @@ export const adjustGoalTool = new DynamicStructuredTool({
           .set({ targetDate: new Date(changes.targetDate) })
           .where(
             and(
-              eq(goalInstances.id, goal_id),
+              eq(goalInstances.id, goalInstanceId),
               eq(goalInstances.userId, userId)
             )
           );
       }
       
-      if (changes.title) {
-        // Find the definition ID first
-        const [instance] = await db
-          .select()
-          .from(goalInstances)
-          .where(eq(goalInstances.id, goal_id))
-          .limit(1);
-        
-        if (instance) {
-          await db
-            .update(goalDefinitions)
-            .set({ title: changes.title })
-            .where(eq(goalDefinitions.id, instance.goalDefinitionId));
-        }
+      if (changes.title && goalDefinitionId) {
+        await db
+          .update(goalDefinitions)
+          .set({ title: changes.title })
+          .where(eq(goalDefinitions.id, goalDefinitionId));
       }
       
       return {
         success: true,
         message: `Goal updated successfully. ${reason || ""}`,
-        goal_id: goal_id
+        goal_id: goalInstanceId
       };
     } catch (error) {
       console.error("[adjustGoalTool] Error:", error);

@@ -44,7 +44,7 @@ export default function ChatHome() {
     localStorage.setItem("onboardingCompleted", "false");
     localStorage.removeItem("bypassOnboarding");
     queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
-    window.location.reload();
+    window.location.assign("/journal");
   };
 
   const handleLogout = () => {
@@ -338,6 +338,8 @@ export default function ChatHome() {
     return null;
   }
 
+  const showModeToggle = !threadId;
+
   return (
     <>
       <NotificationSetupModal
@@ -420,38 +422,27 @@ export default function ChatHome() {
               <div className="text-sm sm:text-base md:text-lg font-semibold text-gray-800 truncate min-w-0">
                 {activeThread?.title || 'Daily Coaching'}
               </div>
-              {/* Habits completed counter */}
+            </div>
+            <div className="flex items-center gap-3 flex-wrap justify-end flex-shrink-0 pr-1 sm:pr-2">
+              {showModeToggle && (
+                <ModeToggle className="hidden md:flex shrink-0" />
+              )}
               {todayCompletions && todayCompletions.total > 0 && (
                 <button
                   type="button"
                   onClick={() => setShowHabitsPanel(true)}
-                  className="ml-2 px-2 py-1 bg-teal-100 text-teal-700 rounded-full text-xs font-medium shrink-0 hover:bg-teal-200 transition-colors"
+                  className="px-2 py-1 bg-teal-100 text-teal-700 rounded-full text-xs font-medium shrink-0 hover:bg-teal-200 transition-colors"
                 >
                   {todayCompletions.completed}/{todayCompletions.total} ✓
                 </button>
               )}
             </div>
-            <ModeToggle className="hidden md:flex shrink-0" />
-            {/* Mobile toggle + profile */}
-            <div className="lg:hidden shrink-0 flex items-center gap-2">
-              <ModeToggle className="md:hidden flex" />
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <button className="w-9 h-9 rounded-full border-2 border-black bg-white flex items-center justify-center text-xs font-bold">
-                    {`${((user as any)?.firstName?.[0] || 'U').toUpperCase()}${((user as any)?.lastName?.[0] || '').toUpperCase()}`}
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-56">
-                  <div className="px-2 py-2">
-                    <div className="text-sm font-semibold">{(user as any)?.firstName || ''} {(user as any)?.lastName || ''}</div>
-                    <div className="text-xs text-gray-500">{(user as any)?.email}</div>
-                  </div>
-                  <DropdownMenuItem onClick={() => window.location.assign('/profile')}>Your account</DropdownMenuItem>
-                  <DropdownMenuItem onClick={handleReturnToOnboarding}>Return to Onboarding</DropdownMenuItem>
-                  <DropdownMenuItem onClick={handleLogout}>Log Out</DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
+            {/* Mobile toggle */}
+            {showModeToggle && (
+              <div className="lg:hidden shrink-0 flex items-center">
+                <ModeToggle className="md:hidden flex" />
+              </div>
+            )}
           </div>
         </div>
 

@@ -17,7 +17,6 @@ type StepKey =
   | "welcome"
   | "goal_setting_ability"
   | "habit_building"
-  | "coaching_style"
   | "coach_personality"
   | "life_metrics"
   | "notification_opt_in"
@@ -48,6 +47,22 @@ interface OnboardingStep {
 
 type OnboardingResponses = Partial<Record<StepKey, string | string[]>>;
 
+const DEFAULT_COACHING_STYLES = ["support", "accountability", "suggestions"] as const;
+const DEFAULT_NOTIFICATION_TIME = "morning";
+
+const parseDelimitedValues = (value?: string | null): string[] => {
+  if (!value) return [];
+  return value
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+};
+
+const ensureArray = (value: string | string[] | undefined): string[] => {
+  if (!value) return [];
+  return Array.isArray(value) ? value : [value];
+};
+
 const onboardingSteps: OnboardingStep[] = [
   {
     key: "welcome",
@@ -61,90 +76,69 @@ const onboardingSteps: OnboardingStep[] = [
   {
     key: "goal_setting_ability",
     type: "choice",
-    title: "Your experience with goal setting",
-    question: "How would you describe your goal-setting experience?",
-    helperText: "Pick the option that feels closest today—your coach will meet you where you are.",
+    title: "How you relate to goals",
+    question: "Which description feels most like you right now?",
+    helperText: "We’ll tailor goal planning to match how you naturally work toward what matters.",
     options: [
       {
-        value: "new",
-        label: "Just starting out",
-        description: "I’m new to setting goals and want guidance on where to begin.",
-        icon: "🌱",
+        value: "achiever",
+        label: "I set and achieve goals",
+        description: "I’m organized and love seeing plans turn into results.",
+        icon: "🏆",
       },
       {
-        value: "experienced",
-        label: "Have some practice",
-        description: "I’ve set goals before and want to stay consistent.",
-        icon: "🎯",
+        value: "idea_person",
+        label: "I think of goals but don’t track them",
+        description: "I have ideas in mind, but I rarely document or review them.",
+        icon: "💡",
       },
       {
-        value: "struggling",
-        label: "Need help sticking with them",
-        description: "I tend to lose momentum and want more support.",
-        icon: "💪",
+        value: "go_with_flow",
+        label: "I go with the flow",
+        description: "I prefer to stay flexible and respond to what each day brings.",
+        icon: "🌊",
       },
     ],
   },
   {
     key: "habit_building",
     type: "choice",
-    title: "Your habit-building confidence",
-    question: "What best describes your relationship with habits right now?",
-    helperText: "This helps your coach calibrate the pace and structure of recommendations.",
+    title: "Your relationship with habits",
+    question: "What best describes how you approach habits?",
+    helperText: "We’ll match the cadence of support to keep progress feeling natural.",
     options: [
       {
-        value: "new",
-        label: "New to habit tracking",
-        description: "I’m building this muscle and would love simple wins.",
-        icon: "🆕",
+        value: "build_new",
+        label: "I want to build new habits",
+        description: "I’m ready to add new routines that support my goals.",
+        icon: "🚀",
       },
       {
-        value: "some_success",
-        label: "Had some success",
-        description: "I’ve found a few routines that worked for me before.",
-        icon: "✅",
+        value: "same_routine",
+        label: "I like the same routine",
+        description: "Consistency comforts me—I prefer predictable rhythms.",
+        icon: "🔁",
       },
       {
-        value: "need_help",
-        label: "Could use guidance",
-        description: "I want support staying accountable and adjusting when life happens.",
-        icon: "🤝",
-      },
-    ],
-  },
-  {
-    key: "coaching_style",
-    type: "multi_choice",
-    title: "How would you like your coach to support you?",
-    question: "Choose all the coaching styles that resonate with you.",
-    helperText: "We’ll blend these styles so each check-in feels helpful and motivating.",
-    options: [
-      {
-        value: "support",
-        label: "Support & encouragement",
-        description: "Gentle nudges, empathy, and positive reinforcement.",
-        icon: "❤️",
+        value: "always_building",
+        label: "I consistently build new habits",
+        description: "Iterating on routines is second nature and keeps me energized.",
+        icon: "⚙️",
       },
       {
-        value: "accountability",
-        label: "Accountability check-ins",
-        description: "Direct reminders to keep promises to myself.",
-        icon: "📊",
-      },
-      {
-        value: "suggestions",
-        label: "Ideas & suggestions",
-        description: "Creative ways to make progress when I feel stuck.",
-        icon: "💡",
+        value: "unsure",
+        label: "I’m not sure yet",
+        description: "I’m still learning what kind of habit structure fits me best.",
+        icon: "❔",
       },
     ],
   },
   {
     key: "coach_personality",
-    type: "choice",
-    title: "What coach personality clicks with you?",
-    question: "Pick the tone that feels most helpful right now.",
-    helperText: "We’ll match your coach’s energy to this preference.",
+    type: "multi_choice",
+    title: "What coach energy works for you?",
+    question: "Pick the personalities that help you feel supported—choose all that fit.",
+    helperText: "We’ll blend these tones so each check-in feels like the right kind of nudge.",
     options: [
       {
         value: "patient_encouraging",
@@ -160,7 +154,7 @@ const onboardingSteps: OnboardingStep[] = [
       },
       {
         value: "brutally_honest",
-        label: "Brutally honest",
+        label: "Direct & candid",
         description: "Cut to the chase, tell it like it is, and keep things sharp.",
         icon: "⚡️",
       },
@@ -210,9 +204,9 @@ const onboardingSteps: OnboardingStep[] = [
   },
   {
     key: "notification_time",
-    type: "choice",
+    type: "multi_choice",
     title: "When should check-ins arrive?",
-    question: "Pick the time of day that works best for quick reflections.",
+    question: "Pick the times of day that work best—you can tap more than one.",
     helperText: "We’ll do our best to land in your inbox when you can actually respond.",
     options: [
       {
@@ -423,25 +417,25 @@ export const OnboardingFlow = ({ onComplete }: OnboardingFlowProps) => {
     const focusAreas = Array.isArray(responses.life_metrics)
       ? getMultiLabels("life_metrics", responses.life_metrics as string[])
       : undefined;
-    const coachPersonality = typeof responses.coach_personality === "string"
-      ? getSingleLabel("coach_personality", responses.coach_personality)
+    const coachPersonality = Array.isArray(responses.coach_personality)
+      ? getMultiLabels("coach_personality", responses.coach_personality as string[])
       : undefined;
     const notificationOptIn = responses.notification_opt_in === "opt_in";
-    const notificationTime = typeof responses.notification_time === "string"
-      ? getSingleLabel("notification_time", responses.notification_time as string)
+    const notificationTime = Array.isArray(responses.notification_time)
+      ? getMultiLabels("notification_time", responses.notification_time as string[])
       : undefined;
     const notificationFrequency = typeof responses.notification_frequency === "string"
       ? getSingleLabel("notification_frequency", responses.notification_frequency as string)
       : undefined;
     const notificationSummaryValue = notificationOptIn
-      ? [notificationFrequency, notificationTime].filter(Boolean).join(" • ")
+      ? [notificationFrequency, notificationTime?.join(", ")].filter(Boolean).join(" • ")
       : undefined;
 
     return [
       { title: "Goal-setting experience", value: goalSetting },
       { title: "Habit-building confidence", value: habitBuilding },
       { title: "Preferred coaching style", value: coaching?.join(", ") },
-      { title: "Coach personality", value: coachPersonality },
+      { title: "Coach personality", value: coachPersonality?.join(", ") },
       { title: "Focus areas", value: focusAreas?.join(", ") },
       { title: "Email check-ins", value: notificationSummaryValue },
     ].filter((item) => Boolean(item.value));
@@ -471,11 +465,11 @@ export const OnboardingFlow = ({ onComplete }: OnboardingFlowProps) => {
       );
       const timeLabel = resolveLabel(
         "notification_time",
-        typeof responses.notification_time === "string" ? responses.notification_time : undefined,
+        Array.isArray(responses.notification_time) ? responses.notification_time.join(", ") : undefined,
       );
       const pieces = [
         frequencyLabel ? frequencyLabel.toLowerCase() : undefined,
-        timeLabel ? `in the ${timeLabel.toLowerCase()}` : undefined,
+        timeLabel ? `at ${timeLabel.toLowerCase()}` : undefined,
       ].filter(Boolean);
       const cadence = pieces.length > 0 ? ` ${pieces.join(" ")}` : "";
       return `We’ll email quick check-ins${cadence} so your coach can follow up when it matters.`;
@@ -488,11 +482,11 @@ export const OnboardingFlow = ({ onComplete }: OnboardingFlowProps) => {
       );
       const timeLabel = resolveLabel(
         "notification_time",
-        existingProfile.preferredNotificationTime || undefined,
+        Array.isArray(existingProfile.preferredNotificationTime) ? existingProfile.preferredNotificationTime.join(", ") : undefined,
       );
       const pieces = [
         frequencyLabel ? frequencyLabel.toLowerCase() : undefined,
-        timeLabel ? `in the ${timeLabel.toLowerCase()}` : undefined,
+        timeLabel ? `at ${timeLabel.toLowerCase()}` : undefined,
       ].filter(Boolean);
       const cadence = pieces.length > 0 ? ` ${pieces.join(" ")}` : "";
       return `Your coach will continue emailing gentle check-ins${cadence}.`;
@@ -536,11 +530,11 @@ export const OnboardingFlow = ({ onComplete }: OnboardingFlowProps) => {
       goalSettingAbility: string | null;
       habitBuildingAbility: string | null;
       coachingStyle: string[];
-      coachPersonality: string | null;
+      coachPersonality: string[];
       focusLifeMetrics: string[];
       notificationEnabled: boolean | null;
       notificationFrequency: string | null;
-      preferredNotificationTime: string | null;
+      preferredNotificationTime: string[] | null;
     }) => {
       return apiRequest("/api/users/onboarding-profile", {
         method: "POST",
@@ -611,7 +605,7 @@ export const OnboardingFlow = ({ onComplete }: OnboardingFlowProps) => {
         const next: OnboardingResponses = { ...prev, notification_opt_in: value };
         if (value === "opt_in") {
           if (typeof prev.notification_time !== "string") {
-            next.notification_time = (existingProfile?.preferredNotificationTime as string | undefined) ?? "morning";
+            next.notification_time = (existingProfile?.preferredNotificationTime as string[] | undefined) ?? ["morning"];
           }
           if (typeof prev.notification_frequency !== "string") {
             next.notification_frequency = (existingProfile?.notificationFrequency as string | undefined) ?? "weekday";
@@ -657,14 +651,14 @@ export const OnboardingFlow = ({ onComplete }: OnboardingFlowProps) => {
       ? (typeof responses.notification_frequency === "string" ? responses.notification_frequency : null)
       : null;
     const preferredNotificationTime = notificationEnabled
-      ? (typeof responses.notification_time === "string" ? responses.notification_time : null)
+      ? (Array.isArray(responses.notification_time) ? responses.notification_time : null)
       : null;
 
     const payload = {
       goalSettingAbility: typeof responses.goal_setting_ability === "string" ? responses.goal_setting_ability : null,
       habitBuildingAbility: typeof responses.habit_building === "string" ? responses.habit_building : null,
       coachingStyle: Array.isArray(responses.coaching_style) ? (responses.coaching_style as string[]) : [],
-      coachPersonality: typeof responses.coach_personality === "string" ? responses.coach_personality : null,
+      coachPersonality: Array.isArray(responses.coach_personality) ? (responses.coach_personality as string[]) : [],
       focusLifeMetrics: Array.isArray(responses.life_metrics) ? (responses.life_metrics as string[]) : [],
       notificationEnabled,
       notificationFrequency,

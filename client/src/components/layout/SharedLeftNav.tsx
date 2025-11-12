@@ -28,7 +28,7 @@ export default function SharedLeftNav({ navItems, children, onReturnToOnboarding
     } else {
       localStorage.setItem("onboardingCompleted", "false");
       localStorage.removeItem("bypassOnboarding");
-      window.location.reload();
+      window.location.assign("/journal");
     }
   };
 

@@ -19,7 +19,6 @@ import type { User as UserType } from "@shared/schema";
 import { HabitsScreen } from "@/components/HabitsScreen";
 import { Landing } from "./Landing";
 import { UniformHeader } from "@/components/ui/UniformHeader";
-import { ModeToggle } from "@/components/ui/ModeToggle";
 import { RecentJournalsNav } from "@/components/journal/RecentJournalsNav";
 
 const Index = () => {
@@ -173,7 +172,7 @@ const Index = () => {
     localStorage.setItem('onboardingCompleted', 'false');
     localStorage.removeItem('bypassOnboarding');
     queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
-    window.location.reload();
+    window.location.assign('/journal');
   };
 
   const handleLogout = () => {
@@ -189,7 +188,6 @@ const Index = () => {
         onNavigate={setCurrentScreen}
         onReturnToOnboarding={handleReturnToOnboarding}
         onLogout={handleLogout}
-        rightSlot={<ModeToggle />}
         profileVisibility={hasCompletedOnboarding ? "mobile" : "all"}
         showLogo={!hasCompletedOnboarding}
       />
