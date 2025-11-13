@@ -384,6 +384,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             ? null
             : undefined;
       const sanitizedNotificationEnabled = typeof notificationEnabled === 'boolean' ? notificationEnabled : notificationEnabled === null ? null : undefined;
+      const sanitizedNotificationFrequency = typeof notificationFrequency === 'string' ? notificationFrequency : notificationFrequency === null ? null : undefined;
       const notificationTimeArray = Array.isArray(preferredNotificationTime)
         ? (preferredNotificationTime as any[]).map((value) => String(value)).filter(Boolean)
         : undefined;
@@ -435,7 +436,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const [profile] = await db
         .insert(userOnboardingProfiles)
-        .values(insertValues)
+        .values(insertValues as any)
         .onConflictDoUpdate({
           target: userOnboardingProfiles.userId,
           set: updateValues,
@@ -1621,8 +1622,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json({ message: "Test endpoint is working! Use POST to send email.", method: "GET" });
   });
   
-  // Also try a different path in case there's a conflict
-  app.post("/api/admin/test-email", authMiddleware, async (req: any, res) => {
+  app.post("/api/test-followup-email", authMiddleware, async (req: any, res) => {
     try {
       const userId = req.user?.id || req.user?.claims?.sub;
       if (!userId) {
@@ -1682,8 +1682,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const envelope = NotificationService.generateEmailEnvelope(
         { 
+          userId: userRow.userId,
+          email: userRow.email,
           firstName: userRow.firstName, 
           lastName: userRow.lastName,
+          notificationEnabled: true,
+          notificationFrequency: null,
+          preferredNotificationTime: null,
           coachingStyle: null 
         },
         {
