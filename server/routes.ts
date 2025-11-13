@@ -85,38 +85,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Register early to avoid conflicts
   console.log("[routes] ✅ Registering /api/test-followup-email endpoint (early)");
   
-  // Add request logging middleware for debugging (before route handlers)
-  app.use("/api/test-followup-email", (req: any, res: any, next: any) => {
-    console.log(`[test-followup-email] ${req.method} request received`, {
-      method: req.method,
-      path: req.path,
-      url: req.url,
-      originalUrl: req.originalUrl,
-      headers: {
-        authorization: req.headers.authorization ? "present" : "missing",
-        "content-type": req.headers["content-type"],
-      },
-    });
-    next();
-  });
-  
-  // Handle OPTIONS for CORS preflight (must be before other methods)
-  app.options("/api/test-followup-email", (req: any, res: any) => {
-    console.log("[test-followup-email] OPTIONS handler executing");
-    res.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-    res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
-    res.sendStatus(200);
-  });
-  
-  // Add GET route for testing
-  app.get("/api/test-followup-email", authMiddleware, async (req: any, res: any) => {
+  // Simplified GET route for testing (no auth for debugging)
+  app.get("/api/test-followup-email", async (req: any, res: any) => {
     console.log("[test-followup-email] GET handler executing");
-    res.json({ message: "Test endpoint is working! Use POST to send email.", method: "GET" });
+    res.json({ 
+      message: "Test endpoint is working! Use POST to send email.", 
+      method: "GET",
+      timestamp: new Date().toISOString()
+    });
   });
   
-  // Add POST route
-  app.post("/api/test-followup-email", authMiddleware, async (req: any, res: any) => {
-    console.log("[test-followup-email] POST handler executing");
+  // Simplified POST route (no auth for debugging)
+  app.post("/api/test-followup-email", async (req: any, res: any) => {
+    console.log("[test-followup-email] POST handler executing - NO AUTH");
+    // Temporary test response - no auth, no email sending
+    return res.json({
+      success: true,
+      message: "POST endpoint is working! (test mode - no email sent)",
+      method: "POST",
+      timestamp: new Date().toISOString()
+    });
+    
+    /* Original implementation - commented out for debugging
     try {
       const userId = req.user?.id || req.user?.claims?.sub;
       if (!userId) {
@@ -253,6 +243,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         error: (error as any)?.message 
       });
     }
+    */
   });
 
   // Debug: Log all registered routes for test-followup-email
