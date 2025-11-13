@@ -1619,22 +1619,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // TEST ENDPOINT: Manually trigger a follow-up email for testing (always available)
   console.log("[routes] ✅ Registering /api/test-followup-email endpoint");
   
-  // Add GET route for testing
-  app.get("/api/test-followup-email", authMiddleware, async (req: any, res) => {
-    console.log("[test-followup-email] GET request received");
-    res.json({ message: "Test endpoint is working! Use POST to send email.", method: "GET" });
+  // Use app.route() to ensure proper method matching
+  const testFollowupRoute = app.route("/api/test-followup-email");
+  
+  // Add request logging middleware for debugging (before route handlers)
+  testFollowupRoute.all((req: any, res: any, next: any) => {
+    console.log(`[test-followup-email] ${req.method} request received`, {
+      method: req.method,
+      path: req.path,
+      url: req.url,
+      originalUrl: req.originalUrl,
+      headers: {
+        authorization: req.headers.authorization ? "present" : "missing",
+        "content-type": req.headers["content-type"],
+      },
+    });
+    next();
   });
   
-  // Handle OPTIONS for CORS preflight
-  app.options("/api/test-followup-email", (req: any, res: any) => {
-    console.log("[test-followup-email] OPTIONS request received");
+  // Handle OPTIONS for CORS preflight (must be before other methods)
+  testFollowupRoute.options((req: any, res: any) => {
+    console.log("[test-followup-email] OPTIONS handler executing");
     res.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
     res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
     res.sendStatus(200);
   });
   
-  app.post("/api/test-followup-email", authMiddleware, async (req: any, res) => {
-    console.log("[test-followup-email] POST request received");
+  // Add GET route for testing
+  testFollowupRoute.get(authMiddleware, async (req: any, res: any) => {
+    console.log("[test-followup-email] GET handler executing");
+    res.json({ message: "Test endpoint is working! Use POST to send email.", method: "GET" });
+  });
+  
+  // Add POST route
+  testFollowupRoute.post(authMiddleware, async (req: any, res: any) => {
+    console.log("[test-followup-email] POST handler executing");
     try {
       const userId = req.user?.id || req.user?.claims?.sub;
       if (!userId) {
