@@ -100,6 +100,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     console.log("[test-followup-email] POST handler executing");
     try {
       const userId = req.user?.id || req.user?.claims?.sub;
+      console.log("[test-followup-email] User ID:", userId);
       if (!userId) {
         return res.status(401).json({ message: "Unauthorized" });
       }
@@ -111,6 +112,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { notificationFollowups } = await import("../shared/schema");
 
       // Get user profile with notification settings
+      console.log("[test-followup-email] Fetching user profile...");
       const [userRow] = await db
         .select({
           userId: users.id,
@@ -122,13 +124,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .where(eq(users.id, userId))
         .limit(1);
 
+      console.log("[test-followup-email] User row:", userRow ? { userId: userRow.userId, hasEmail: !!userRow.email } : "not found");
+
       if (!userRow || !userRow.email) {
         return res.status(400).json({ message: "User email not found" });
       }
 
       // Get user's focus goals
+      console.log("[test-followup-email] Fetching focus goals...");
       const focus = await MyFocusService.getMyFocus(userId);
       const goals = (focus?.priorityGoals || []).filter((goal: any) => goal.status !== "completed").slice(0, 3);
+      console.log("[test-followup-email] Found goals:", goals.length);
 
       if (!goals.length) {
         return res.status(400).json({ 
@@ -202,6 +208,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .returning({ id: notificationFollowups.id });
 
       // Send the email
+      console.log("[test-followup-email] Sending email to:", userRow.email);
       await sendEmail({
         to: userRow.email,
         subject: envelope.subject,
@@ -209,12 +216,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         text: envelope.text,
         headers: { "X-Entity-Preview": envelope.previewText },
       });
+      console.log("[test-followup-email] Email sent successfully");
 
       // Mark as sent
+      console.log("[test-followup-email] Updating notification record...");
       await db
         .update(notificationFollowups)
         .set({ status: "sent", sentAt: new Date() })
         .where(eq(notificationFollowups.id, record.id));
+      console.log("[test-followup-email] Notification record updated");
 
       res.json({
         success: true,
@@ -228,10 +238,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       });
     } catch (error) {
-      console.error("[test-followup-email] Error:", error);
+      console.error("[test-followup-email] Error occurred:", error);
+      console.error("[test-followup-email] Error stack:", (error as any)?.stack);
+      console.error("[test-followup-email] Error message:", (error as any)?.message);
       res.status(500).json({ 
         message: "Failed to send test email",
-        error: (error as any)?.message 
+        error: (error as any)?.message,
+        details: process.env.NODE_ENV === 'development' ? (error as any)?.stack : undefined
       });
     }
   });
