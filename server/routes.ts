@@ -85,8 +85,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Register early to avoid conflicts
   console.log("[routes] ✅ Registering /api/test-followup-email endpoint (early)");
   
-  // Simplified GET route for testing (no auth for debugging)
-  app.get("/api/test-followup-email", async (req: any, res: any) => {
+  // GET route for testing
+  app.get("/api/test-followup-email", authMiddleware, async (req: any, res: any) => {
     console.log("[test-followup-email] GET handler executing");
     res.json({ 
       message: "Test endpoint is working! Use POST to send email.", 
@@ -95,18 +95,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
   });
   
-  // Simplified POST route (no auth for debugging)
-  app.post("/api/test-followup-email", async (req: any, res: any) => {
-    console.log("[test-followup-email] POST handler executing - NO AUTH");
-    // Temporary test response - no auth, no email sending
-    return res.json({
-      success: true,
-      message: "POST endpoint is working! (test mode - no email sent)",
-      method: "POST",
-      timestamp: new Date().toISOString()
-    });
-    
-    /* Original implementation - commented out for debugging
+  // POST route with email sending
+  app.post("/api/test-followup-email", authMiddleware, async (req: any, res: any) => {
+    console.log("[test-followup-email] POST handler executing");
     try {
       const userId = req.user?.id || req.user?.claims?.sub;
       if (!userId) {
@@ -243,15 +234,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         error: (error as any)?.message 
       });
     }
-    */
   });
-
-  // Debug: Log all registered routes for test-followup-email
-  console.log("[routes] Route stack for /api/test-followup-email:", 
-    app._router.stack
-      .filter((r: any) => r.route?.path === '/api/test-followup-email')
-      .map((r: any) => ({ path: r.route?.path, methods: Object.keys(r.route?.methods || {}) }))
-  );
 
   // Feedback capture endpoint (append-only)
   app.post('/api/feedback', authMiddleware, async (req: any, res) => {

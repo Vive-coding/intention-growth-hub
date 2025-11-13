@@ -57,14 +57,6 @@ app.use((req, res, next) => {
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
-// Add early request logging for debugging
-app.use((req, res, next) => {
-  if (req.path.includes('test-followup-email')) {
-    console.log(`[index.ts] Incoming ${req.method} ${req.path} from ${req.headers.origin || 'unknown'}`);
-  }
-  next();
-});
-
 app.use((req, res, next) => {
   const start = Date.now();
   const path = req.path;
