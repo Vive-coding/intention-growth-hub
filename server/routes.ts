@@ -255,6 +255,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Debug: Log all registered routes for test-followup-email
+  console.log("[routes] Route stack for /api/test-followup-email:", 
+    app._router.stack
+      .filter((r: any) => r.route?.path === '/api/test-followup-email')
+      .map((r: any) => ({ path: r.route?.path, methods: Object.keys(r.route?.methods || {}) }))
+  );
+
   // Feedback capture endpoint (append-only)
   app.post('/api/feedback', authMiddleware, async (req: any, res) => {
     try {
