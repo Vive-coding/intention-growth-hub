@@ -1621,7 +1621,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json({ message: "Test endpoint is working! Use POST to send email.", method: "GET" });
   });
   
-  app.post("/api/test-followup-email", authMiddleware, async (req: any, res) => {
+  // Also try a different path in case there's a conflict
+  app.post("/api/admin/test-email", authMiddleware, async (req: any, res) => {
     try {
       const userId = req.user?.id || req.user?.claims?.sub;
       if (!userId) {
