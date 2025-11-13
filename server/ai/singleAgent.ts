@@ -19,6 +19,10 @@ import { MyFocusService } from "../services/myFocusService";
 import { createTracingCallbacks, generateTraceTags, generateTraceMetadata } from "./utils/langsmithTracing";
 import * as fs from "fs";
 import * as path from "path";
+import { fileURLToPath } from "url";
+
+// ESM __dirname equivalent
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const GOAL_SETTING_LABELS: Record<string, string> = {
   achiever: "I set and achieve goals",

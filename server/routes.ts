@@ -1617,12 +1617,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // TEST ENDPOINT: Manually trigger a follow-up email for testing (always available)
+  console.log("[routes] ✅ Registering /api/test-followup-email endpoint");
+  
   // Add GET route for testing
   app.get("/api/test-followup-email", authMiddleware, async (req: any, res) => {
+    console.log("[test-followup-email] GET request received");
     res.json({ message: "Test endpoint is working! Use POST to send email.", method: "GET" });
   });
   
+  // Handle OPTIONS for CORS preflight
+  app.options("/api/test-followup-email", (req: any, res: any) => {
+    console.log("[test-followup-email] OPTIONS request received");
+    res.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+    res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    res.sendStatus(200);
+  });
+  
   app.post("/api/test-followup-email", authMiddleware, async (req: any, res) => {
+    console.log("[test-followup-email] POST request received");
     try {
       const userId = req.user?.id || req.user?.claims?.sub;
       if (!userId) {
