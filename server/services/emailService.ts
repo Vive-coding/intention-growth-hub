@@ -35,24 +35,56 @@ function getMailgunClient() {
 }
 
 export async function sendEmail(options: EmailOptions): Promise<void> {
-  const fromAddress = process.env.NOTIFICATION_EMAIL_FROM;
-  const domain = process.env.MAILGUN_DOMAIN;
+  const fromAddress = process.env.NOTIFICATION_EMAIL_FROM?.trim();
+  const domain = process.env.MAILGUN_DOMAIN?.trim();
+
+  console.log("[EmailService] Configuration check:", {
+    hasFromAddress: !!fromAddress,
+    fromAddressLength: fromAddress?.length || 0,
+    hasDomain: !!domain,
+    domain: domain,
+  });
 
   if (!fromAddress) {
-    console.warn("[EmailService] NOTIFICATION_EMAIL_FROM is not configured. Email will not be sent.");
-    return;
+    const error = new Error("NOTIFICATION_EMAIL_FROM is not configured");
+    console.error("[EmailService] ❌", error.message);
+    throw error;
   }
 
   if (!domain) {
-    console.warn("[EmailService] MAILGUN_DOMAIN is not configured. Email will not be sent.");
-    return;
+    const error = new Error("MAILGUN_DOMAIN is not configured");
+    console.error("[EmailService] ❌", error.message);
+    throw error;
+  }
+
+  // Validate from address format
+  // Mailgun accepts: "email@domain.com" or "Name <email@domain.com>"
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const fromMatch = fromAddress.match(/<?([^\s<>]+@[^\s<>]+\.[^\s<>]+)>?/);
+  
+  if (!fromMatch) {
+    const error = new Error(`Invalid from address format: "${fromAddress}". Must be "email@domain.com" or "Name <email@domain.com>"`);
+    console.error("[EmailService] ❌", error.message);
+    throw error;
+  }
+
+  const fromEmail = fromMatch[1];
+  console.log("[EmailService] Parsed from address:", {
+    original: fromAddress,
+    extracted: fromEmail,
+  });
+
+  // Check if domain matches
+  const fromDomain = fromEmail.split('@')[1];
+  if (fromDomain !== domain) {
+    console.warn(`[EmailService] ⚠️ From email domain (${fromDomain}) doesn't match MAILGUN_DOMAIN (${domain}). Mailgun might reject this.`);
   }
 
   const client = getMailgunClient();
   if (!client) {
-    console.warn("[EmailService] Mailgun client unavailable. Email send skipped.");
-    console.log("[EmailService] Email payload:", options);
-    return;
+    const error = new Error("Mailgun client unavailable");
+    console.error("[EmailService] ❌", error.message);
+    throw error;
   }
 
   try {
@@ -62,17 +94,29 @@ export async function sendEmail(options: EmailOptions): Promise<void> {
       subject: options.subject,
       html: options.html,
       text: options.text || undefined,
-      "h:Reply-To": fromAddress,
+      "h:Reply-To": fromEmail, // Use just the email for Reply-To
       ...options.headers,
     };
 
+    console.log("[EmailService] Sending email:", {
+      from: fromAddress,
+      to: options.to,
+      subject: options.subject,
+      domain: domain,
+    });
+
     const response = await client.messages.create(domain, messageData);
 
-    if (process.env.NODE_ENV !== "production") {
-      console.log("[EmailService] ✅ Email sent via Mailgun:", response.id);
-    }
-  } catch (error) {
-    console.error("[EmailService] Failed to send email via Mailgun:", error);
+    console.log("[EmailService] ✅ Email sent via Mailgun:", response.id);
+  } catch (error: any) {
+    console.error("[EmailService] ❌ Failed to send email via Mailgun:", {
+      error: error?.message,
+      status: error?.status,
+      details: error?.details,
+      type: error?.type,
+      fromAddress: fromAddress,
+      domain: domain,
+    });
     throw error;
   }
 }
