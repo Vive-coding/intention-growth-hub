@@ -1440,7 +1440,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Simple in-process scheduler for nightly snapshots per user timezone
   // Assumes user timezone stored in users.profile or defaults to process.env.DEFAULT_TZ
   try {
-    const cron = require('node-cron');
+    const cronModule = await import('node-cron');
+    const cron = cronModule.default || cronModule;
     console.log('[cron] node-cron successfully imported, setting up daily snapshots');
     const DEFAULT_TZ = process.env.DEFAULT_TZ || 'UTC';
     const tzMap = (() => { try { return process.env.USER_TZ_MAP ? JSON.parse(process.env.USER_TZ_MAP) : {}; } catch { return {}; } })();
