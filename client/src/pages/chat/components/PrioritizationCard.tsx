@@ -39,10 +39,6 @@ export default function PrioritizationCard({ items, messageId, onAccept, onRejec
 		return saved === 'rejected';
 	});
 	const [reprioritizing, setReprioritizing] = useState(false);
-	const defaultLimit = typeof window !== 'undefined' ? Number(window.localStorage.getItem('focusGoalLimit') || '3') : 3;
-	const normalizedDefaultLimit = Math.min(Math.max(defaultLimit, 3), 5);
-	const [focusGoalLimit, setFocusGoalLimit] = useState(normalizedDefaultLimit);
-	const [updatingFocusLimit, setUpdatingFocusLimit] = useState(false);
 
 	const toggleItem = (itemId: string) => {
 		setSelectedItems(prev => ({
@@ -92,36 +88,6 @@ export default function PrioritizationCard({ items, messageId, onAccept, onRejec
 		setTimeout(() => setReprioritizing(false), 2000);
 	};
 
-	const updateFocusLimit = async (nextLimit: number) => {
-		setUpdatingFocusLimit(true);
-		try {
-			await apiRequest('/api/my-focus/config', {
-				method: 'POST',
-				body: JSON.stringify({ maxGoals: nextLimit }),
-			});
-			setFocusGoalLimit(nextLimit);
-			if (typeof window !== 'undefined') {
-				window.localStorage.setItem('focusGoalLimit', String(nextLimit));
-			}
-			setReprioritizing(true);
-			sendReprioritizeRequest();
-		} catch (error) {
-			console.error('Failed to update focus goal limit', error);
-		} finally {
-			setUpdatingFocusLimit(false);
-		}
-	};
-
-	const handleDecreaseSlots = () => {
-		if (focusGoalLimit <= 3 || updatingFocusLimit) return;
-		updateFocusLimit(focusGoalLimit - 1);
-	};
-
-	const handleIncreaseSlots = () => {
-		if (focusGoalLimit >= 5 || updatingFocusLimit) return;
-		updateFocusLimit(focusGoalLimit + 1);
-	};
-
 	if (accepted) {
 		        return (
                 <div className="bg-green-50 border-2 border-green-300 rounded-2xl p-3 sm:p-4 md:p-5 shadow-sm min-w-0 overflow-hidden">
@@ -159,29 +125,7 @@ export default function PrioritizationCard({ items, messageId, onAccept, onRejec
 				<div className="text-sm font-semibold text-gray-800 uppercase tracking-wide">Priority Focus</div>
 				<div className="text-xs text-gray-600">Select which priorities to accept</div>
 			</div>
-			<div className="flex items-center justify-between mb-3">
-				<div className="text-xs text-gray-600">Focus slots: {focusGoalLimit}</div>
-				<div className="flex items-center gap-2">
-					<Button
-						variant="outline"
-						className="px-2 py-1 text-xs"
-						onClick={handleDecreaseSlots}
-						disabled={focusGoalLimit <= 3 || updatingFocusLimit}
-						aria-label="Decrease focus slots"
-					>
-						−
-					</Button>
-					<Button
-						variant="outline"
-						className="px-2 py-1 text-xs"
-						onClick={handleIncreaseSlots}
-						disabled={focusGoalLimit >= 5 || updatingFocusLimit}
-						aria-label="Increase focus slots"
-					>
-						+
-					</Button>
-				</div>
-			</div>
+			{/* Focus slots are fixed at 3 for now; we keep the card focused on choosing priorities */}
 			<div className="space-y-3">
 				                                {items.map((it, idx) => (
                                         <div key={it.id || idx} className="bg-white border border-gray-200 rounded-xl p-2 sm:p-3 min-w-0">

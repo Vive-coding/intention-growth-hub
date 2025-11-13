@@ -1,4 +1,4 @@
-import { ChangeEvent, useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { GoalDetailModal } from "@/components/GoalDetailModal";
@@ -17,17 +17,9 @@ const getPillBg = (metricName?: string) => {
   return 'bg-gray-100 text-gray-700';
 };
 
-const getStoredFocusLimit = () => {
-  if (typeof window === 'undefined') return 3;
-  const stored = Number(window.localStorage.getItem('focusGoalLimit') || '3');
-  return [3, 4, 5].includes(stored) ? stored : 3;
-};
-
 export default function MyFocusDashboard() {
   const [selectedGoal, setSelectedGoal] = useState<any | null>(null);
   const queryClient = useQueryClient();
-  const [updatingLimit, setUpdatingLimit] = useState(false);
-  const [currentLimit, setCurrentLimit] = useState<number>(getStoredFocusLimit);
   const [showHabitsPanel, setShowHabitsPanel] = useState(false);
 
         const handleGoalClick = async (goal: any) => {
@@ -65,23 +57,6 @@ export default function MyFocusDashboard() {
     return uniqueIds.size;
   }, [completedTodayData]);
 
-  const serverLimit = data?.config?.maxGoals;
-
-  useEffect(() => {
-    if (typeof serverLimit === 'number') {
-      const normalized = Math.min(Math.max(serverLimit, 3), 5);
-      if (normalized !== currentLimit) {
-        setCurrentLimit(normalized);
-      }
-    }
-  }, [serverLimit, currentLimit]);
-
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      window.localStorage.setItem('focusGoalLimit', String(currentLimit));
-    }
-  }, [currentLimit]);
-
   if (isLoading) {
 		return (
 			<div className="p-6 space-y-6">
@@ -106,27 +81,8 @@ export default function MyFocusDashboard() {
     );
   }
 
-  const handleLimitChange = async (event: ChangeEvent<HTMLSelectElement>) => {
-    const value = Number(event.target.value);
-    if (!([3, 4, 5] as number[]).includes(value) || updatingLimit) {
-      return;
-    }
-    setUpdatingLimit(true);
-    try {
-      await apiRequest("/api/my-focus/config", {
-        method: "POST",
-        body: JSON.stringify({ maxGoals: value }),
-      });
-      setCurrentLimit(value);
-      await queryClient.invalidateQueries({ queryKey: ["/api/my-focus"] });
-    } catch (error) {
-      console.error("Failed to update focus goal limit", error);
-    } finally {
-      setUpdatingLimit(false);
-    }
-  };
-
-  const priorityGoals = (data.priorityGoals || []).slice(0, currentLimit);
+  // For now, always show the top 3 priority goals (fixed focus slots)
+  const priorityGoals = (data.priorityGoals || []).slice(0, 3);
   const activeHabits = Array.isArray(data.highLeverageHabits) ? data.highLeverageHabits : [];
 	const insights = (data.keyInsights || []).slice(0, 3);
 	const optimization = data.pendingOptimization;
@@ -140,46 +96,21 @@ return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-blue-50 p-3 sm:p-6 lg:p-8">
       <div className="space-y-6 sm:space-y-8 max-w-6xl mx-auto">
       <header className="space-y-1">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0">
             <h1 className="text-xl sm:text-2xl font-semibold text-gray-900">My Focus</h1>
             <p className="text-xs sm:text-sm text-gray-600">Your top priorities and the habits that will help you achieve them</p>
           </div>
-          <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-3 flex-wrap justify-end">
             {totalHabits > 0 && (
               <button
                 type="button"
                 onClick={() => setShowHabitsPanel(true)}
-                className="inline-flex items-center px-3 py-1.5 rounded-full bg-emerald-100 text-emerald-700 text-xs sm:text-sm font-medium hover:bg-emerald-200 transition-colors"
+                className="px-2 py-1 bg-teal-100 text-teal-700 rounded-full text-xs font-medium shrink-0 hover:bg-teal-200 transition-colors"
               >
                 {completedHabits}/{totalHabits} ✓
               </button>
             )}
-            <div className="flex items-center gap-2">
-              <label htmlFor="focus-goal-limit" className="text-xs text-gray-600">
-                Focus goals
-              </label>
-              <select
-                id="focus-goal-limit"
-                value={currentLimit}
-                onChange={handleLimitChange}
-                disabled={updatingLimit}
-                className="text-xs border border-gray-200 rounded-lg px-2 py-1 bg-white text-gray-700 focus:outline-none focus:ring-1 focus:ring-emerald-400"
-              >
-                {[3, 4, 5].map((option) => (
-                  <option key={option} value={option}>
-                    {option}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <button
-              className="inline-flex items-center px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs sm:text-sm hover:bg-emerald-700 whitespace-nowrap"
-              title="Start chat to Optimize My Focus"
-              onClick={() => { window.location.href = '/?new=1&optimize=1'; }}
-            >
-              Optimize focus
-            </button>
           </div>
         </div>
       </header>
@@ -204,10 +135,7 @@ return (
       <section className="grid gap-4 sm:gap-6 md:grid-cols-2">
         {/* Priority Goals */}
         <div className="space-y-3 sm:space-y-4 min-w-0">
-          <div className="flex items-center justify-between">
-            <div className="text-sm sm:text-base font-semibold text-gray-800">Priority Goals</div>
-            <a href="/goals" className="text-xs text-emerald-600 hover:text-emerald-700 hover:underline">All Goals →</a>
-          </div>
+          <div className="text-sm sm:text-base font-semibold text-gray-800">Priority Goals</div>
           <div className="grid gap-3 sm:gap-4">
             {priorityGoals.length === 0 && (
               <div className="text-xs sm:text-sm text-gray-600">No priorities yet. Start a chat to set your top focus goals.</div>
@@ -240,14 +168,21 @@ return (
               </button>
             ))}
           </div>
+          <div className="flex items-center justify-between pt-2">
+            <button
+              className="inline-flex items-center px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs sm:text-sm hover:bg-emerald-700 transition-colors"
+              title="Start chat to Optimize My Focus"
+              onClick={() => { window.location.href = '/?new=1&optimize=1'; }}
+            >
+              Optimize focus
+            </button>
+            <a href="/goals" className="text-xs text-emerald-600 hover:text-emerald-700 hover:underline">All Goals →</a>
+          </div>
         </div>
 
         {/* Key Insights */}
         <div className="space-y-3 sm:space-y-4 min-w-0">
-          <div className="flex items-center justify-between">
-            <div className="text-sm sm:text-base font-semibold text-gray-800">Key Insights</div>
-            <a href="/insights" className="text-xs text-emerald-600 hover:text-emerald-700 hover:underline">All Insights →</a>
-          </div>
+          <div className="text-sm sm:text-base font-semibold text-gray-800">Key Insights</div>
           <div className="grid gap-2">
             {insights.length === 0 && (
               <div className="text-xs sm:text-sm text-gray-600">No insights yet. Chat with your coach to generate insights.</div>
@@ -258,6 +193,9 @@ return (
                 <div className="text-xs text-gray-600 mt-1 break-words">{i.explanation}</div>
               </div>
             ))}
+          </div>
+          <div className="flex justify-end pt-2">
+            <a href="/insights" className="text-xs text-emerald-600 hover:text-emerald-700 hover:underline">All Insights →</a>
           </div>
         </div>
       </section>

@@ -211,27 +211,24 @@ ${finalText}`.trim();
       completionMap.get(key)!.push(completion);
     });
 
-    const focusIds = new Set<string>();
-    try { (myFocus?.highLeverageHabits || []).forEach((h: any) => focusIds.add(h.id)); } catch {}
+    // Prefer My Focus high-leverage habits; fall back to recent habits if none
+    const focusHabits: any[] = Array.isArray(myFocus?.highLeverageHabits) ? myFocus.highLeverageHabits : [];
+    const sourceHabits: any[] =
+      focusHabits.length > 0
+        ? focusHabits
+        : recentHabits || [];
 
-    // Prioritize focus habits at top of list
-    const sorted = [...recentHabits].sort((a: any, b: any) => {
-      const af = focusIds.has(a.id) ? 1 : 0;
-      const bf = focusIds.has(b.id) ? 1 : 0;
-      return bf - af;
-    });
-
-    // Show up to 6 prioritized habits to better match summary like "0/6"
-    const habitReviewHabits = sorted.map(habit => {
+    // Show up to 6 habits, prioritizing My Focus habits
+    const habitReviewHabits = sourceHabits.slice(0, 6).map((habit: any) => {
       const habitCompletions = completionMap.get(habit.id) || [];
       const completed = habitCompletions.length > 0;
-      
-      // Calculate streak (simplified - in real implementation, this would be more sophisticated)
-      const streak = Math.floor(Math.random() * 15) + 1; // Placeholder
-      
+
+      // Use streak from My Focus when available; otherwise leave as 0 for now
+      const streak = typeof habit.streak === "number" ? habit.streak : 0;
+
       return {
         id: habit.id,
-        title: habit.name,
+        title: habit.title ?? habit.name,
         description: habit.description,
         completed,
         streak,
@@ -287,7 +284,7 @@ ${finalText}`.trim();
         ReviewProgressAgent.extractionSchema,
         { name: "habit_completion_extraction" }
       );
-      extractions = await parser.invoke([
+      const raw = await parser.invoke([
         {
           role: "system",
           content: `You extract structured data about habit completions mentioned in a message. 
@@ -301,6 +298,10 @@ Return JSON with a "completions" array.`,
         },
         { role: "user", content: userMessage },
       ]);
+      // Ensure completions is always an array to satisfy the type definition
+      extractions = {
+        completions: raw?.completions ?? [],
+      };
     } catch (error) {
       console.warn("[ReviewProgressAgent] Failed to extract habit completions", error);
       return { summaries, updated: false };
