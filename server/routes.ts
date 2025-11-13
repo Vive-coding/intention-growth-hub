@@ -1614,5 +1614,141 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: e?.message || 'Failed to purge snapshots' });
     }
   });
+
+  // TEST ENDPOINT: Manually trigger a follow-up email for testing (always available)
+  app.post("/api/test-followup-email", authMiddleware, async (req: any, res) => {
+    try {
+      const userId = req.user?.id || req.user?.claims?.sub;
+      if (!userId) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+
+      const { NotificationService } = await import("./services/notificationService");
+      const { MyFocusService } = await import("./services/myFocusService");
+      const { sendEmail } = await import("./services/emailService");
+      const { randomBytes } = await import("node:crypto");
+      const { notificationFollowups } = await import("../shared/schema");
+
+      // Get user profile with notification settings
+      const [userRow] = await db
+        .select({
+          userId: users.id,
+          email: users.email,
+          firstName: users.firstName,
+          lastName: users.lastName,
+        })
+        .from(users)
+        .where(eq(users.id, userId))
+        .limit(1);
+
+      if (!userRow || !userRow.email) {
+        return res.status(400).json({ message: "User email not found" });
+      }
+
+      // Get user's focus goals
+      const focus = await MyFocusService.getMyFocus(userId);
+      const goals = (focus?.priorityGoals || []).filter((goal: any) => goal.status !== "completed").slice(0, 3);
+
+      if (!goals.length) {
+        return res.status(400).json({ 
+          message: "No active focus goals found. Create some goals first to test the follow-up email." 
+        });
+      }
+
+      // Generate email content
+      const goalSummaryLines = goals.map((goal: any) => {
+        const progress = typeof goal.progress === "number" ? `${goal.progress}%` : "in progress";
+        return `• ${goal.title}${progress ? ` — ${progress}` : ""}`;
+      });
+
+      const bodyParagraphs = [
+        "I just reviewed your focus goals and wanted to check in.",
+        `Here's how things look right now:\n${goalSummaryLines.join("\n")}`,
+        "When you have a minute, reply so we can celebrate the wins and tackle anything that feels stuck.",
+      ];
+
+      // Generate unique token
+      const token = randomBytes(24).toString("hex");
+      const appOrigin = process.env.APP_BASE_URL || process.env.APP_ORIGIN || "https://goodhabit.ai";
+      const ctaPath = `/?followup=${token}`;
+      const ctaUrl = `${appOrigin}${ctaPath}`;
+      const previewText = `Quick check-in on your focus goals${goals.length > 1 ? "" : `: ${goals[0].title}`}`;
+
+      const envelope = NotificationService.generateEmailEnvelope(
+        { 
+          firstName: userRow.firstName, 
+          lastName: userRow.lastName,
+          coachingStyle: null 
+        },
+        {
+          subject: "🎯 How are your focus goals coming along?",
+          previewText,
+          bodyParagraphs,
+          ctaLabel: "Continue this check-in",
+          ctaUrl,
+        }
+      );
+
+      // Store follow-up record
+      const expiresAt = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000); // 3 days
+      const payload = {
+        goals: goals.map((goal: any) => ({
+          id: goal.id,
+          title: goal.title,
+          progress: goal.progress,
+          status: goal.status,
+        })),
+        generatedAt: new Date().toISOString(),
+      };
+
+      const [record] = await db
+        .insert(notificationFollowups)
+        .values({
+          userId,
+          token,
+          status: "pending",
+          subject: envelope.subject,
+          previewText: envelope.previewText,
+          payload,
+          ctaPath,
+          expiresAt,
+        })
+        .returning({ id: notificationFollowups.id });
+
+      // Send the email
+      await sendEmail({
+        to: userRow.email,
+        subject: envelope.subject,
+        html: envelope.html,
+        text: envelope.text,
+        headers: { "X-Entity-Preview": envelope.previewText },
+      });
+
+      // Mark as sent
+      await db
+        .update(notificationFollowups)
+        .set({ status: "sent", sentAt: new Date() })
+        .where(eq(notificationFollowups.id, record.id));
+
+      res.json({
+        success: true,
+        message: `Test email sent to ${userRow.email}`,
+        details: {
+          to: userRow.email,
+          subject: envelope.subject,
+          goals: goals.map((g: any) => g.title),
+          followupToken: token,
+          ctaUrl,
+        }
+      });
+    } catch (error) {
+      console.error("[test-followup-email] Error:", error);
+      res.status(500).json({ 
+        message: "Failed to send test email",
+        error: (error as any)?.message 
+      });
+    }
+  });
+
   return httpServer;
 }
