@@ -1616,6 +1616,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // TEST ENDPOINT: Manually trigger a follow-up email for testing (always available)
+  // Add GET route for testing
+  app.get("/api/test-followup-email", authMiddleware, async (req: any, res) => {
+    res.json({ message: "Test endpoint is working! Use POST to send email.", method: "GET" });
+  });
+  
   app.post("/api/test-followup-email", authMiddleware, async (req: any, res) => {
     try {
       const userId = req.user?.id || req.user?.claims?.sub;
