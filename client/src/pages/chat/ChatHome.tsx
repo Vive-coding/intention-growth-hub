@@ -301,8 +301,8 @@ export default function ChatHome() {
       />
 
       <div
-        className="flex bg-gray-50 min-h-screen overflow-hidden"
-        style={{ minHeight: "100dvh" }}
+        className="flex bg-gray-50 overflow-hidden"
+        style={{ height: "100dvh" }}
       >
       {/* Desktop left nav + conversations list */}
       <SharedLeftNav
@@ -313,9 +313,9 @@ export default function ChatHome() {
       </SharedLeftNav>
 
       {/* Main chat column */}
-      <main className="flex-1 flex flex-col min-h-0 overflow-hidden">
-        {/* Mobile header: hamburger + logo, sticky */}
-        <div className="px-3 sm:px-4 py-3 border-b bg-white sticky top-0 z-30 overflow-x-hidden shrink-0">
+      <main className="flex-1 flex flex-col h-full overflow-hidden">
+        {/* Mobile header: hamburger + logo, fixed */}
+        <div className="px-3 sm:px-4 py-3 border-b bg-white z-30 overflow-x-hidden shrink-0">
           <div className="flex items-center justify-between gap-2 min-w-0">
             <div className="flex items-center gap-2 min-w-0 flex-1">
               <div className="lg:hidden">
@@ -424,7 +424,7 @@ export default function ChatHome() {
         </div>
 
         {threadId && (
-        <div className="border-t bg-white px-3 sm:px-4 py-3 sticky bottom-0 shrink-0 overflow-x-hidden">
+        <div className="border-t bg-white px-3 sm:px-4 py-3 shrink-0 overflow-x-hidden">
           {/* Desktop: full actions above composer */}
           <div className="hidden lg:block mb-2">
             <QuickActions
