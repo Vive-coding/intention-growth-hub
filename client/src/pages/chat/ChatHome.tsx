@@ -300,7 +300,10 @@ export default function ChatHome() {
         }}
       />
 
-      <div className="flex bg-gray-50 min-h-screen overflow-x-hidden">
+      <div
+        className="flex bg-gray-50 min-h-screen overflow-hidden"
+        style={{ minHeight: "100dvh" }}
+      >
       {/* Desktop left nav + conversations list */}
       <SharedLeftNav
         onReturnToOnboarding={handleReturnToOnboarding}
