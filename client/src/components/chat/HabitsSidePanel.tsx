@@ -163,61 +163,57 @@ export function HabitsSidePanel({ open, onOpenChange, todaySummary }: HabitsSide
                 return (
                   <div
                     key={habit.id}
-                    className={`rounded-2xl border px-4 py-3 transition-colors ${
+                    className={`rounded-2xl border px-3 sm:px-4 py-3 transition-colors ${
                       isCompleted
                         ? "bg-emerald-50 border-emerald-200 text-emerald-900"
                         : "bg-white border-gray-200 hover:border-emerald-300 hover:shadow-sm"
                     }`}
                   >
-                    <div className="flex items-start gap-3">
+                    <div className="flex items-start gap-2 sm:gap-3 w-full">
                       <div className="min-w-0 flex-1 space-y-1.5">
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0 flex-1">
-                            <div className="text-sm sm:text-base font-semibold truncate">{habit.title}</div>
-                            <div className="text-[11px] sm:text-xs text-gray-500 flex flex-wrap items-center gap-x-2 gap-y-1 mt-1">
-                              <span>Streak {Math.max(0, habit.streak || 0)}d</span>
-                              {primaryGoalTitle && (
-                                <span className="inline-flex items-center gap-1">
-                                  Focus:&nbsp;
-                                  <span className="text-gray-700 truncate max-w-[150px] sm:max-w-[220px]">
-                                    {primaryGoalTitle}
-                                  </span>
-                                  {extraGoalCount > 0 && <span className="text-gray-400">+{extraGoalCount}</span>}
-                                </span>
-                              )}
-                            </div>
-                            {isCompleted && completionTime && (
-                              <div className="flex items-center gap-1.5 mt-2 text-xs text-emerald-700">
-                                <Clock className="w-3 h-3" />
-                                <span>
-                                  Completed at {format(new Date(completionTime), "h:mm a")}
-                                </span>
-                              </div>
-                            )}
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => handleCompleteHabit(habit)}
-                            disabled={isCompleted || isCompleting}
-                            className={`shrink-0 h-9 w-9 rounded-xl inline-flex items-center justify-center transition-colors ${
-                              isCompleted
-                                ? "bg-emerald-100 text-emerald-600 cursor-default"
-                                : "bg-emerald-600 text-white hover:bg-emerald-700 active:scale-95"
-                            }`}
-                            aria-label={
-                              isCompleted ? "Habit already completed today" : `Mark ${habit.title} as completed`
-                            }
-                          >
-                            {isCompleted ? (
-                              <CheckCircle2 className="w-5 h-5" />
-                            ) : isCompleting ? (
-                              <Loader2 className="w-5 h-5 animate-spin" />
-                            ) : (
-                              <Check className="w-5 h-5" />
-                            )}
-                          </button>
+                        <div className="text-sm sm:text-base font-semibold break-words">{habit.title}</div>
+                        <div className="text-[11px] sm:text-xs text-gray-500 flex flex-wrap items-center gap-x-2 gap-y-1">
+                          <span>Streak {Math.max(0, habit.streak || 0)}d</span>
+                          {primaryGoalTitle && (
+                            <span className="inline-flex items-center gap-1">
+                              Focus:&nbsp;
+                              <span className="text-gray-700 truncate max-w-[100px] sm:max-w-[150px]">
+                                {primaryGoalTitle}
+                              </span>
+                              {extraGoalCount > 0 && <span className="text-gray-400">+{extraGoalCount}</span>}
+                            </span>
+                          )}
                         </div>
+                        {isCompleted && completionTime && (
+                          <div className="flex items-center gap-1.5 mt-2 text-xs text-emerald-700">
+                            <Clock className="w-3 h-3" />
+                            <span>
+                              Completed at {format(new Date(completionTime), "h:mm a")}
+                            </span>
+                          </div>
+                        )}
                       </div>
+                      <button
+                        type="button"
+                        onClick={() => handleCompleteHabit(habit)}
+                        disabled={isCompleted || isCompleting}
+                        className={`shrink-0 h-9 w-9 rounded-xl inline-flex items-center justify-center transition-colors ${
+                          isCompleted
+                            ? "bg-emerald-100 text-emerald-600 cursor-default"
+                            : "bg-emerald-600 text-white hover:bg-emerald-700 active:scale-95"
+                        }`}
+                        aria-label={
+                          isCompleted ? "Habit already completed today" : `Mark ${habit.title} as completed`
+                        }
+                      >
+                        {isCompleted ? (
+                          <CheckCircle2 className="w-5 h-5" />
+                        ) : isCompleting ? (
+                          <Loader2 className="w-5 h-5 animate-spin" />
+                        ) : (
+                          <Check className="w-5 h-5" />
+                        )}
+                      </button>
                     </div>
                   </div>
                 );
