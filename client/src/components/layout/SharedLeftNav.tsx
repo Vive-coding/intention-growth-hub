@@ -72,18 +72,18 @@ export default function SharedLeftNav({ navItems, children, onReturnToOnboarding
   };
 
   return (
-    <aside className="hidden lg:flex lg:flex-col lg:w-64 border-r bg-white/90 backdrop-blur-sm">
-      <div className="px-4 py-4">
+    <aside className="hidden lg:flex lg:flex-col lg:w-64 border-r bg-white/90 backdrop-blur-sm h-full">
+      <div className="px-4 py-4 shrink-0">
         <img src="/goodhabit.ai(200 x 40 px).png" alt="GoodHabit" className="h-6" />
       </div>
-      <nav className="px-2 py-2 space-y-1 flex-1 overflow-y-auto">
+      <nav className="px-2 py-2 space-y-1 flex-1 overflow-y-auto min-h-0">
         {defaultNavItems.map((item) => (
           <NavItemComponent key={item.href} {...item} />
         ))}
 
         {children && <div className="mt-4">{children}</div>}
       </nav>
-      <div className="p-3 border-t">
+      <div className="p-3 border-t shrink-0">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-50">

@@ -93,9 +93,25 @@ export default function MyFocusDashboard() {
   const isEmpty = priorityGoals.length === 0 && totalHabits === 0 && insights.length === 0;
 
 return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-blue-50 p-3 sm:p-6 lg:p-8">
+    <>
+      {/* Mobile header with habit pill */}
+      <div className="lg:hidden px-3 sm:px-4 py-3 border-b bg-white sticky top-0 z-30 -mx-3 sm:-mx-6 -mt-3 sm:-mt-6 mb-3 sm:mb-6">
+        <div className="flex items-center justify-between gap-2">
+          <h1 className="text-base sm:text-lg font-semibold text-gray-900">My Focus</h1>
+          {totalHabits > 0 && (
+            <button
+              type="button"
+              onClick={() => setShowHabitsPanel(true)}
+              className="px-2 py-1 bg-teal-100 text-teal-700 rounded-full text-xs font-medium shrink-0 hover:bg-teal-200 transition-colors"
+            >
+              {completedHabits}/{totalHabits} ✓
+            </button>
+          )}
+        </div>
+      </div>
+
       <div className="space-y-6 sm:space-y-8 max-w-6xl mx-auto">
-      <header className="space-y-1">
+      <header className="space-y-1 hidden lg:block">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0">
             <h1 className="text-xl sm:text-2xl font-semibold text-gray-900">My Focus</h1>
@@ -245,6 +261,6 @@ return (
         todaySummary={totalHabits > 0 ? { completed: completedHabits, total: totalHabits } : undefined}
       />
     </div>
-    </div>
+    </>
 	);
 }

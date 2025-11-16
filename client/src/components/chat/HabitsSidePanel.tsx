@@ -108,7 +108,7 @@ export function HabitsSidePanel({ open, onOpenChange, todaySummary }: HabitsSide
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="right"
-        className="w-full sm:max-w-lg lg:max-w-xl p-0 flex flex-col bg-gradient-to-b from-emerald-50/60 via-white to-white"
+        className="w-[90vw] sm:w-full sm:max-w-lg lg:max-w-xl p-0 flex flex-col bg-gradient-to-b from-emerald-50/60 via-white to-white"
       >
         <div className="px-4 sm:px-6 py-5 border-b border-emerald-100 bg-white/80 backdrop-blur-sm">
           <SheetHeader className="space-y-3 text-left">
