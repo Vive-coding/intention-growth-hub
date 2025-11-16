@@ -722,22 +722,15 @@ export const Dashboard = ({ onOpenGPT, onDetailedViewChange, onClearDetailedView
                 />
               </div>
               
-              {/* Action buttons inside the chat box - right aligned and smaller */}
+              {/* Action button inside the chat box - right aligned and smaller */}
               <div className="flex gap-2 justify-end">
-                <Button 
-                  onClick={onOpenGPT}
-                  className="bg-green-500 text-white hover:bg-green-600 py-1 px-3 rounded-full font-semibold text-xs shadow-lg hover:shadow-xl transition-all duration-200 border-0"
-                >
-                  <ExternalLink className="w-3 h-3 mr-1" />
-                  Chat with Life Coach
-                </Button>
                 <Button 
                   className="bg-purple-600 text-white hover:bg-purple-700 py-1 px-3 rounded-full font-semibold text-xs shadow-md transition-all duration-200 hover:shadow-lg"
                   onClick={handleSaveJournal}
                   disabled={isSavingJournal}
                 >
                   <BookOpen className="w-3 h-3 mr-1" />
-                  {isSavingJournal ? "Saving..." : "Save Journal"}
+                  {isSavingJournal ? "Saving..." : "Save"}
                 </Button>
               </div>
             </div>
@@ -1121,13 +1114,12 @@ export const Dashboard = ({ onOpenGPT, onDetailedViewChange, onClearDetailedView
                                 {/* Action button inside the chat box - right aligned and smaller */}
                 <div className="flex gap-2 justify-end">
                   <Button 
-                    className="bg-purple-600 text-white hover:bg-purple-700 py-1.5 px-4 sm:px-4 rounded-full font-semibold text-sm shadow-md transition-all duration-200 hover:shadow-lg"
+                    className="bg-purple-600 text-white hover:bg-purple-700 py-1.5 px-4 rounded-full font-semibold text-sm shadow-md transition-all duration-200 hover:shadow-lg"
                     onClick={handleSaveJournal}
                     disabled={isSavingJournal}
                   >
-                    <BookOpen className="w-4 h-4 sm:mr-1" />
-                    <span className="hidden sm:inline">{isSavingJournal ? "Saving..." : "Save Journal"}</span>
-                    <span className="sm:hidden">{isSavingJournal ? "Saving..." : "Save"}</span>
+                    <BookOpen className="w-4 h-4 mr-1" />
+                    {isSavingJournal ? "Saving..." : "Save"}
                   </Button>
                 </div>
               </div>
