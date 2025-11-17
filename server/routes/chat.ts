@@ -589,17 +589,16 @@ router.post("/test-followup-email", async (req: any, res) => {
       });
     }
 
-    // Generate email content
-    const goalSummaryLines = goals.map((goal: any) => {
-      const progress = typeof goal.progress === "number" ? `${goal.progress}%` : "in progress";
-      return `• ${goal.title}${progress ? ` — ${progress}` : ""}`;
-    });
+    // Get high-leverage habits for email personalization
+    const habits = (focus?.highLeverageHabits || []).slice(0, 5);
 
-    const bodyParagraphs = [
-      "I just reviewed your focus goals and wanted to check in.",
-      `Here's how things look right now:\n${goalSummaryLines.join("\n")}`,
-      "When you have a minute, reply so we can celebrate the wins and tackle anything that feels stuck.",
-    ];
+    // Generate AI-powered personalized email content
+    const bodyParagraphs = await GoalFollowUpService.generateEmailContent(
+      userId,
+      goals,
+      habits,
+      userRow.firstName
+    );
 
     // Generate unique token
     const { randomBytes } = await import("node:crypto");

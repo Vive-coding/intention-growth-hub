@@ -142,17 +142,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      // Generate email content
-      const goalSummaryLines = goals.map((goal: any) => {
-        const progress = typeof goal.progress === "number" ? `${goal.progress}%` : "in progress";
-        return `• ${goal.title}${progress ? ` — ${progress}` : ""}`;
-      });
+      // Get high-leverage habits for email personalization
+      const habits = (focus?.highLeverageHabits || []).slice(0, 5);
 
-      const bodyParagraphs = [
-        "I just reviewed your focus goals and wanted to check in.",
-        `Here's how things look right now:\n${goalSummaryLines.join("\n")}`,
-        "When you have a minute, reply so we can celebrate the wins and tackle anything that feels stuck.",
-      ];
+      // Generate AI-powered personalized email content
+      const { GoalFollowUpService } = await import("./services/goalFollowUpService");
+      const bodyParagraphs = await GoalFollowUpService.generateEmailContent(
+        userId,
+        goals,
+        habits,
+        userRow.firstName
+      );
 
       // Generate unique token
       const token = randomBytes(24).toString("hex");
@@ -1728,7 +1728,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     });
 
-    cron.schedule('15 * * * *', async () => {
+    // Run check-ins at consistent times: 9:15 AM, 3:15 PM, and 7:15 PM on weekdays only
+    // Cron format: minute hour * * day-of-week (1-5 = Monday-Friday)
+    cron.schedule('15 9,15,19 * * 1-5', async () => {
       try {
         await GoalFollowUpService.runScheduledCheckIns();
       } catch (e) {

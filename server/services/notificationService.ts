@@ -1,6 +1,6 @@
-import { eq } from "drizzle-orm";
+import { eq, desc, and } from "drizzle-orm";
 import { db } from "../db";
-import { userOnboardingProfiles, users } from "../../shared/schema";
+import { userOnboardingProfiles, users, notificationFollowups } from "../../shared/schema";
 import { sendEmail } from "./emailService";
 
 interface NotificationProfile {
@@ -26,6 +26,12 @@ export class NotificationService {
   static async getUsersDueForNotification(): Promise<NotificationProfile[]> {
     const now = new Date();
     const currentHour = now.getHours();
+    const dayOfWeek = now.getDay(); // 0 = Sunday, 6 = Saturday
+
+    // Exclude weekends (Saturday = 6, Sunday = 0)
+    if (dayOfWeek === 0 || dayOfWeek === 6) {
+      return [];
+    }
 
     let timePeriod: "morning" | "afternoon" | "evening" | null = null;
     if (currentHour >= 8 && currentHour < 12) {
@@ -55,18 +61,87 @@ export class NotificationService {
       .innerJoin(users, eq(userOnboardingProfiles.userId, users.id))
       .where(eq(userOnboardingProfiles.notificationEnabled, true));
 
-    // TODO: add persistence for last notification timestamps and respect frequency cadence
-    return rows.filter((row) => {
-      // Handle multi-select notification times (can be array or comma-separated string)
+    // Filter users based on their preferences and frequency
+    const eligibleUsers: NotificationProfile[] = [];
+    
+    for (const row of rows) {
+      // Check time preference
       const timePrefs = typeof row.preferredNotificationTime === 'string'
-        ? row.preferredNotificationTime.split(',').map(t => t.trim())
+        ? row.preferredNotificationTime.split(',').map(t => t.trim()).filter(Boolean)
         : Array.isArray(row.preferredNotificationTime)
-          ? row.preferredNotificationTime
-          : [row.preferredNotificationTime];
+          ? row.preferredNotificationTime.filter(Boolean)
+          : [];
       
-      // User matches if current timePeriod is in their preferences (or if no preference, send in current period)
-      return timePrefs.some(pref => pref === timePeriod) || (timePrefs.length === 0 || timePrefs[0] === null);
-    });
+      // User must have current timePeriod in their preferences (or no preference = send anytime)
+      const timeMatches = timePrefs.length === 0 || timePrefs[0] === null || timePrefs.includes(timePeriod);
+      
+      if (!timeMatches) {
+        continue;
+      }
+
+      // Check frequency preference
+      const frequency = row.notificationFrequency;
+      if (!frequency) {
+        // No frequency preference = send daily
+        eligibleUsers.push(row);
+        continue;
+      }
+
+      // Get the most recent sent notification for this user
+      const [lastNotification] = await db
+        .select({ sentAt: notificationFollowups.sentAt })
+        .from(notificationFollowups)
+        .where(
+          and(
+            eq(notificationFollowups.userId, row.userId),
+            eq(notificationFollowups.status, "sent")
+          )
+        )
+        .orderBy(desc(notificationFollowups.sentAt))
+        .limit(1);
+
+      const lastSentAt = lastNotification?.sentAt ? new Date(lastNotification.sentAt) : null;
+      const hoursSinceLastEmail = lastSentAt 
+        ? (now.getTime() - lastSentAt.getTime()) / (1000 * 60 * 60)
+        : Infinity;
+
+      // Check if user is due based on frequency
+      let isDue = false;
+      
+      switch (frequency) {
+        case "daily":
+        case "weekday":
+          // Daily/weekday: send if no email sent in last 20 hours (allows for once per day)
+          isDue = hoursSinceLastEmail >= 20;
+          break;
+        
+        case "every_2_days":
+        case "twice_per_week":
+          // Every 2 days / twice per week: send if no email sent in last 48 hours
+          isDue = hoursSinceLastEmail >= 48;
+          break;
+        
+        case "weekly":
+          // Weekly: send if no email sent in last 6 days (168 hours)
+          isDue = hoursSinceLastEmail >= 144; // 6 days to allow some flexibility
+          break;
+        
+        default:
+          // Unknown frequency: default to daily behavior
+          isDue = hoursSinceLastEmail >= 20;
+      }
+
+      // Additional check for weekday frequency: only send on weekdays (already checked above)
+      if (frequency === "weekday" && (dayOfWeek === 0 || dayOfWeek === 6)) {
+        isDue = false;
+      }
+
+      if (isDue) {
+        eligibleUsers.push(row);
+      }
+    }
+
+    return eligibleUsers;
   }
 
   static generateNotificationMessage(profile: { coachingStyle?: string[] | null; firstName?: string | null; }): string {
