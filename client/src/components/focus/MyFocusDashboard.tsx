@@ -228,6 +228,15 @@ return (
                       {g.lifeMetric?.name && (
                         <span className={`text-[10px] sm:text-[11px] px-1.5 sm:px-2 py-0.5 rounded-full border ${getPillBg(g.lifeMetric.name)} whitespace-nowrap`}>{g.lifeMetric.name}</span>
                       )}
+                      {g.term && (
+                        <span className={`text-[10px] sm:text-[11px] px-1.5 sm:px-2 py-0.5 rounded-full border whitespace-nowrap ${
+                          g.term === 'short' ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                          g.term === 'mid' ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                          'bg-purple-50 text-purple-700 border-purple-200'
+                        }`}>
+                          {g.term === 'short' ? 'Short term' : g.term === 'mid' ? 'Mid term' : 'Long term'}
+                        </span>
+                      )}
                     </div>
                     <div className="font-semibold text-sm sm:text-base text-gray-900 break-words">{g.title}</div>
                   </div>
@@ -238,6 +247,14 @@ return (
                     </div>
                   </div>
                 </div>
+                {g.targetDate && (
+                  <div className="flex items-center gap-1 text-[11px] text-gray-500 mt-2">
+                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    <span>Target: {new Date(g.targetDate).toLocaleDateString()}</span>
+                  </div>
+                )}
               </button>
             ))}
           </div>

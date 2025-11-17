@@ -234,6 +234,7 @@ export class MyFocusService {
         targetDate: g.goalInst?.targetDate?.toISOString(),
         progress: finalProgress,
         status: g.goalInst?.status || 'active',
+        term: g.goalDef.term || undefined,
         lifeMetric: g.lifeMetric ? {
           id: g.lifeMetric.id,
           name: g.lifeMetric.name,
@@ -397,8 +398,9 @@ export class MyFocusService {
         description: g.goalDef.description || undefined,
         category: g.goalDef.category || undefined,
         targetDate: g.goalInst?.targetDate?.toISOString(),
-          progress: finalProgress,
+        progress: finalProgress,
         status: g.goalInst?.status || 'active',
+        term: g.goalDef.term || undefined,
         lifeMetric: g.lifeMetric ? { id: g.lifeMetric.id, name: g.lifeMetric.name, color: g.lifeMetric.color } : undefined,
         rank: it.rank ?? idx + 1,
         reason: it.reason,

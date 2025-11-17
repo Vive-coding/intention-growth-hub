@@ -378,6 +378,7 @@ router.get("/", async (req: Request, res: Response) => {
           name: lifeMetricData.name,
           color: lifeMetricData.color,
         },
+        term: goalDefinition.term,
         progress: finalProgress,
         createdAt: goalInstance.createdAt,
         completedAt: finalCompletedAt,
@@ -495,6 +496,28 @@ router.get("/suggested", async (req: Request, res: Response) => {
       if (decision.relation === 'duplicate' && matchId) {
         const matchRow = activeExistingGoals.find((g:any)=> g.gd.id === matchId);
         const isActive = matchRow && matchRow.gi && matchRow.gi.status === 'active' && matchRow.gi.archived === false && matchRow.gd.archived === false;
+        
+        // Silently backfill term classification if missing
+        if (matchRow && matchRow.gd && !matchRow.gd.term && matchRow.gi?.targetDate) {
+          try {
+            const targetDate = new Date(matchRow.gi.targetDate);
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const daysUntilTarget = Math.ceil((targetDate.getTime() - today.getTime()) / (24 * 60 * 60 * 1000));
+            let term: string;
+            if (daysUntilTarget <= 30) {
+              term = "short";
+            } else if (daysUntilTarget <= 90) {
+              term = "mid";
+            } else {
+              term = "long";
+            }
+            await db.update(goalDefinitions).set({ term }).where(eq(goalDefinitions.id, matchRow.gd.id));
+          } catch (e) {
+            console.warn('Failed to backfill term classification:', e);
+          }
+        }
+        
         if (isActive) {
           try { await db.update(suggestedGoals).set({ archived: true }).where(eq(suggestedGoals.id, suggestedGoal.id)); } catch {}
           const lm = matchRow.gd.lifeMetricId ? lmById.get(matchRow.gd.lifeMetricId as any) : undefined;
@@ -2489,6 +2512,17 @@ router.post("/", async (req: Request, res: Response) => {
     }
     resolvedTargetDate.setHours(23, 59, 59, 999);
 
+    // Calculate term classification based on target date
+    const daysUntilTarget = Math.ceil((resolvedTargetDate.getTime() - today.getTime()) / (24 * 60 * 60 * 1000));
+    let term: string;
+    if (daysUntilTarget <= 30) {
+      term = "short";
+    } else if (daysUntilTarget <= 90) {
+      term = "mid";
+    } else {
+      term = "long";
+    }
+
     // Create goal definition
     const [goalDefinition] = await db
       .insert(goalDefinitions)
@@ -2498,6 +2532,7 @@ router.post("/", async (req: Request, res: Response) => {
         description,
         lifeMetricId: resolvedLifeMetric.id,
         unit: "count",
+        term,
         isActive: true,
       })
       .returning();
@@ -2753,6 +2788,48 @@ router.put("/:id", async (req: Request, res: Response) => {
 
     if (!updatedGoal) {
       return res.status(404).json({ error: "Goal not found" });
+    }
+
+    // If targetDate was updated, automatically recalculate all associated habit targets
+    if (instanceUpdates.targetDate) {
+      try {
+        const associatedHabits = await db
+          .select({
+            habitInst: habitInstances,
+            habitDef: habitDefinitions,
+          })
+          .from(habitInstances)
+          .leftJoin(habitDefinitions, eq(habitInstances.habitDefinitionId, habitDefinitions.id))
+          .where(eq(habitInstances.goalInstanceId, goalId));
+
+        for (const habit of associatedHabits) {
+          const frequencySettings = habit.habitInst.frequencySettings as any;
+          if (frequencySettings?.frequency && frequencySettings?.perPeriodTarget) {
+            const recalculated = calculateFrequencySettings(
+              instanceUpdates.targetDate,
+              frequencySettings.frequency,
+              frequencySettings.perPeriodTarget
+            );
+
+            await db
+              .update(habitInstances)
+              .set({
+                targetValue: recalculated.targetValue,
+                frequencySettings: {
+                  frequency: recalculated.frequency,
+                  perPeriodTarget: recalculated.perPeriodTarget,
+                  periodsCount: recalculated.periodsCount,
+                },
+              })
+              .where(eq(habitInstances.id, habit.habitInst.id));
+
+            console.log(`♻️ Recalculated habit ${habit.habitDef?.name}: ${recalculated.targetValue} (${recalculated.periodsCount} periods)`);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to recalculate habit targets:', error);
+        // Don't fail the goal update if habit recalculation fails
+      }
     }
 
     res.json(updatedGoal);

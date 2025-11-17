@@ -62,6 +62,7 @@ interface Goal {
   progress: number;
   currentValue?: number;
   targetValue?: number;
+  term?: 'short' | 'mid' | 'long';
   lifeMetric: {
     id: string;
     name: string;
@@ -558,7 +559,7 @@ export const GoalsScreen = () => {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <div 
                       className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium"
                       style={{ 
@@ -568,6 +569,15 @@ export const GoalsScreen = () => {
                     >
                       {goal.lifeMetric.name}
                     </div>
+                    {goal.term && (
+                      <div className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                        goal.term === 'short' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
+                        goal.term === 'mid' ? 'bg-blue-50 text-blue-700 border border-blue-200' :
+                        'bg-purple-50 text-purple-700 border border-purple-200'
+                      }`}>
+                        {goal.term === 'short' ? 'Short term' : goal.term === 'mid' ? 'Mid term' : 'Long term'}
+                      </div>
+                    )}
                   </div>
                 </div>
               </CardContent>

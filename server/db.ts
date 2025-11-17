@@ -190,3 +190,14 @@ export async function ensureOnboardingProfileColumns(): Promise<void> {
     console.warn('ensureOnboardingProfileColumns: failed to add focus_goal_limit', e);
   }
 }
+
+export async function ensureGoalTermColumn(): Promise<void> {
+  try {
+    await client`
+      ALTER TABLE "goal_definitions"
+      ADD COLUMN IF NOT EXISTS "term" varchar(20)
+    `;
+  } catch (e) {
+    console.warn('ensureGoalTermColumn: failed to add term column', e);
+  }
+}

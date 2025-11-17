@@ -86,6 +86,7 @@ export const goalDefinitions = pgTable("goal_definitions", {
   category: varchar("category", { length: 100 }), // Links to life metric areas
   lifeMetricId: uuid("life_metric_id").references(() => lifeMetricDefinitions.id), // Direct reference to life metric
   unit: varchar("unit", { length: 50 }), // minutes, hours, count, etc.
+  term: varchar("term", { length: 20 }), // "short" (≤30 days), "mid" (31-90 days), "long" (>90 days)
   isActive: boolean("is_active").default(true),
   archived: boolean("archived").default(false).notNull(),
   createdAt: timestamp("created_at").defaultNow(),
