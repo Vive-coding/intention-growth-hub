@@ -32,9 +32,12 @@ export function HabitsSidePanel({ open, onOpenChange, todaySummary }: HabitsSide
     enabled: open,
   });
 
+  // Only clear recently completed when panel opens, not when data changes
   useEffect(() => {
-    setRecentlyCompleted(new Set());
-  }, [completedTodayData, open]);
+    if (open) {
+      setRecentlyCompleted(new Set());
+    }
+  }, [open]);
 
   const completedTodaySet = useMemo(() => {
     const ids = new Set<string>();
