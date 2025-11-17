@@ -32,6 +32,7 @@ const Index = () => {
   const [isInDetailedView, setIsInDetailedView] = useState(false);
   const [dashboardKey, setDashboardKey] = useState(0);
   const [selectedJournalId, setSelectedJournalId] = useState<string | null>(null);
+  const [showMobileNav, setShowMobileNav] = useState(false);
   
   // Check if user has completed onboarding - localStorage takes absolute priority
   const localStorageOnboarding = localStorage.getItem("onboardingCompleted");
@@ -206,7 +207,7 @@ const Index = () => {
               <div className="flex items-center justify-between gap-2 min-w-0">
                 <div className="flex items-center gap-2 min-w-0 flex-1">
                   <div className="lg:hidden">
-                    <Sheet>
+                    <Sheet open={showMobileNav} onOpenChange={setShowMobileNav}>
                       <SheetTrigger asChild>
                         <button aria-label="Open menu" className="w-9 h-9 rounded-lg border flex items-center justify-center text-gray-700 shrink-0">
                           <Menu className="w-5 h-5" />
@@ -218,11 +219,11 @@ const Index = () => {
                             <img src="/goodhabit.ai(200 x 40 px).png" alt="GoodHabit" className="h-6" />
                           </div>
                           <nav className="px-2 py-2 space-y-1 flex-1 overflow-y-auto min-h-0">
-                            <a href="/?new=1" className="flex items-center gap-3 px-4 py-2 rounded-lg bg-emerald-50 text-emerald-700">
+                            <a href="/?new=1" className="flex items-center gap-3 px-4 py-2 rounded-lg bg-emerald-50 text-emerald-700" onClick={() => setShowMobileNav(false)}>
                               <Home className="w-4 h-4 text-emerald-700" />
                               <span className="text-sm font-medium">Home</span>
                             </a>
-                            <a href="/focus" className="flex items-center gap-3 px-4 py-2 rounded-lg text-gray-700 hover:bg-gray-50">
+                            <a href="/focus" className="flex items-center gap-3 px-4 py-2 rounded-lg text-gray-700 hover:bg-gray-50" onClick={() => setShowMobileNav(false)}>
                               <Target className="w-4 h-4 text-gray-500" />
                               <span className="text-sm font-medium">My Focus</span>
                             </a>
@@ -231,6 +232,7 @@ const Index = () => {
                                 onSelectEntry={(id) => {
                                   setSelectedJournalId(id);
                                   setCurrentScreen("journals");
+                                  setShowMobileNav(false);
                                 }}
                               />
                             </div>

@@ -6,9 +6,10 @@ import { useState } from "react";
 
 interface Props {
 	currentThreadId?: string;
+	onThreadClick?: () => void;
 }
 
-export default function ConversationsList({ currentThreadId }: Props) {
+export default function ConversationsList({ currentThreadId, onThreadClick }: Props) {
   const [, navigate] = useLocation();
   const queryClient = useQueryClient();
   const [visibleCount, setVisibleCount] = useState(6);
@@ -39,7 +40,13 @@ export default function ConversationsList({ currentThreadId }: Props) {
 							key={t.id}
 							className={`group relative w-full text-left px-4 py-3 hover:bg-gray-50 ${active ? 'bg-teal-50' : ''}`}
 						>
-							<button className="w-full text-left" onClick={() => navigate(`/${t.id}`)}>
+							<button 
+								className="w-full text-left" 
+								onClick={() => {
+									navigate(`/${t.id}`);
+									onThreadClick?.();
+								}}
+							>
 								<div className="flex items-center gap-2">
 									<MessageSquare className={`w-4 h-4 ${active ? 'text-teal-700' : 'text-gray-400'}`} />
 									<div className={`text-sm font-medium truncate ${active ? 'text-teal-800' : 'text-gray-800'}`}>{t.title || 'Daily Coaching'}</div>
@@ -47,7 +54,7 @@ export default function ConversationsList({ currentThreadId }: Props) {
 								<div className="text-[11px] text-gray-500 mt-0.5">{new Date(t.createdAt || t.updatedAt || Date.now()).toLocaleDateString()}</div>
                 </button>
                 <button
-                  className="absolute right-2 top-1/2 transform -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-red-100 rounded"
+                  className="absolute right-2 top-1/2 transform -translate-y-1/2 opacity-0 lg:group-hover:opacity-100 transition-opacity p-1 hover:bg-red-100 rounded lg:hidden"
                   onClick={async (e) => {
                     e.stopPropagation();
                     try {

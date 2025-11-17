@@ -26,6 +26,7 @@ export default function MyFocusDashboard() {
   const [selectedGoal, setSelectedGoal] = useState<any | null>(null);
   const queryClient = useQueryClient();
   const [showHabitsPanel, setShowHabitsPanel] = useState(false);
+  const [showMobileNav, setShowMobileNav] = useState(false);
   const { user } = useAuth();
 
         const handleGoalClick = async (goal: any) => {
@@ -46,22 +47,22 @@ export default function MyFocusDashboard() {
 		refetchOnWindowFocus: false,
 	});
 
-  const { data: completedTodayData } = useQuery({
-    queryKey: ["/api/goals/habits/completed-today"],
-    queryFn: async () => apiRequest("/api/goals/habits/completed-today"),
-    staleTime: 30_000,
-    refetchOnWindowFocus: false,
+  // Fetch today's habit completions for My Focus habits only
+  const { data: todayCompletions } = useQuery({
+    queryKey: ["/api/habits/today-completions"],
+    queryFn: async () => {
+      try {
+        const resp = await apiRequest("/api/habits/today-completions");
+        return resp || { completed: 0, total: 0 };
+      } catch {
+        return { completed: 0, total: 0 };
+      }
+    },
+    staleTime: 0,
+    refetchInterval: 10_000,
+    refetchOnMount: true,
+    refetchOnWindowFocus: true,
   });
-
-  const completedTodayCount = useMemo(() => {
-    if (!Array.isArray(completedTodayData)) return 0;
-    const uniqueIds = new Set<string>();
-    completedTodayData.forEach((item: any) => {
-      const id = item?.id || item?.habitDefinitionId || item?.habitId;
-      if (id) uniqueIds.add(id);
-    });
-    return uniqueIds.size;
-  }, [completedTodayData]);
 
   if (isLoading) {
 		return (
@@ -93,8 +94,8 @@ export default function MyFocusDashboard() {
 	const insights = (data.keyInsights || []).slice(0, 3);
 	const optimization = data.pendingOptimization;
 
-  const totalHabits = activeHabits.length;
-  const completedHabits = Math.min(completedTodayCount, totalHabits);
+  const totalHabits = todayCompletions?.total || 0;
+  const completedHabits = todayCompletions?.completed || 0;
 
   const isEmpty = priorityGoals.length === 0 && totalHabits === 0 && insights.length === 0;
 
@@ -104,7 +105,7 @@ return (
       <div className="lg:hidden px-3 sm:px-4 py-3 border-b bg-white z-30 shrink-0">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 min-w-0 flex-1">
-            <Sheet>
+            <Sheet open={showMobileNav} onOpenChange={setShowMobileNav}>
               <SheetTrigger asChild>
                 <button aria-label="Open menu" className="w-9 h-9 rounded-lg border flex items-center justify-center text-gray-700 shrink-0">
                   <Menu className="w-5 h-5" />
@@ -116,16 +117,16 @@ return (
                     <img src="/goodhabit.ai(200 x 40 px).png" alt="GoodHabit" className="h-6" />
                   </div>
                   <nav className="px-2 py-2 space-y-1 flex-1 overflow-y-auto min-h-0">
-                    <a href="/?new=1" className="flex items-center gap-3 px-4 py-2 rounded-lg text-gray-700 hover:bg-gray-50">
+                    <a href="/?new=1" className="flex items-center gap-3 px-4 py-2 rounded-lg text-gray-700 hover:bg-gray-50" onClick={() => setShowMobileNav(false)}>
                       <Home className="w-4 h-4 text-gray-500" />
                       <span className="text-sm font-medium">Home</span>
                     </a>
-                    <a href="/focus" className="flex items-center gap-3 px-4 py-2 rounded-lg bg-emerald-50 text-emerald-700">
+                    <a href="/focus" className="flex items-center gap-3 px-4 py-2 rounded-lg bg-emerald-50 text-emerald-700" onClick={() => setShowMobileNav(false)}>
                       <Target className="w-4 h-4 text-emerald-700" />
                       <span className="text-sm font-medium">My Focus</span>
                     </a>
                     <div className="mt-4 px-2">
-                      <ConversationsList />
+                      <ConversationsList onThreadClick={() => setShowMobileNav(false)} />
                     </div>
                   </nav>
                   <div className="p-3 border-t shrink-0">
