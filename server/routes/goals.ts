@@ -2442,13 +2442,35 @@ router.post("/", async (req: Request, res: Response) => {
       const trimmed = name.trim();
       if (!trimmed) return null;
       const normalized = trimmed.toLowerCase();
-      const existingMatch = lifeMetricsForUser.find(
+      
+      // Check for exact match first
+      const exactMatch = lifeMetricsForUser.find(
         (metric) => (metric.name || "").toLowerCase() === normalized,
       );
-      if (existingMatch) {
-        return existingMatch;
+      if (exactMatch) {
+        return exactMatch;
+      }
+      
+      // Check for similar matches (e.g., "Career Growth" vs "Career Growth 🚀")
+      // Remove emojis and special chars for comparison
+      const normalizeForComparison = (str: string) => {
+        return str.toLowerCase()
+          .replace(/[🚀🏃💪✨🎯🔥💡📈🎓💰❤️🧠]/g, '') // Remove common emojis
+          .trim();
+      };
+      
+      const normalizedInput = normalizeForComparison(trimmed);
+      const similarMatch = lifeMetricsForUser.find((metric) => {
+        const normalizedMetric = normalizeForComparison(metric.name || "");
+        return normalizedMetric === normalizedInput && normalizedMetric.length > 0;
+      });
+      
+      if (similarMatch) {
+        console.log(`[createLifeMetric] Found similar metric "${similarMatch.name}" for "${trimmed}", using existing instead of creating duplicate`);
+        return similarMatch;
       }
 
+      // Only create if no match found
       const color = palette[lifeMetricsForUser.length % palette.length];
       const [createdMetric] = await db
         .insert(lifeMetricDefinitions)

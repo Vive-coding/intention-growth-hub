@@ -8,6 +8,7 @@ interface PrioritizationItem {
 	title: string;
 	description?: string;
 	lifeMetric?: string;
+	targetDate?: string;
 	habitIdToLog?: string;
 }
 
@@ -141,11 +142,21 @@ export default function PrioritizationCard({ items, messageId, onAccept, onRejec
                                                                         <div className="flex-1 min-w-0">
                                                                                <div className="font-semibold text-gray-900 break-words">{it.title}</div>
                                                                                {it.description && <div className="text-sm text-gray-600 mt-0.5 break-words">{it.description}</div>}
-										{it.lifeMetric && (
-											<div className="mt-1 text-[11px] inline-flex px-2 py-0.5 rounded-full border bg-white text-gray-700">
-												{it.lifeMetric}
-											</div>
-										)}
+													<div className="flex items-center gap-2 mt-2 flex-wrap">
+														{it.lifeMetric && (
+															<div className="text-[11px] inline-flex items-center justify-center text-center px-2 py-0.5 rounded-full border bg-white text-gray-700 whitespace-nowrap">
+																{it.lifeMetric}
+															</div>
+														)}
+														{it.targetDate && (
+															<div className="text-[11px] inline-flex items-center justify-center text-center gap-1 px-2 py-0.5 rounded-full border bg-white text-gray-600 whitespace-nowrap">
+																<svg className="w-3 h-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+																	<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+																</svg>
+																<span>Target: {new Date(it.targetDate).toLocaleDateString()}</span>
+															</div>
+														)}
+													</div>
 									</div>
 									<div className="shrink-0 text-sm text-gray-500">#{idx + 1}</div>
 								</div>

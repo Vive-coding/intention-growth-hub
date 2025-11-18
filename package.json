@@ -17,7 +17,8 @@
     "ai:index-research:brief": "NODE_ENV=development tsx server/ai/scripts/indexResearch.ts server/ai/research/brief.md",
     "ai:index-user": "NODE_ENV=development tsx server/ai/scripts/indexUserHistory.ts",
     "snapshots:daily": "NODE_ENV=production node server/scripts/daily-snapshot-job.js",
-    "db:ensure:onboarding": "tsx server/scripts/ensureOnboardingProfileSchema.ts"
+    "db:ensure:onboarding": "tsx server/scripts/ensureOnboardingProfileSchema.ts",
+    "eval": "NODE_ENV=development tsx server/ai/evaluation/runEvals.ts"
   },
   "dependencies": {
     "@amplitude/analytics-node": "^1.5.7",

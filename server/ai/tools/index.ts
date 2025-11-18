@@ -19,7 +19,8 @@ import {
 } from "./goalTools";
 import {
   reviewDailyHabitsTool,
-  updateHabitTool
+  updateHabitTool,
+  logHabitCompletionTool
 } from "./habitTools";
 import { shareInsightTool, voteOnInsightTool } from "./insightTool";
 import { showProgressSummaryTool } from "./progressTool";
@@ -27,7 +28,7 @@ import { prioritizeGoalsTool } from "./prioritizeTools";
 
 /**
  * All tools available to the life coach agent
- * Total: 12 core tools (added prioritize_goals)
+ * Total: 13 core tools (added prioritize_goals and log_habit_completion)
  */
 export const allTools = [
   // Context (1 tool)
@@ -40,9 +41,10 @@ export const allTools = [
   completeGoalTool,
   adjustGoalTool,
   
-  // Habits (2 tools)
+  // Habits (3 tools)
   reviewDailyHabitsTool,
   updateHabitTool,
+  logHabitCompletionTool,
   
   // Insights (1 tool - voteOnInsightTool is called from frontend)
   shareInsightTool,
@@ -85,6 +87,7 @@ export {
   // Habits
   reviewDailyHabitsTool,
   updateHabitTool,
+  logHabitCompletionTool,
   
   // Insights
   shareInsightTool,

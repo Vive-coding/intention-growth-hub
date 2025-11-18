@@ -932,36 +932,19 @@ export const GoalDetailModal = ({
                   </Button>
                   <span className="text-sm text-gray-500">Back to Goals</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    className="p-1"
-                    onClick={() => setShowEditPanel(true)}
-                  >
-                    <Edit className="w-4 h-4" />
-                  </Button>
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    className="p-1 text-gray-400 hover:text-red-600"
-                    onClick={handleArchiveGoal}
-                    title="Archive goal"
-                  >
-                    <Archive className="w-4 h-4" />
-                  </Button>
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    className="p-1 text-gray-400 hover:text-red-600"
-                    onClick={handleDeleteGoal}
-                    title="Delete goal"
-                  >
-                    <Trash className="w-4 h-4" />
-                  </Button>
-                </div>
               </div>
-              <DialogTitle className="text-xl font-bold">{goalData.title}</DialogTitle>
+              <div className="flex items-center justify-between mt-2">
+                <DialogTitle className="text-xl font-bold flex-1">{goalData.title}</DialogTitle>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="p-1 ml-2 shrink-0"
+                  onClick={() => setShowEditPanel(true)}
+                  title="Edit goal"
+                >
+                  <Edit className="w-4 h-4" />
+                </Button>
+              </div>
             </DialogHeader>
 
             <div className="space-y-6 px-2 sm:px-0 overflow-x-hidden">
@@ -1085,6 +1068,28 @@ export const GoalDetailModal = ({
                 </div>
               </CardContent>
             </Card>
+            
+            {/* Archive and Delete Actions - Separated from close button at bottom */}
+            <div className="flex flex-col sm:flex-row gap-3 pt-6 mt-8 border-t border-gray-200">
+              <Button 
+                variant="outline" 
+                onClick={handleArchiveGoal}
+                className="flex-1 sm:flex-none order-2 sm:order-1"
+                title="Archive goal"
+              >
+                <Archive className="w-4 h-4 mr-2" />
+                Archive
+              </Button>
+              <Button 
+                variant="outline" 
+                onClick={handleDeleteGoal}
+                className="flex-1 sm:flex-none order-1 sm:order-2 bg-red-50 text-red-600 hover:text-red-700 hover:bg-red-100 border-red-300"
+                title="Delete goal permanently"
+              >
+                <Trash className="w-4 h-4 mr-2" />
+                Delete
+              </Button>
+            </div>
           </div>
         </div>
 

@@ -3,6 +3,7 @@ import { z } from "zod";
 import { db } from "../../db";
 import { habitDefinitions, habitCompletions } from "../../../shared/schema";
 import { MyFocusService } from "../../services/myFocusService";
+import { logHabitCompletion } from "../../services/habitCompletionService";
 import { eq, and, desc, gte, inArray, sql } from "drizzle-orm";
 
 /**
@@ -311,6 +312,92 @@ export const updateHabitTool = new DynamicStructuredTool({
       }
     } catch (error) {
       console.error("[updateHabitTool] Error:", error);
+      throw error;
+    }
+  }
+});
+
+/**
+ * Tool 3: Log habit completion directly
+ */
+export const logHabitCompletionTool = new DynamicStructuredTool({
+  name: "log_habit_completion",
+  description: `Logs a habit as completed for today when user mentions completing it in natural conversation.
+  
+  Use when:
+  - User says they completed a habit ("I did my workout", "I journaled today", "I meditated")
+  - User reports doing something that matches an active habit
+  - Infer the habit from conversation context when possible
+  
+  This directly logs the completion to the database and updates goal progress automatically.
+  Returns: Confirmation with habit details and updated streak.`,
+  
+  schema: z.object({
+    habit_id: z.string().describe("UUID of the habit that was completed"),
+    goal_id: z.string().optional().describe("Optional: UUID of the related goal if known"),
+    notes: z.string().optional().describe("Optional: Any notes about the completion")
+  }),
+  
+  func: async ({ habit_id, goal_id, notes }, config) => {
+    let userId = (config as any)?.configurable?.userId;
+    if (!userId) {
+      userId = (global as any).__TOOL_USER_ID__;
+    }
+    
+    if (!userId) {
+      throw new Error("User ID required");
+    }
+    
+    try {
+      // Verify habit exists and belongs to user
+      const [habit] = await db
+        .select()
+        .from(habitDefinitions)
+        .where(
+          and(
+            eq(habitDefinitions.id, habit_id),
+            eq(habitDefinitions.userId, userId),
+            eq(habitDefinitions.isActive, true)
+          )
+        )
+        .limit(1);
+      
+      if (!habit) {
+        throw new Error("Habit not found or inactive");
+      }
+      
+      // Log the completion
+      const completion = await logHabitCompletion({
+        userId,
+        habitId: habit_id,
+        goalId: goal_id,
+        notes: notes || null,
+        completedAt: new Date(),
+      });
+      
+      // Return structured data for confirmation card
+      const result = {
+        type: "habit_completion",
+        habit: {
+          id: habit.id,
+          title: habit.name,
+          completedAt: completion.completedAt.toISOString(),
+          streak: completion.currentStreak || 0,
+        }
+      };
+      
+      console.log("[logHabitCompletionTool] ✅ Logged habit completion:", habit.name);
+      return JSON.stringify(result);
+    } catch (error: any) {
+      if (error?.status === 409) {
+        // Already completed - return success but note it was already done
+        return JSON.stringify({
+          type: "habit_completion",
+          already_completed: true,
+          message: "This habit was already completed today"
+        });
+      }
+      console.error("[logHabitCompletionTool] Error:", error);
       throw error;
     }
   }

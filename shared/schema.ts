@@ -309,6 +309,7 @@ export const chatThreads = pgTable("chat_threads", {
   summary: text("summary"),
   isTest: boolean("is_test").default(false).notNull(),
   privacyScope: jsonb("privacy_scope"),
+  deletedAt: timestamp("deleted_at"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

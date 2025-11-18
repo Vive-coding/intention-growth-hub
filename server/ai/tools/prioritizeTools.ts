@@ -1,8 +1,8 @@
 import { DynamicStructuredTool } from "@langchain/core/tools";
 import { z } from "zod";
 import { db } from "../../db";
-import { eq, and } from "drizzle-orm";
-import { goalDefinitions, goalInstances } from "../../../shared/schema";
+import { eq, and, inArray } from "drizzle-orm";
+import { goalDefinitions, goalInstances, lifeMetricDefinitions } from "../../../shared/schema";
 import { MyFocusService } from "../../services/myFocusService";
 
 /**
@@ -241,12 +241,27 @@ export const prioritizeGoalsTool = new DynamicStructuredTool({
       console.log("[prioritize_goals] Final selected goals:", top3Goals.map(g => g.goalDefinition.title).join(', '));
       console.log("=== [prioritize_goals] COMPLETE ===\n");
       
+      // Fetch life metrics for all goals
+      const lifeMetricIds = [...new Set(top3Goals.map(g => g.goalDefinition.lifeMetricId).filter(Boolean))] as string[];
+      const lifeMetricsMap = new Map<string, string>();
+      if (lifeMetricIds.length > 0) {
+        const metrics = await db
+          .select({ id: lifeMetricDefinitions.id, name: lifeMetricDefinitions.name })
+          .from(lifeMetricDefinitions)
+          .where(inArray(lifeMetricDefinitions.id, lifeMetricIds));
+        for (const metric of metrics) {
+          lifeMetricsMap.set(metric.id, metric.name);
+        }
+      }
+
       // Format goals for prioritization (same format for both card and database)
       const items = top3Goals.map((g, idx) => ({
         goalInstanceId: g.goalInstance.id,
         rank: idx + 1,
         title: g.goalDefinition.title,
         description: g.goalDefinition.description || '',
+        targetDate: g.goalInstance.targetDate ? new Date(g.goalInstance.targetDate).toISOString() : undefined,
+        lifeMetric: g.goalDefinition.lifeMetricId ? lifeMetricsMap.get(g.goalDefinition.lifeMetricId) : undefined,
         // Keep id for frontend card display
         id: g.goalInstance.id,
       }));

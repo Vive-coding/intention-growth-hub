@@ -114,6 +114,7 @@ ${myFocus.keyInsights.map((i: any) => `- ${i.title}: ${i.explanation.substring(0
                 title: def.title,
                 description: def.description,
                 category: def.category,
+                term: def.term || undefined,
                 instances: instances.map(i => ({
                   id: i.id,
                   status: i.status,

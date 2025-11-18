@@ -386,6 +386,17 @@ export default function ChatHome() {
                   {todayCompletions.completed}/{todayCompletions.total} ✓
                 </button>
               )}
+              {threadId && activeThread && (
+                <button
+                  type="button"
+                  onClick={() => setDeleteConfirm({ threadId, title: activeThread.title || 'Daily Coaching' })}
+                  className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors shrink-0"
+                  title="Delete conversation"
+                  aria-label="Delete conversation"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              )}
             </div>
             {/* Mobile toggle */}
             {showModeToggle && (

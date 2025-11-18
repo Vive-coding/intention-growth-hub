@@ -246,10 +246,16 @@ export default function GoalSuggestionCard({ goal, habits = [], onAccept, onView
         const habitDefinitionId = createdHabit?.id;
         if (!habitDefinitionId) continue;
 
+        // Let backend calculate proper targets based on goal's target date
+        // Don't pass perPeriodTarget - backend will use calculateFrequencySettings
         await fetch(`${apiBaseUrl}/api/goals/${goalInstanceId}/habits`, {
           method: 'POST',
           headers,
-          body: JSON.stringify({ habitDefinitionId, frequency: (h.frequency || 'daily'), perPeriodTarget: 1 })
+          body: JSON.stringify({ 
+            habitDefinitionId, 
+            frequency: (h.frequency || 'daily')
+            // perPeriodTarget omitted - backend will calculate based on frequency and goal target date
+          })
         });
       }
 
@@ -351,25 +357,34 @@ export default function GoalSuggestionCard({ goal, habits = [], onAccept, onView
           </div>
         </div>
         {accepted && !needsPrioritization && (
-          <Badge className="bg-teal-600 text-white text-xs px-3 py-1">Goal accepted</Badge>
+          <Badge className="bg-teal-600 text-white text-xs px-3 py-1 flex items-center justify-center text-center">Goal accepted</Badge>
         )}
         {accepted && needsPrioritization && (
-          <Badge className="bg-orange-600 text-white text-xs px-3 py-1">Needs Prioritization</Badge>
+          <Badge className="bg-orange-600 text-white text-xs px-3 py-1 flex items-center justify-center text-center">Needs Prioritization</Badge>
         )}
         {!accepted && goal.priority && (
-          <Badge className="bg-gray-600 text-white text-xs px-3 py-1">
+          <Badge className="bg-gray-600 text-white text-xs px-3 py-1 flex items-center justify-center text-center">
             {goal.priority}
           </Badge>
         )}
       </div>
 
-      {/* Category */}
-      {goal.category && (
-        <div className="flex items-center gap-2 mb-4">
-          <Target className="w-4 h-4 text-gray-500" />
-          <span className="text-sm text-gray-600">{goal.category}</span>
-        </div>
-      )}
+      {/* Category and Target Date */}
+      <div className="flex items-center gap-2 mb-4 flex-wrap">
+        {goal.category && (
+          <Badge className="text-xs px-2.5 py-1 flex items-center justify-center text-center bg-blue-50 text-blue-700 border border-blue-200">
+            {goal.category}
+          </Badge>
+        )}
+        {goal.targetDate && (
+          <Badge className="text-xs px-2.5 py-1 flex items-center justify-center text-center bg-gray-50 text-gray-700 border border-gray-200 gap-1.5">
+            <svg className="w-3 h-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+            <span>Target: {new Date(goal.targetDate).toLocaleDateString()}</span>
+          </Badge>
+        )}
+      </div>
 
       {/* Description */}
       {goal.description && (
@@ -401,7 +416,7 @@ export default function GoalSuggestionCard({ goal, habits = [], onAccept, onView
                       <div className="font-semibold text-gray-900 break-words flex-1 min-w-0">{habit.title}</div>
                       {habit.impact && (
                         <Badge 
-                          className={`text-xs px-2 py-1 ${
+                          className={`text-xs px-2 py-1 flex items-center justify-center text-center ${
                             habit.impact === 'high' ? 'bg-red-100 text-red-700' :
                             habit.impact === 'medium' ? 'bg-yellow-100 text-yellow-700' :
                             'bg-gray-100 text-gray-700'

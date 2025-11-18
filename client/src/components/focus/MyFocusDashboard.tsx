@@ -223,13 +223,13 @@ return (
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5 sm:gap-2 mb-2 flex-wrap">
                       {typeof g.rank === 'number' && (
-                        <span className="text-[10px] sm:text-[11px] px-1.5 sm:px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 whitespace-nowrap">Priority {g.rank}</span>
+                        <span className="text-[10px] sm:text-[11px] px-1.5 sm:px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 whitespace-nowrap flex items-center justify-center text-center">Priority {g.rank}</span>
                       )}
                       {g.lifeMetric?.name && (
-                        <span className={`text-[10px] sm:text-[11px] px-1.5 sm:px-2 py-0.5 rounded-full border ${getPillBg(g.lifeMetric.name)} whitespace-nowrap`}>{g.lifeMetric.name}</span>
+                        <span className={`text-[10px] sm:text-[11px] px-1.5 sm:px-2 py-0.5 rounded-full border ${getPillBg(g.lifeMetric.name)} whitespace-nowrap flex items-center justify-center text-center`}>{g.lifeMetric.name}</span>
                       )}
                       {g.term && (
-                        <span className={`text-[10px] sm:text-[11px] px-1.5 sm:px-2 py-0.5 rounded-full border whitespace-nowrap ${
+                        <span className={`text-[10px] sm:text-[11px] px-1.5 sm:px-2 py-0.5 rounded-full border whitespace-nowrap flex items-center justify-center text-center ${
                           g.term === 'short' ? 'bg-amber-50 text-amber-700 border-amber-200' :
                           g.term === 'mid' ? 'bg-blue-50 text-blue-700 border-blue-200' :
                           'bg-purple-50 text-purple-700 border-purple-200'

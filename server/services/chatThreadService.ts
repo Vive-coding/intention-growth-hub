@@ -1,5 +1,5 @@
 import { db } from "../db";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, isNull } from "drizzle-orm";
 import {
   chatMessages,
   chatThreads,
@@ -17,7 +17,12 @@ export class ChatThreadService {
     const rows = await db
       .select()
       .from(chatThreads)
-      .where(eq(chatThreads.userId, userId))
+      .where(
+        and(
+          eq(chatThreads.userId, userId),
+          isNull(chatThreads.deletedAt) // Filter out soft-deleted threads
+        )
+      )
       .orderBy(desc(chatThreads.updatedAt))
       .limit(limit);
     return rows;
@@ -50,11 +55,11 @@ export class ChatThreadService {
       throw new Error('Thread not found or access denied');
     }
     
-    // Delete messages first (due to foreign key constraint)
-    await db.delete(chatMessages).where(eq(chatMessages.threadId, threadId));
-    
-    // Then delete the thread
-    await db.delete(chatThreads).where(eq(chatThreads.id, threadId));
+    // Soft delete: set deletedAt timestamp instead of hard deleting
+    await db
+      .update(chatThreads)
+      .set({ deletedAt: new Date() })
+      .where(eq(chatThreads.id, threadId));
     
     return true;
   }
