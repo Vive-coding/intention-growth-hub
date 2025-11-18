@@ -345,7 +345,13 @@ export const updateGoalProgressTool = new DynamicStructuredTool({
     try {
       const resolved = await resolveGoalInstance(userId, goal_id);
       if (!resolved) {
-        throw new Error("Goal instance not found");
+        console.error(`[updateGoalProgressTool] Goal not found - userId: ${userId}, goal_id: ${goal_id}`);
+        throw new Error(`Goal instance not found. The goal may have been archived or deleted. Please use get_context("all_goals") to see the user's current active goals.`);
+      }
+      
+      // Check if goal is archived or inactive
+      if (resolved.instance.status === 'completed' || resolved.instance.status === 'cancelled' || resolved.instance.archived) {
+        throw new Error(`This goal is ${resolved.instance.status || 'archived'}. Use get_context("all_goals") to see active goals instead.`);
       }
 
       const instance = resolved.instance;

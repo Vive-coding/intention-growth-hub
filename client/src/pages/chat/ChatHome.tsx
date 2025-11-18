@@ -154,7 +154,10 @@ export default function ChatHome() {
     if (!deleteConfirm) return;
     try {
       await apiRequest(`/api/chat/threads/${deleteConfirm.threadId}`, { method: "DELETE" });
-      await queryClient.invalidateQueries({ queryKey: ["/api/chat/threads"] });
+      // Force immediate refetch to remove deleted thread from list
+      await queryClient.refetchQueries({ queryKey: ["/api/chat/threads"] });
+      // Also remove message cache for this thread
+      queryClient.removeQueries({ queryKey: ["/api/chat/threads", deleteConfirm.threadId, "messages"] });
       if (threadId === deleteConfirm.threadId) {
         navigate("/");
       }

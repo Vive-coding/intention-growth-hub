@@ -17,9 +17,12 @@ export class ChatThreadService {
     const rows = await db
       .select()
       .from(chatThreads)
-      .where(eq(chatThreads.userId, userId))
-      // Note: deletedAt filter temporarily removed - conversations are still soft-deleted
-      // but not filtered from list until schema is confirmed synced to production
+      .where(
+        and(
+          eq(chatThreads.userId, userId),
+          isNull(chatThreads.deletedAt) // Filter out soft-deleted threads
+        )
+      )
       .orderBy(desc(chatThreads.updatedAt))
       .limit(limit);
     return rows;
