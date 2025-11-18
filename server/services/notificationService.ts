@@ -113,8 +113,18 @@ export class NotificationService {
       switch (frequency) {
         case "daily":
         case "weekday":
-          // Daily/weekday: send if no email sent in last 20 hours (allows for once per day)
-          isDue = hoursSinceLastEmail >= 20;
+          // Daily/weekday: send if no email sent today (same UTC date)
+          if (lastSentAt) {
+            const lastSentDate = new Date(lastSentAt);
+            const todayDate = new Date(now);
+            // Check if last email was sent on a different UTC date
+            isDue = lastSentDate.getUTCFullYear() !== todayDate.getUTCFullYear() ||
+                    lastSentDate.getUTCMonth() !== todayDate.getUTCMonth() ||
+                    lastSentDate.getUTCDate() !== todayDate.getUTCDate();
+          } else {
+            // No previous email, so eligible
+            isDue = true;
+          }
           break;
         
         case "every_2_days":
@@ -124,13 +134,21 @@ export class NotificationService {
           break;
         
         case "weekly":
-          // Weekly: send if no email sent in last 6 days (168 hours)
-          isDue = hoursSinceLastEmail >= 144; // 6 days to allow some flexibility
+          // Weekly: send if no email sent in last 6 days (144 hours = 6 days)
+          isDue = hoursSinceLastEmail >= 144;
           break;
         
         default:
-          // Unknown frequency: default to daily behavior
-          isDue = hoursSinceLastEmail >= 20;
+          // Unknown frequency: default to daily behavior (check if sent today)
+          if (lastSentAt) {
+            const lastSentDate = new Date(lastSentAt);
+            const todayDate = new Date(now);
+            isDue = lastSentDate.getUTCFullYear() !== todayDate.getUTCFullYear() ||
+                    lastSentDate.getUTCMonth() !== todayDate.getUTCMonth() ||
+                    lastSentDate.getUTCDate() !== todayDate.getUTCDate();
+          } else {
+            isDue = true;
+          }
       }
 
       // Additional check for weekday frequency: only send on weekdays (already checked above)
