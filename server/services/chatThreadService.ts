@@ -1,5 +1,5 @@
 import { db } from "../db";
-import { and, desc, eq, isNull } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import {
   chatMessages,
   chatThreads,
