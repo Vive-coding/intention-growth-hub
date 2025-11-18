@@ -342,6 +342,12 @@ export const updateGoalProgressTool = new DynamicStructuredTool({
       throw new Error("User ID required");
     }
     
+    // Validate UUID format
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(goal_id)) {
+      throw new Error(`Invalid goal_id "${goal_id}". You must use the UUID from get_context("all_goals"), not the goal name. Call get_context("all_goals") first to get the correct UUID.`);
+    }
+    
     try {
       const resolved = await resolveGoalInstance(userId, goal_id);
       if (!resolved) {

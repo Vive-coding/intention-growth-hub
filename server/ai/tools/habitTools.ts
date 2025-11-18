@@ -198,8 +198,10 @@ export const updateHabitTool = new DynamicStructuredTool({
   name: "update_habit",
   description: `Modifies an existing habit (pause, resume, change frequency, or archive).
   
+  **IMPORTANT**: You MUST call get_context("habits") first to get the habit UUID. Never use habit names or goal names as the habit_id.
+  
   Args:
-  - habit_id: Which habit to modify (infer from conversation context when possible)
+  - habit_id: The UUID of the habit (get this from get_context("habits") output - it's the 'id' field)
   - action: "pause" | "resume" | "change_frequency" | "archive"
   - value: Depends on action (resume_date for pause, new frequency, etc.)
   
@@ -208,12 +210,15 @@ export const updateHabitTool = new DynamicStructuredTool({
   - You notice from context that an adjustment is needed
   - Life circumstances change and habits need to adapt
   
-  Infer the needed change from their message when clear, or confirm if uncertain.
+  Workflow:
+  1. Call get_context("habits") to see all habits and their UUIDs
+  2. Find the habit by matching the title/description
+  3. Use that habit's UUID (not the title!) in the habit_id parameter
   
   Returns: Confirmation message`,
   
   schema: z.object({
-    habit_id: z.string().describe("UUID of the habit"),
+    habit_id: z.string().uuid().describe("UUID of the habit (from get_context output)"),
     action: z.enum(["pause", "resume", "change_frequency", "archive"]),
     value: z.any().optional().describe("Action-specific value")
   }),
@@ -227,6 +232,12 @@ export const updateHabitTool = new DynamicStructuredTool({
     
     if (!userId) {
       throw new Error("User ID required");
+    }
+    
+    // Validate UUID format
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(habit_id)) {
+      throw new Error(`Invalid habit_id "${habit_id}". You must use the UUID from get_context("habits"), not the habit name. Call get_context("habits") first to get the correct UUID.`);
     }
     
     try {
