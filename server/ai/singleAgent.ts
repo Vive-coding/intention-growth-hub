@@ -399,21 +399,41 @@ export async function createLifeCoachAgentWithTools(tools: any[], mode?: string,
       if (Array.isArray(i.chat_history)) {
         for (const msg of i.chat_history) {
           try {
+            // If already a LangChain message, use it directly
             if (msg instanceof HumanMessage || msg instanceof AIMessage || msg instanceof SystemMessage) {
-              messages.push(msg);
+              // Validate that the message has content
+              if (msg.content && (typeof msg.content === 'string' || Array.isArray(msg.content))) {
+                messages.push(msg);
+              } else {
+                console.warn("[chat_history] Skipping LangChain message with invalid content:", msg.constructor.name);
+              }
               continue;
             }
+            // Convert plain objects to LangChain messages
             if (msg && typeof msg === "object") {
               const role = (msg as any).role;
-              const content = (msg as any).content ?? "";
+              const rawContent = (msg as any).content;
+              
+              // Ensure content is valid
+              if (rawContent === null || rawContent === undefined) {
+                console.warn("[chat_history] Skipping message with null/undefined content:", { role });
+                continue;
+              }
+              
+              const content = String(rawContent);
+              if (!content) {
+                console.warn("[chat_history] Skipping message with empty content:", { role });
+                continue;
+              }
+              
               if (role === "human" || role === "user") {
-                messages.push(new HumanMessage(String(content)));
+                messages.push(new HumanMessage(content));
               } else if (role === "ai" || role === "assistant") {
-                messages.push(new AIMessage(String(content)));
+                messages.push(new AIMessage(content));
               }
             }
           } catch (e) {
-            console.error("[chat_history] Skip invalid message:", e);
+            console.error("[chat_history] Skip invalid message:", e, "Message:", msg);
           }
         }
       }
@@ -665,13 +685,27 @@ ${myFocus.keyInsights.map((insight: any) => {
     const chatHistory: any[] = [];
     for (const msg of recentMessages) {
       try {
+        // Skip messages with null/undefined content or invalid role
+        if (!msg || !msg.role) {
+          console.warn("[processWithToolAgent] Skipping message with missing role:", msg);
+          continue;
+        }
+        
+        // Ensure content is a non-null string
+        const content = typeof msg.content === 'string' ? msg.content : String(msg.content || '');
+        
+        if (!content) {
+          console.warn("[processWithToolAgent] Skipping message with empty content:", { role: msg.role, id: (msg as any).id });
+          continue;
+        }
+        
         if (msg.role === 'user' || msg.role === 'human') {
-          chatHistory.push(new HumanMessage(msg.content || ''));
+          chatHistory.push(new HumanMessage(content));
         } else if (msg.role === 'assistant' || msg.role === 'ai') {
-          chatHistory.push(new AIMessage(msg.content || ''));
+          chatHistory.push(new AIMessage(content));
         }
       } catch (e) {
-        console.error("[processWithToolAgent] Error converting message to LangChain format:", e);
+        console.error("[processWithToolAgent] Error converting message to LangChain format:", e, "Message:", msg);
       }
     }
     
