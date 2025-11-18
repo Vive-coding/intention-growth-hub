@@ -321,14 +321,21 @@ export const updateGoalProgressTool = new DynamicStructuredTool({
   name: "update_goal_progress",
   description: `Updates progress on a goal based on user's report.
   
+  **IMPORTANT**: You MUST call get_context("all_goals") first to get the goal UUID. Never use goal names as the goal_id.
+  
   Use when user shares accomplishments or progress on a goal ("I worked out," "I saved $200 this week," "I completed 3 interviews").
   This tool updates the goal's progress percentage in the database (not just fetching/displaying).
   System will parse the update and adjust progress % automatically.
   
+  Workflow:
+  1. Call get_context("all_goals") to see all goals and their UUIDs
+  2. Find the goal by matching the title
+  3. Use that goal's UUID (not the title!) in the goal_id parameter
+  
   Returns: Updated goal card with celebration if milestone reached`,
   
   schema: z.object({
-    goal_id: z.string().describe("UUID of the goal"),
+    goal_id: z.string().uuid().describe("UUID of the goal (from get_context output)"),
     progress_update: z.string().describe("What they accomplished (natural language)")
   }),
   
