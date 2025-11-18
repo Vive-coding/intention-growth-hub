@@ -446,10 +446,24 @@ export async function createLifeCoachAgentWithTools(tools: any[], mode?: string,
         const steps = Array.isArray(i.steps) ? i.steps : [];
         const scratchpad = formatToOpenAIFunctionMessages(steps);
         if (Array.isArray(scratchpad)) {
-          messages.push(...scratchpad);
+          // Validate each message in scratchpad before adding
+          for (const msg of scratchpad) {
+            // Ensure the message has valid content (string or array, not undefined/null)
+            if (msg && (msg.content !== undefined && msg.content !== null)) {
+              // If content is empty string, that's fine - but ensure it's a string
+              if (typeof msg.content !== 'string' && !Array.isArray(msg.content)) {
+                console.warn("[agent_scratchpad] Skipping message with invalid content type:", typeof msg.content, msg);
+                continue;
+              }
+              messages.push(msg);
+            } else {
+              console.warn("[agent_scratchpad] Skipping message with undefined/null content:", msg?.constructor?.name);
+            }
+          }
         }
       } catch (e) {
         console.error("[agent_scratchpad] Error formatting steps:", e);
+        console.error("[agent_scratchpad] Steps causing error:", JSON.stringify(i.steps, null, 2).substring(0, 500));
       }
       
       // DEBUG: Log messages being sent to the model
@@ -459,6 +473,11 @@ export async function createLifeCoachAgentWithTools(tools: any[], mode?: string,
           const type = (m && (m as any).constructor && (m as any).constructor.name) || typeof m;
           const content = String((m as any)?.content ?? "");
           console.log(`  [${idx}] type=${type} content="${content.slice(0, 160)}"`);
+          
+          // Validate content is not undefined/null
+          if ((m as any)?.content === undefined || (m as any)?.content === null) {
+            console.error(`  ⚠️  [${idx}] INVALID: content is ${(m as any)?.content === undefined ? 'undefined' : 'null'}`);
+          }
         });
       } catch (e) {
         console.error("[agent/messages] Logging error:", e);
