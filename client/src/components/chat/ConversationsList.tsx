@@ -62,11 +62,10 @@ export default function ConversationsList({ currentThreadId, onThreadClick }: Pr
                     try {
                       if (!confirm('Delete this conversation? This cannot be undone.')) return;
                       await apiRequest(`/api/chat/threads/${t.id}`, { method: 'DELETE' });
-                      // Immediately invalidate and refetch to update the UI
-                      await queryClient.cancelQueries({ queryKey: ["/api/chat/threads", t.id, "messages"] });
-                      await queryClient.removeQueries({ queryKey: ["/api/chat/threads", t.id, "messages"], exact: true });
-                      await queryClient.invalidateQueries({ queryKey: ["/api/chat/threads"] });
+                      // Force immediate refetch to remove deleted thread from list
                       await queryClient.refetchQueries({ queryKey: ["/api/chat/threads"] });
+                      // Remove message cache for this thread
+                      queryClient.removeQueries({ queryKey: ["/api/chat/threads", t.id, "messages"] });
                       // If we deleted the active thread, navigate immediately
                       if (currentThreadId === t.id) {
                         navigate('/');
