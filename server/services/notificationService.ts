@@ -25,8 +25,9 @@ interface EmailTemplateOptions {
 export class NotificationService {
   static async getUsersDueForNotification(): Promise<NotificationProfile[]> {
     const now = new Date();
-    const currentHour = now.getHours();
-    const dayOfWeek = now.getDay(); // 0 = Sunday, 6 = Saturday
+    // Use UTC time to match cron schedule (runs at 9:15, 15:15, 19:15 UTC)
+    const currentHour = now.getUTCHours();
+    const dayOfWeek = now.getUTCDay(); // 0 = Sunday, 6 = Saturday
 
     // Exclude weekends (Saturday = 6, Sunday = 0)
     if (dayOfWeek === 0 || dayOfWeek === 6) {
@@ -34,6 +35,7 @@ export class NotificationService {
     }
 
     let timePeriod: "morning" | "afternoon" | "evening" | null = null;
+    // Match cron schedule: 9:15 UTC = morning, 15:15 UTC = afternoon, 19:15 UTC = evening
     if (currentHour >= 8 && currentHour < 12) {
       timePeriod = "morning";
     } else if (currentHour >= 14 && currentHour < 18) {
