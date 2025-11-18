@@ -10,7 +10,7 @@ import SuggestionsPanel from "@/pages/chat/SuggestionsPanel";
 import { OptimizeHabitsModal } from "@/components/OptimizeHabitsModal";
 import CompleteHabitsModal from "@/pages/chat/CompleteHabitsModal";
 import { ConfirmationModal } from "@/components/ui/confirmation-modal";
-import { MessageSquare, Trash2 } from "lucide-react";
+import { MessageSquare, Trash2, MoreVertical } from "lucide-react";
 import ConversationsList from "@/components/chat/ConversationsList";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Menu, Home, Target } from "lucide-react";
@@ -373,7 +373,7 @@ export default function ChatHome() {
                 {activeThread?.title || 'Daily Coaching'}
               </div>
             </div>
-            <div className="flex items-center gap-3 flex-wrap justify-end flex-shrink-0 pr-1 sm:pr-2">
+            <div className="flex items-center gap-2 flex-wrap justify-end flex-shrink-0 pr-1 sm:pr-2">
               {showModeToggle && (
                 <ModeToggle className="hidden md:flex shrink-0" />
               )}
@@ -386,11 +386,39 @@ export default function ChatHome() {
                   {todayCompletions.completed}/{todayCompletions.total} ✓
                 </button>
               )}
+              {/* Mobile: More menu with new conversation and delete */}
+              {threadId && activeThread && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      type="button"
+                      className="lg:hidden p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors shrink-0"
+                      aria-label="More options"
+                    >
+                      <MoreVertical className="w-4 h-4" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-48">
+                    <DropdownMenuItem onClick={() => navigate('/?new=1')}>
+                      <MessageSquare className="w-4 h-4 mr-2" />
+                      New conversation
+                    </DropdownMenuItem>
+                    <DropdownMenuItem 
+                      onClick={() => setDeleteConfirm({ threadId, title: activeThread.title || 'Daily Coaching' })}
+                      className="text-red-600 focus:text-red-600"
+                    >
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      Delete conversation
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+              {/* Desktop: Simple delete button */}
               {threadId && activeThread && (
                 <button
                   type="button"
                   onClick={() => setDeleteConfirm({ threadId, title: activeThread.title || 'Daily Coaching' })}
-                  className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors shrink-0"
+                  className="hidden lg:flex p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors shrink-0"
                   title="Delete conversation"
                   aria-label="Delete conversation"
                 >

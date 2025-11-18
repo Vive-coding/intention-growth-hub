@@ -53,8 +53,9 @@ export default function ConversationsList({ currentThreadId, onThreadClick }: Pr
 								</div>
 								<div className="text-[11px] text-gray-500 mt-0.5">{new Date(t.createdAt || t.updatedAt || Date.now()).toLocaleDateString()}</div>
                 </button>
+                {/* Desktop-only delete button - hidden on mobile */}
                 <button
-                  className="absolute right-2 top-1/2 transform -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-red-100 rounded"
+                  className="hidden lg:flex absolute right-2 top-1/2 transform -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-red-100 rounded items-center justify-center"
                   aria-label="Delete conversation"
                   onClick={async (e) => {
                     e.stopPropagation();
