@@ -482,13 +482,33 @@ export const logHabitCompletionTool = new DynamicStructuredTool({
       }
       
       // Log the completion (this also updates streaks and related goal progress)
-      const completion = await logHabitCompletion({
+      const completionResult = await logHabitCompletion({
         userId,
         habitId: habit_id,
         goalId: validGoalId,
         notes: notes || null,
         completedAt: new Date(),
-      });
+      }) as any; // Type assertion since the function returns more than the schema defines
+      
+      // Get the related goal info to show in the card
+      let relatedGoalTitle: string | undefined;
+      if (validGoalId) {
+        try {
+          const { goalInstances: goalInstancesTable, goalDefinitions: goalDefinitionsTable } = await import('../../../shared/schema');
+          const goalRows = await db
+            .select({ title: goalDefinitionsTable.title })
+            .from(goalInstancesTable)
+            .innerJoin(goalDefinitionsTable, eq(goalInstancesTable.goalDefinitionId, goalDefinitionsTable.id))
+            .where(eq(goalInstancesTable.id, validGoalId))
+            .limit(1);
+          
+          if (goalRows.length > 0) {
+            relatedGoalTitle = goalRows[0].title;
+          }
+        } catch (error) {
+          console.error("[logHabitCompletionTool] Failed to fetch goal title:", error);
+        }
+      }
       
       // Return structured data for confirmation card
       const result = {
@@ -496,8 +516,9 @@ export const logHabitCompletionTool = new DynamicStructuredTool({
         habit: {
           id: matchedHabit.id,
           title: matchedHabit.name,
-          completedAt: completion.completedAt.toISOString(),
-          streak: completion.currentStreak || 0,
+          completedAt: completionResult.completedAt ? new Date(completionResult.completedAt).toISOString() : new Date().toISOString(),
+          streak: completionResult.currentStreak || 0,
+          relatedGoal: relatedGoalTitle,
         }
       };
       

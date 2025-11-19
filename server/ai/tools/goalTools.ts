@@ -183,10 +183,11 @@ Returns: Interactive card with goal + habit suggestions`,
           await db.insert(insights).values({
             userId,
             title: insight.title,
-            summary: insight.summary,
-            source: 'goal_creation',
-            isFavorite: false,
+            explanation: insight.summary,
+            confidence: 80,
+            themes: [],
             createdAt: new Date(),
+            updatedAt: new Date(),
           });
           console.log('✅ Auto-saved insight during goal creation:', insight.title);
         } catch (error) {
@@ -322,31 +323,38 @@ export const suggestHabitsForGoalTool = new DynamicStructuredTool({
 
 /**
  * Tool 3: Update goal progress
+ * 
+ * This tool accepts a goal description and automatically matches it to an active goal.
+ * The agent never needs to provide UUIDs - just describe which goal.
  */
 export const updateGoalProgressTool = new DynamicStructuredTool({
   name: "update_goal_progress",
   description: `Updates progress on a goal based on user's report.
   
-  **IMPORTANT**: You MUST call get_context("all_goals") first to get the goal UUID. Never use goal names as the goal_id.
+  **CRITICAL**: DO NOT call this tool after log_habit_completion. Habit logging already updates goal progress automatically.
   
-  Use when user shares accomplishments or progress on a goal ("I worked out," "I saved $200 this week," "I completed 3 interviews").
-  This tool updates the goal's progress percentage in the database (not just fetching/displaying).
-  System will parse the update and adjust progress % automatically.
+  **How to use this tool**:
+  - Describe which goal the user is updating (e.g., "workout goal", "job search", "save money")
+  - The tool will automatically match it to their active goals
+  - You do NOT need to call get_context first - just describe the goal
   
-  Workflow:
-  1. Call get_context("all_goals") to see all goals and their UUIDs
-  2. Find the goal by matching the title
-  3. Use that goal's UUID (not the title!) in the goal_id parameter
+  Use when:
+  - User reports GENERAL progress on a goal (not a specific daily habit)
+  - User wants to manually adjust goal percentage
+  - Example: "I made a lot of progress on the Substack launch this week" (general work, not a habit)
+  
+  DO NOT use when:
+  - User completed a specific daily habit - use log_habit_completion instead
+  - You just called log_habit_completion - goal progress is already updated
   
   Returns: Updated goal card with celebration if milestone reached`,
   
   schema: z.object({
-    goal_id: z.string().uuid().describe("UUID of the goal (from get_context output)"),
+    goal_description: z.string().describe("Description of which goal (e.g., 'workout goal', 'job search'). The tool will match this automatically."),
     progress_update: z.string().describe("What they accomplished (natural language)")
   }),
   
-  func: async ({ goal_id, progress_update }, config) => {
-    // Try to get userId from config first, then fallback to global variable
+  func: async ({ goal_description, progress_update }, config) => {
     let userId = (config as any)?.configurable?.userId;
     if (!userId) {
       userId = (global as any).__TOOL_USER_ID__;
@@ -355,22 +363,91 @@ export const updateGoalProgressTool = new DynamicStructuredTool({
       throw new Error("User ID required");
     }
     
-    // Validate UUID format
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (!uuidRegex.test(goal_id)) {
-      throw new Error(`Invalid goal_id "${goal_id}". You must use the UUID from get_context("all_goals"), not the goal name. Call get_context("all_goals") first to get the correct UUID.`);
-    }
-    
     try {
-      const resolved = await resolveGoalInstance(userId, goal_id);
-      if (!resolved) {
-        console.error(`[updateGoalProgressTool] Goal not found - userId: ${userId}, goal_id: ${goal_id}`);
-        throw new Error(`Goal instance not found. The goal may have been archived or deleted. Please use get_context("all_goals") to see the user's current active goals.`);
+      // Fetch all active goals for matching
+      const activeGoalsRows = await db
+        .select({
+          goalDefId: goalDefinitions.id,
+          goalInstId: goalInstances.id,
+          title: goalDefinitions.title,
+          description: goalDefinitions.description,
+          status: goalInstances.status,
+          archived: goalInstances.archived,
+        })
+        .from(goalInstances)
+        .innerJoin(goalDefinitions, eq(goalInstances.goalDefinitionId, goalDefinitions.id))
+        .where(
+          and(
+            eq(goalDefinitions.userId, userId),
+            eq(goalInstances.status, 'active'),
+            eq(goalInstances.archived, false)
+          )
+        );
+      
+      if (activeGoalsRows.length === 0) {
+        throw new Error("No active goals found for this user.");
       }
       
-      // Check if goal is archived or inactive
-      if (resolved.instance.status === 'completed' || resolved.instance.status === 'cancelled' || resolved.instance.archived) {
-        throw new Error(`This goal is ${resolved.instance.status || 'archived'}. Use get_context("all_goals") to see active goals instead.`);
+      // Normalize search
+      const normalizedSearch = goal_description.toLowerCase().trim();
+      
+      // Try exact match first
+      let matchedGoal = activeGoalsRows.find(g => 
+        g.title.toLowerCase() === normalizedSearch
+      );
+      
+      // Try partial match
+      if (!matchedGoal) {
+        matchedGoal = activeGoalsRows.find(g => {
+          const title = g.title.toLowerCase();
+          return title.includes(normalizedSearch) || normalizedSearch.includes(title);
+        });
+      }
+      
+      // Try keyword matching with confidence scoring
+      if (!matchedGoal) {
+        const searchTerms = normalizedSearch.split(/\s+/).filter(term => term.length > 2);
+        let bestMatch: { goal: typeof activeGoalsRows[0], score: number, confidence: number } | null = null;
+        
+        for (const goal of activeGoalsRows) {
+          const goalTitle = goal.title.toLowerCase();
+          const goalDesc = (goal.description || '').toLowerCase();
+          
+          let titleMatchedTerms = 0;
+          let descMatchedTerms = 0;
+          
+          for (const term of searchTerms) {
+            if (goalTitle.includes(term)) {
+              titleMatchedTerms++;
+            } else if (goalDesc.includes(term)) {
+              descMatchedTerms++;
+            }
+          }
+          
+          const titleConfidence = searchTerms.length > 0 ? (titleMatchedTerms / searchTerms.length) * 100 : 0;
+          const score = (titleMatchedTerms * 3) + descMatchedTerms;
+          
+          if ((titleConfidence >= 60 || score >= 5) && (!bestMatch || score > bestMatch.score)) {
+            bestMatch = { goal, score, confidence: titleConfidence };
+          }
+        }
+        
+        if (bestMatch) {
+          matchedGoal = bestMatch.goal;
+        }
+      }
+      
+      if (!matchedGoal) {
+        throw new Error(
+          `Could not find a matching goal for "${goal_description}".\n\n` +
+          `Tell the user: "I couldn't find that goal. You can update it manually in My Focus, or we can create a new goal if you'd like."`
+        );
+      }
+      
+      // Now resolve the full goal instance
+      const resolved = await resolveGoalInstance(userId, matchedGoal.goalInstId);
+      if (!resolved) {
+        throw new Error("Goal instance not found after matching.");
       }
 
       const instance = resolved.instance;

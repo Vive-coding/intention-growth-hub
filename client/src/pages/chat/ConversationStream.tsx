@@ -226,27 +226,27 @@ export default function ConversationStream({ threadId }: Props) {
                     }
                     if (type === 'habit_completion') {
                       const habit = payload.habit || {};
+                      const completedAt = habit.completedAt ? new Date(habit.completedAt) : new Date();
+                      const timeStr = completedAt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+                      
                       // Invalidate habits queries to update slide-out
                       queryClient.invalidateQueries({ queryKey: ["/api/habits/today-completions"] });
                       queryClient.invalidateQueries({ queryKey: ["/api/goals/habits/completed-today"] });
                       queryClient.invalidateQueries({ queryKey: ["/api/my-focus"] });
                       return (
                         <div className="bg-teal-50 border-2 border-teal-200 rounded-xl p-3 sm:p-4 shadow-sm min-w-0 overflow-hidden">
-                          <div className="flex items-center gap-2 text-teal-700 mb-3">
+                          <div className="flex items-center gap-2 text-teal-700 mb-2">
                             <Check className="w-5 h-5" />
                             <span className="font-semibold">Habit Logged!</span>
                           </div>
                           <div className="text-base text-gray-900 font-semibold break-words mb-2">{habit.title || 'Habit'}</div>
-                          <div className="flex items-center gap-3 text-sm">
-                            <div className="flex items-center gap-1.5 text-gray-700">
-                              <Check className="w-4 h-4 text-teal-600" />
-                              <span>Completed today</span>
-                            </div>
+                          <div className="flex items-center flex-wrap gap-x-3 gap-y-1 text-xs text-gray-600">
+                            <span>✓ {timeStr}</span>
                             {habit.streak !== undefined && habit.streak > 0 && (
-                              <div className="flex items-center gap-1.5 text-orange-600 font-medium">
-                                <span>{habit.streak} day streak</span>
-                                <span className="text-base">🔥</span>
-                              </div>
+                              <span className="text-orange-600 font-medium">🔥 {habit.streak} day streak</span>
+                            )}
+                            {habit.relatedGoal && (
+                              <span className="text-gray-500">→ {habit.relatedGoal}</span>
                             )}
                           </div>
                           {payload.already_completed && (

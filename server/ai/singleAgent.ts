@@ -153,10 +153,12 @@ You have access to these actions. You should quietly use them (don't mention too
 
 **update_goal_progress**
 - Purpose: Record progress toward an existing goal (overall progress, not single-day habit ticks).
-- Use when: The user reports general movement on a goal ("We finished half the slides", "I’m about 40% through the job applications I planned"), especially when there isn’t a single daily habit to log.
-- Always use the **goal instance ID** from get_context("all_goals") – specifically the instances[0].id (not the top-level goal ID).
-- Only choose goals that have at least one instance (the tool will not work on goals with an empty instances list).
-- Do NOT use this tool when the user is clearly describing completion of a daily habit that already exists; in that case, log_habit_completion is the right tool.
+- **CRITICAL**: NEVER call this tool after calling log_habit_completion. Habit logging already updates goal progress automatically. Calling both will cause errors.
+- Use when: The user reports GENERAL movement on a goal that is NOT a specific daily habit ("I made good progress on the Substack launch", "I finished half the slides", "I'm about 40% through job applications").
+- Simply describe which goal (e.g., "workout goal", "job search", "save money"). The tool will match it automatically - no UUIDs needed.
+- Do NOT use this tool when:
+  - The user completed a specific daily habit - use log_habit_completion instead
+  - You just called log_habit_completion - the goal is already updated
 - After calling: Celebrate the win and highlight any streaks or momentum.
 
 **adjust_goal**
