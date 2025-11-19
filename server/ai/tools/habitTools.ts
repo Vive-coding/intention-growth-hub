@@ -412,12 +412,46 @@ export const logHabitCompletionTool = new DynamicStructuredTool({
       }
       
       // Try keyword matching (split search terms and check if they appear in habit name)
+      // But calculate a confidence score to avoid bad matches
+      let bestMatch: { habit: typeof activeHabits[0], score: number } | null = null;
+      
       if (!matchedHabit) {
         const searchTerms = normalizedSearch.split(/\s+/).filter(term => term.length > 2);
-        matchedHabit = activeHabits.find(h => {
-          const habitName = h.name.toLowerCase();
-          return searchTerms.some(term => habitName.includes(term));
-        });
+        
+        for (const habit of activeHabits) {
+          const habitName = habit.name.toLowerCase();
+          const habitDesc = (habit.description || '').toLowerCase();
+          
+          let score = 0;
+          let matchedTerms = 0;
+          
+          for (const term of searchTerms) {
+            if (habitName.includes(term)) {
+              matchedTerms++;
+              score += 2; // Higher weight for title matches
+            } else if (habitDesc.includes(term)) {
+              matchedTerms++;
+              score += 1; // Lower weight for description matches
+            }
+          }
+          
+          // Calculate confidence as % of terms matched
+          const confidence = searchTerms.length > 0 ? (matchedTerms / searchTerms.length) * 100 : 0;
+          
+          if (confidence >= 75 && (!bestMatch || score > bestMatch.score)) {
+            bestMatch = { habit, score };
+          } else if (confidence >= 50 && confidence < 75 && (!bestMatch || score > bestMatch.score)) {
+            // Store potential matches but don't auto-log them
+            bestMatch = { habit, score: score * 0.5 }; // Reduce score for low-confidence matches
+          }
+        }
+      }
+      
+      // If we have a matched habit from earlier logic, use it
+      // Otherwise, check if keyword match is confident enough
+      if (!matchedHabit && bestMatch && bestMatch.score >= 4) {
+        // Score of 4+ means at least 2 terms matched in title, or 4 in description
+        matchedHabit = bestMatch.habit;
       }
       
       if (!matchedHabit) {
@@ -426,21 +460,44 @@ export const logHabitCompletionTool = new DynamicStructuredTool({
           .map(h => `  - "${h.name}"${h.description ? ` (${h.description.substring(0, 50)}...)` : ''}`)
           .join('\n');
         
+        const suggestion = bestMatch && bestMatch.score > 0 && bestMatch.score < 4
+          ? `\n\nPossible match (low confidence): "${bestMatch.habit.name}"\nIf this is correct, ask the user to confirm: "I think you completed '${bestMatch.habit.name}'. Is that right?" Then call this tool again with the exact habit name if confirmed.`
+          : '';
+        
         throw new Error(
-          `Could not find a matching habit for "${habit_description}".\n\n` +
-          `Available active habits:\n${habitList}\n\n` +
-          `Please describe the habit using one of the names above, or guide the user to create a new goal/habit if this is something new they want to track.`
+          `Could not find a confident match for "${habit_description}".\n\n` +
+          `Available active habits:\n${habitList}${suggestion}\n\n` +
+          `Please:\n` +
+          `1. If there's a clear match in the list above, call this tool again with that exact habit name\n` +
+          `2. Ask the user which habit they completed if unclear\n` +
+          `3. Guide the user to create a new goal/habit if this is something new they want to track`
         );
       }
       
       // Use the matched habit's ID
       const habit_id = matchedHabit.id;
       
+      // Find the related goal instance ID if not provided
+      // This ensures we pass a valid goal_id to the logging service
+      let validGoalId = goal_id;
+      if (!validGoalId) {
+        const { habitInstances: habitInstancesTable } = await import('../../../shared/schema');
+        const habitInstanceRows = await db
+          .select({ goalInstanceId: habitInstancesTable.goalInstanceId })
+          .from(habitInstancesTable)
+          .where(eq(habitInstancesTable.habitDefinitionId, habit_id))
+          .limit(1);
+        
+        if (habitInstanceRows.length > 0) {
+          validGoalId = habitInstanceRows[0].goalInstanceId;
+        }
+      }
+      
       // Log the completion (this also updates streaks and related goal progress)
       const completion = await logHabitCompletion({
         userId,
         habitId: habit_id,
-        goalId: goal_id,
+        goalId: validGoalId,
         notes: notes || null,
         completedAt: new Date(),
       });
