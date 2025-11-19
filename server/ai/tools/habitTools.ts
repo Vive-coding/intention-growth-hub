@@ -333,18 +333,22 @@ export const updateHabitTool = new DynamicStructuredTool({
  */
 export const logHabitCompletionTool = new DynamicStructuredTool({
   name: "log_habit_completion",
-  description: `Logs a habit as completed for today when user mentions completing it in natural conversation.
+  description: `Logs a habit as completed for today when the user reports doing a specific habit.
+  
+  **IMPORTANT**:
+  - Before calling this tool, you MUST call get_context("habits") or review_daily_habits to see the user's current habits and their IDs.
+  - Find the matching habit by title/description in that context and use its exact 'id' field as the habit_id.
+  - Never make up or guess a habit_id. Only use IDs that come directly from get_context("habits") or review_daily_habits.
   
   Use when:
-  - User says they completed a habit ("I did my workout", "I journaled today", "I meditated")
-  - User reports doing something that matches an active habit
-  - Infer the habit from conversation context when possible
+  - The user says they completed a specific habit that already exists in their habits (e.g., "I did my morning run", "I did my journaling", "I drank 2 glasses of water").
+  - If the user has been doing something repeatedly without logging it, first confirm which existing habit it maps to (via get_context("habits") or review_daily_habits), then log today's completion for that habit.
   
-  This directly logs the completion to the database and updates goal progress automatically.
+  This directly logs the completion for **today** and updates the habit's streak and related goal progress.
   Returns: Confirmation with habit details and updated streak.`,
   
   schema: z.object({
-    habit_id: z.string().describe("UUID of the habit that was completed"),
+    habit_id: z.string().uuid().describe("UUID of the habit that was completed (must come from get_context(\"habits\") or review_daily_habits, using the 'id' field)"),
     goal_id: z.string().optional().describe("Optional: UUID of the related goal if known"),
     notes: z.string().optional().describe("Optional: Any notes about the completion")
   }),
@@ -359,8 +363,14 @@ export const logHabitCompletionTool = new DynamicStructuredTool({
       throw new Error("User ID required");
     }
     
+    // Validate habit_id shape early to discourage hallucinated values
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(habit_id)) {
+      throw new Error(`Invalid habit_id "${habit_id}". You must use the UUID from get_context("habits") or review_daily_habits (the 'id' field), not the habit name or description.`);
+    }
+    
     try {
-      // Verify habit exists and belongs to user
+      // Verify habit exists and is active for this user
       const [habit] = await db
         .select()
         .from(habitDefinitions)
@@ -374,10 +384,10 @@ export const logHabitCompletionTool = new DynamicStructuredTool({
         .limit(1);
       
       if (!habit) {
-        throw new Error("Habit not found or inactive");
+        throw new Error('Habit not found or inactive. Make sure you are using the exact "id" from get_context("habits") or review_daily_habits, and that the habit is active for this user.');
       }
       
-      // Log the completion
+      // Log the completion (this also updates streaks and related goal progress)
       const completion = await logHabitCompletion({
         userId,
         habitId: habit_id,
@@ -401,13 +411,14 @@ export const logHabitCompletionTool = new DynamicStructuredTool({
       return JSON.stringify(result);
     } catch (error: any) {
       if (error?.status === 409) {
-        // Already completed - return success but note it was already done
+        // Already completed today — treat as success but inform the user
         return JSON.stringify({
           type: "habit_completion",
           already_completed: true,
-          message: "This habit was already completed today"
+          message: "You've already logged this habit for today. If you did it more than once, update the habit's frequency or target instead of logging another completion."
         });
       }
+      
       console.error("[logHabitCompletionTool] Error:", error);
       throw error;
     }

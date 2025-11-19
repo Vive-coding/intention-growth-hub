@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
-import { Check } from "lucide-react";
+import { Check, Target as TargetIcon, Trophy } from "lucide-react";
 import GoalSuggestionCard from "@/pages/chat/components/GoalSuggestionCard";
 import HabitCard from "@/pages/chat/components/HabitCard";
 import PrioritizationCard from "@/pages/chat/components/PrioritizationCard";
@@ -247,6 +247,95 @@ export default function ConversationStream({ threadId }: Props) {
                               Already completed today
                             </div>
                           )}
+                        </div>
+                      );
+                    }
+                    if (type === 'progress_update') {
+                      // Confirmation card when a goal's progress is updated
+                      const title = payload.goal_title || "Goal";
+                      const oldPct = typeof payload.old_progress === "number" ? payload.old_progress : undefined;
+                      const newPct = typeof payload.new_progress === "number" ? payload.new_progress : undefined;
+                      const milestone = !!payload.milestone_reached;
+                      // Refresh My Focus so the updated goal progress shows there as well
+                      queryClient.invalidateQueries({ queryKey: ["/api/my-focus"] });
+                      return (
+                        <div className="bg-emerald-50 border-2 border-emerald-200 rounded-2xl p-3 sm:p-4 shadow-sm min-w-0 overflow-hidden">
+                          <div className="flex items-center gap-2 text-emerald-700 mb-2">
+                            <TargetIcon className="w-5 h-5" />
+                            <span className="font-semibold">Goal Updated</span>
+                          </div>
+                          <div className="text-sm text-gray-900 font-semibold break-words">{title}</div>
+                          {oldPct !== undefined && newPct !== undefined && (
+                            <div className="mt-2">
+                              <div className="flex items-center justify-between text-xs text-gray-600 mb-1">
+                                <span>Progress</span>
+                                <span>
+                                  {oldPct}% →{" "}
+                                  <span className="font-semibold text-emerald-700">{newPct}%</span>
+                                </span>
+                              </div>
+                              <div className="w-full h-2 rounded-full bg-emerald-100 overflow-hidden">
+                                <div
+                                  className="h-2 rounded-full bg-emerald-500 transition-all"
+                                  style={{ width: `${Math.max(0, Math.min(100, newPct))}%` }}
+                                />
+                              </div>
+                            </div>
+                          )}
+                          {payload.update_text && (
+                            <div className="mt-2 text-xs text-gray-700 break-words">
+                              {payload.update_text}
+                            </div>
+                          )}
+                          {milestone && (
+                            <div className="mt-2 text-xs text-emerald-700 font-medium">
+                              🎉 Milestone reached – nice momentum.
+                            </div>
+                          )}
+                          <button
+                            type="button"
+                            className="mt-3 w-full text-sm font-medium text-emerald-700 border border-emerald-200 rounded-xl py-1.5 hover:bg-emerald-100 transition-colors"
+                            onClick={() => {
+                              window.location.href = "/focus";
+                            }}
+                          >
+                            View in My Focus →
+                          </button>
+                        </div>
+                      );
+                    }
+                    if (type === "goal_celebration") {
+                      // Celebration card when a goal is completed
+                      const title = payload.goal_title || "Goal completed";
+                      const completedDate = payload.completed_date ? new Date(payload.completed_date) : null;
+                      // Refresh My Focus so completed goals disappear from active focus
+                      queryClient.invalidateQueries({ queryKey: ["/api/my-focus"] });
+                      return (
+                        <div className="bg-indigo-50 border-2 border-indigo-200 rounded-2xl p-3 sm:p-4 shadow-sm min-w-0 overflow-hidden">
+                          <div className="flex items-center gap-2 text-indigo-700 mb-2">
+                            <Trophy className="w-5 h-5" />
+                            <span className="font-semibold">Goal Completed!</span>
+                          </div>
+                          <div className="text-sm text-gray-900 font-semibold break-words">{title}</div>
+                          {completedDate && (
+                            <div className="mt-1 text-xs text-gray-600">
+                              Finished on {completedDate.toLocaleDateString()}
+                            </div>
+                          )}
+                          {payload.reflection && (
+                            <div className="mt-2 text-xs text-gray-700 break-words">
+                              {payload.reflection}
+                            </div>
+                          )}
+                          <button
+                            type="button"
+                            className="mt-3 w-full text-sm font-medium text-indigo-700 border border-indigo-200 rounded-xl py-1.5 hover:bg-indigo-100 transition-colors"
+                            onClick={() => {
+                              window.location.href = "/focus";
+                            }}
+                          >
+                            View in My Focus →
+                          </button>
                         </div>
                       );
                     }
