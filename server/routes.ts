@@ -1287,9 +1287,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.user.id || req.user.claims.sub;
       
-      // Get today's date in UTC (to match habitCompletions date filter)
-      const today = new Date();
-      const dateStr = today.toISOString().split('T')[0]; // YYYY-MM-DD
+      // Get today's window in user's timezone (same logic as /habits/completed-today)
+      const { getUserTodayWindow } = await import('./routes/goals');
+      const { start: todayStart, end: todayEnd } = await getUserTodayWindow(userId);
       
       // Get My Focus high-leverage habits (priority habits only)
       // Match the UI display limit of 6 habits
@@ -1304,14 +1304,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Count total focus habits
       const total = focusHabitIds.length;
       
-      // Count completed habits today
+      // Count completed habits today (using timezone-aware window)
+      const { gte, lt } = await import('drizzle-orm');
       const completedRows = await db
         .select({ habitDefinitionId: habitCompletions.habitDefinitionId })
         .from(habitCompletions)
         .where(and(
           eq(habitCompletions.userId, userId),
           inArray(habitCompletions.habitDefinitionId, focusHabitIds as any),
-          eq(dsql`to_char(${habitCompletions.completedAt}, 'YYYY-MM-DD')`, dateStr as any)
+          gte(habitCompletions.completedAt, todayStart),
+          lt(habitCompletions.completedAt, todayEnd)
         ));
       
       // Use a Set to count unique habits completed (in case of duplicates)

@@ -110,7 +110,7 @@ function getTimezoneOffsetMinutes(timezone: string): number {
 }
 
 // Helper to compute a user's start/end of "today" in UTC based on their timezone
-async function getUserTodayWindow(userId: string) {
+export async function getUserTodayWindow(userId: string) {
   try {
     const { users } = await import('../../shared/schema');
     const rows = await db.select().from(users).where(eq(users.id as any, userId as any)).limit(1);
