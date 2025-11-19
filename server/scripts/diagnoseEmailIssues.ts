@@ -196,6 +196,11 @@ async function diagnoseEmailIssues(userEmail?: string) {
     // 7. Summary
     console.log(`\n📊 Summary:`);
     const issues: string[] = [];
+    const currentHourUTC = now.getUTCHours();
+    const dayOfWeekUTC = now.getUTCDay();
+    const timePeriod = currentHourUTC >= 8 && currentHourUTC < 12 ? 'morning' :
+                      currentHourUTC >= 14 && currentHourUTC < 18 ? 'afternoon' :
+                      currentHourUTC >= 18 && currentHourUTC < 22 ? 'evening' : null;
     
     if (!profile.notificationEnabled) {
       issues.push('Notifications disabled');

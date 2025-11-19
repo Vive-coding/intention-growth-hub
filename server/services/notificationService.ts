@@ -8,6 +8,7 @@ interface NotificationProfile {
   email: string | null;
   firstName: string | null;
   lastName: string | null;
+  timezone?: string | null;
   notificationEnabled: boolean | null;
   notificationFrequency: string | null;
   preferredNotificationTime: string | null;
@@ -25,28 +26,6 @@ interface EmailTemplateOptions {
 export class NotificationService {
   static async getUsersDueForNotification(): Promise<NotificationProfile[]> {
     const now = new Date();
-    // Use UTC time to match cron schedule (runs at 9:15, 15:15, 19:15 UTC)
-    const currentHour = now.getUTCHours();
-    const dayOfWeek = now.getUTCDay(); // 0 = Sunday, 6 = Saturday
-
-    // Exclude weekends (Saturday = 6, Sunday = 0)
-    if (dayOfWeek === 0 || dayOfWeek === 6) {
-      return [];
-    }
-
-    let timePeriod: "morning" | "afternoon" | "evening" | null = null;
-    // Match cron schedule: 9:15 UTC = morning, 15:15 UTC = afternoon, 19:15 UTC = evening
-    if (currentHour >= 8 && currentHour < 12) {
-      timePeriod = "morning";
-    } else if (currentHour >= 14 && currentHour < 18) {
-      timePeriod = "afternoon";
-    } else if (currentHour >= 18 && currentHour < 22) {
-      timePeriod = "evening";
-    }
-
-    if (!timePeriod) {
-      return [];
-    }
 
     const rows = await db
       .select({
@@ -54,6 +33,7 @@ export class NotificationService {
         email: users.email,
         firstName: users.firstName,
         lastName: users.lastName,
+        timezone: users.timezone,
         notificationEnabled: userOnboardingProfiles.notificationEnabled,
         notificationFrequency: userOnboardingProfiles.notificationFrequency,
         preferredNotificationTime: userOnboardingProfiles.preferredNotificationTime,
@@ -67,11 +47,79 @@ export class NotificationService {
     const eligibleUsers: NotificationProfile[] = [];
     
     for (const row of rows) {
+      // Derive the user's local time using their timezone (or a sensible default).
+      const tz = (row as any).timezone || process.env.DEFAULT_TZ || "UTC";
+      let localHour = now.getUTCHours();
+      let localDayOfWeek = now.getUTCDay(); // 0 = Sunday, 6 = Saturday
+
+      try {
+        const formatter = new Intl.DateTimeFormat("en-CA", {
+          timeZone: tz,
+          hour: "2-digit",
+          hour12: false,
+          weekday: "short",
+        });
+        const parts = formatter.formatToParts(now);
+        const hourPart = parts.find((p) => p.type === "hour");
+        const weekdayPart = parts.find((p) => p.type === "weekday");
+
+        if (hourPart?.value) {
+          const parsedHour = parseInt(hourPart.value, 10);
+          if (!Number.isNaN(parsedHour)) {
+            localHour = parsedHour;
+          }
+        }
+
+        if (weekdayPart?.value) {
+          const map: Record<string, number> = {
+            Sun: 0,
+            Mon: 1,
+            Tue: 2,
+            Wed: 3,
+            Thu: 4,
+            Fri: 5,
+            Sat: 6,
+          };
+          if (weekdayPart.value in map) {
+            localDayOfWeek = map[weekdayPart.value];
+          }
+        }
+      } catch {
+        // Fallback to UTC-based values if timezone parsing fails
+        localHour = now.getUTCHours();
+        localDayOfWeek = now.getUTCDay();
+      }
+
+      // Only send on weekdays in the user's local timezone.
+      if (localDayOfWeek === 0 || localDayOfWeek === 6) {
+        continue;
+      }
+
+      // Map local time to a coarse time period for preference matching.
+      // These windows mirror the onboarding copy roughly:
+      //  - Morning:   8–11
+      //  - Afternoon: 14–17
+      //  - Evening:   18–21
+      let timePeriod: "morning" | "afternoon" | "evening" | null = null;
+      if (localHour >= 8 && localHour < 12) {
+        timePeriod = "morning";
+      } else if (localHour >= 14 && localHour < 18) {
+        timePeriod = "afternoon";
+      } else if (localHour >= 18 && localHour < 22) {
+        timePeriod = "evening";
+      }
+
+      // If we're outside all supported windows, skip this user for this run.
+      if (!timePeriod) {
+        continue;
+      }
+
       // Check time preference
-      const timePrefs = typeof row.preferredNotificationTime === 'string'
-        ? row.preferredNotificationTime.split(',').map(t => t.trim()).filter(Boolean)
-        : Array.isArray(row.preferredNotificationTime)
-          ? row.preferredNotificationTime.filter(Boolean)
+      const timePrefs: string[] =
+        typeof row.preferredNotificationTime === "string"
+          ? row.preferredNotificationTime.split(",").map((t) => t.trim()).filter(Boolean)
+          : Array.isArray(row.preferredNotificationTime)
+          ? (row.preferredNotificationTime as string[]).filter(Boolean)
           : [];
       
       // User must have current timePeriod in their preferences (or no preference = send anytime)
@@ -151,8 +199,8 @@ export class NotificationService {
           }
       }
 
-      // Additional check for weekday frequency: only send on weekdays (already checked above)
-      if (frequency === "weekday" && (dayOfWeek === 0 || dayOfWeek === 6)) {
+      // Additional check for weekday frequency: only send on weekdays (in user's local timezone)
+      if (frequency === "weekday" && (localDayOfWeek === 0 || localDayOfWeek === 6)) {
         isDue = false;
       }
 

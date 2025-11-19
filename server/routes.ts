@@ -1729,9 +1729,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     });
 
-    // Run check-ins at consistent times: 9:15 AM, 3:15 PM, and 7:15 PM on weekdays only
-    // Cron format: minute hour * * day-of-week (1-5 = Monday-Friday)
-    cron.schedule('15 9,15,19 * * 1-5', async () => {
+    // Run check-ins hourly across the North American day:
+    // We want to cover roughly 8am–9pm local time from Pacific through Eastern.
+    // That corresponds approximately to 14:00–02:00 UTC.
+    //
+    // node-cron can't express a wrap-around interval in a single expression,
+    // so we schedule two jobs:
+    //  - 14:00–23:00 UTC on weekdays (Mon–Fri)
+    //  - 00:00–02:00 UTC on the *following* UTC day (Tue–Sat)
+    //
+    // The NotificationService still checks each user's local weekday before sending,
+    // so users only receive emails on their own local weekdays.
+
+    // 14:00–23:00 UTC, Monday–Friday
+    cron.schedule('0 14-23 * * 1-5', async () => {
+      try {
+        await GoalFollowUpService.runScheduledCheckIns();
+      } catch (e) {
+        console.error('[cron] goal follow-up job failed', e);
+      }
+    });
+
+    // 00:00–02:00 UTC, Tuesday–Saturday (continuation of the same local-day coverage)
+    cron.schedule('0 0-2 * * 2-6', async () => {
       try {
         await GoalFollowUpService.runScheduledCheckIns();
       } catch (e) {
