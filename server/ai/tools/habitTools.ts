@@ -335,14 +335,25 @@ export const logHabitCompletionTool = new DynamicStructuredTool({
   name: "log_habit_completion",
   description: `Logs a habit as completed for today when the user reports doing a specific habit.
   
-  **IMPORTANT**:
-  - Before calling this tool, you MUST call get_context("habits") or review_daily_habits to see the user's current habits and their IDs.
-  - Find the matching habit by title/description in that context and use its exact 'id' field as the habit_id.
-  - Never make up or guess a habit_id. Only use IDs that come directly from get_context("habits") or review_daily_habits.
+  **CRITICAL WORKFLOW - YOU MUST FOLLOW THIS EXACTLY**:
+  1. **FIRST**: Call get_context("habits") to retrieve ALL active habits for this user. This returns a JSON array with habit objects, each containing an "id" field (UUID) and a "title" field.
+  2. **THEN**: Match the user's message to a habit by comparing their description to the "title" field in the returned habits.
+  3. **ONLY THEN**: Call this tool (log_habit_completion) using the exact "id" UUID from step 2.
+  
+  **NEVER**:
+  - Call this tool without first calling get_context("habits")
+  - Make up or guess a habit_id
+  - Use habit names or descriptions as the habit_id
+  - Reuse IDs from previous conversations or other users
+  
+  **ALWAYS**:
+  - Use the exact "id" field from get_context("habits") output
+  - Verify the habit title matches what the user described
+  - If no matching habit exists, guide the user to create a new goal/habit instead
   
   Use when:
-  - The user says they completed a specific habit that already exists in their habits (e.g., "I did my morning run", "I did my journaling", "I drank 2 glasses of water").
-  - If the user has been doing something repeatedly without logging it, first confirm which existing habit it maps to (via get_context("habits") or review_daily_habits), then log today's completion for that habit.
+  - The user says they completed a specific habit that already exists (e.g., "I did my morning run", "I journaled", "I drank 2 glasses of water").
+  - You have already called get_context("habits") and found a matching habit by title.
   
   This directly logs the completion for **today** and updates the habit's streak and related goal progress.
   Returns: Confirmation with habit details and updated streak.`,
@@ -384,7 +395,33 @@ export const logHabitCompletionTool = new DynamicStructuredTool({
         .limit(1);
       
       if (!habit) {
-        throw new Error('Habit not found or inactive. Make sure you are using the exact "id" from get_context("habits") or review_daily_habits, and that the habit is active for this user.');
+        // Fetch available habits to provide helpful error message
+        const availableHabits = await db
+          .select({ id: habitDefinitions.id, name: habitDefinitions.name })
+          .from(habitDefinitions)
+          .where(
+            and(
+              eq(habitDefinitions.userId, userId),
+              eq(habitDefinitions.isActive, true)
+            )
+          )
+          .limit(20);
+        
+        const habitList = availableHabits.length > 0
+          ? availableHabits.map(h => `  - "${h.name}" (id: ${h.id})`).join('\n')
+          : '  (No active habits found)';
+        
+        throw new Error(
+          `Habit with id "${habit_id}" not found or inactive for this user.\n\n` +
+          `**CRITICAL**: You MUST call get_context("habits") FIRST to get the list of active habits and their IDs.\n` +
+          `Never guess or make up habit IDs. Only use IDs that come directly from get_context("habits") or review_daily_habits.\n\n` +
+          `Available active habits for this user:\n${habitList}\n\n` +
+          `Workflow:\n` +
+          `1. Call get_context("habits") to see all active habits\n` +
+          `2. Match the user's message to a habit by title/description\n` +
+          `3. Use the exact "id" field from that habit object\n` +
+          `4. Then call log_habit_completion with that exact id`
+        );
       }
       
       // Log the completion (this also updates streaks and related goal progress)
