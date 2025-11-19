@@ -330,41 +330,33 @@ export const updateHabitTool = new DynamicStructuredTool({
 
 /**
  * Tool 3: Log habit completion directly
+ * 
+ * This tool accepts a habit description and automatically matches it to an active habit.
+ * The agent never needs to provide UUIDs - just describe what the user did.
  */
 export const logHabitCompletionTool = new DynamicStructuredTool({
   name: "log_habit_completion",
   description: `Logs a habit as completed for today when the user reports doing a specific habit.
   
-  **CRITICAL WORKFLOW - YOU MUST FOLLOW THIS EXACTLY**:
-  1. **FIRST**: Call get_context("habits") to retrieve ALL active habits for this user. This returns a JSON array with habit objects, each containing an "id" field (UUID) and a "title" field.
-  2. **THEN**: Match the user's message to a habit by comparing their description to the "title" field in the returned habits.
-  3. **ONLY THEN**: Call this tool (log_habit_completion) using the exact "id" UUID from step 2.
-  
-  **NEVER**:
-  - Call this tool without first calling get_context("habits")
-  - Make up or guess a habit_id
-  - Use habit names or descriptions as the habit_id
-  - Reuse IDs from previous conversations or other users
-  
-  **ALWAYS**:
-  - Use the exact "id" field from get_context("habits") output
-  - Verify the habit title matches what the user described
-  - If no matching habit exists, guide the user to create a new goal/habit instead
+  **How to use this tool**:
+  - Simply describe what the user did (e.g., "morning workout", "journaled", "drank water", "went for a run")
+  - The tool will automatically find the matching active habit from the user's list
+  - You do NOT need to provide UUIDs or call get_context first - just describe the action
   
   Use when:
-  - The user says they completed a specific habit that already exists (e.g., "I did my morning run", "I journaled", "I drank 2 glasses of water").
-  - You have already called get_context("habits") and found a matching habit by title.
+  - The user says they completed a specific habit (e.g., "I did my morning run", "I journaled", "I worked out today")
+  - The user describes an action that matches one of their active habits
   
   This directly logs the completion for **today** and updates the habit's streak and related goal progress.
-  Returns: Confirmation with habit details and updated streak.`,
+  Returns: Confirmation with habit details and updated streak. If no matching habit is found, returns an error with available habits.`,
   
   schema: z.object({
-    habit_id: z.string().uuid().describe("UUID of the habit that was completed (must come from get_context(\"habits\") or review_daily_habits, using the 'id' field)"),
+    habit_description: z.string().describe("Description of what the user did (e.g., 'morning workout', 'journaled', 'went for a run'). The tool will match this to an active habit automatically."),
     goal_id: z.string().optional().describe("Optional: UUID of the related goal if known"),
     notes: z.string().optional().describe("Optional: Any notes about the completion")
   }),
   
-  func: async ({ habit_id, goal_id, notes }, config) => {
+  func: async ({ habit_description, goal_id, notes }, config) => {
     let userId = (config as any)?.configurable?.userId;
     if (!userId) {
       userId = (global as any).__TOOL_USER_ID__;
@@ -374,55 +366,75 @@ export const logHabitCompletionTool = new DynamicStructuredTool({
       throw new Error("User ID required");
     }
     
-    // Validate habit_id shape early to discourage hallucinated values
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (!uuidRegex.test(habit_id)) {
-      throw new Error(`Invalid habit_id "${habit_id}". You must use the UUID from get_context("habits") or review_daily_habits (the 'id' field), not the habit name or description.`);
-    }
-    
     try {
-      // Verify habit exists and is active for this user
-      const [habit] = await db
-        .select()
+      // Fetch all active habits for this user
+      const activeHabits = await db
+        .select({ 
+          id: habitDefinitions.id, 
+          name: habitDefinitions.name,
+          description: habitDefinitions.description 
+        })
         .from(habitDefinitions)
         .where(
           and(
-            eq(habitDefinitions.id, habit_id),
             eq(habitDefinitions.userId, userId),
             eq(habitDefinitions.isActive, true)
           )
-        )
-        .limit(1);
+        );
       
-      if (!habit) {
-        // Fetch available habits to provide helpful error message
-        const availableHabits = await db
-          .select({ id: habitDefinitions.id, name: habitDefinitions.name })
-          .from(habitDefinitions)
-          .where(
-            and(
-              eq(habitDefinitions.userId, userId),
-              eq(habitDefinitions.isActive, true)
-            )
-          )
-          .limit(20);
-        
-        const habitList = availableHabits.length > 0
-          ? availableHabits.map(h => `  - "${h.name}" (id: ${h.id})`).join('\n')
-          : '  (No active habits found)';
+      if (activeHabits.length === 0) {
+        throw new Error("No active habits found for this user. The user needs to create goals and habits first.");
+      }
+      
+      // Normalize the search description
+      const normalizedSearch = habit_description.toLowerCase().trim();
+      
+      // Try exact match first (case-insensitive)
+      let matchedHabit = activeHabits.find(h => 
+        h.name.toLowerCase() === normalizedSearch
+      );
+      
+      // Try partial match (habit name contains search or search contains habit name)
+      if (!matchedHabit) {
+        matchedHabit = activeHabits.find(h => {
+          const habitName = h.name.toLowerCase();
+          return habitName.includes(normalizedSearch) || normalizedSearch.includes(habitName);
+        });
+      }
+      
+      // Try fuzzy match on description if available
+      if (!matchedHabit) {
+        matchedHabit = activeHabits.find(h => {
+          if (!h.description) return false;
+          const habitDesc = h.description.toLowerCase();
+          return habitDesc.includes(normalizedSearch) || normalizedSearch.includes(habitDesc);
+        });
+      }
+      
+      // Try keyword matching (split search terms and check if they appear in habit name)
+      if (!matchedHabit) {
+        const searchTerms = normalizedSearch.split(/\s+/).filter(term => term.length > 2);
+        matchedHabit = activeHabits.find(h => {
+          const habitName = h.name.toLowerCase();
+          return searchTerms.some(term => habitName.includes(term));
+        });
+      }
+      
+      if (!matchedHabit) {
+        // Provide helpful error with available habits
+        const habitList = activeHabits
+          .map(h => `  - "${h.name}"${h.description ? ` (${h.description.substring(0, 50)}...)` : ''}`)
+          .join('\n');
         
         throw new Error(
-          `Habit with id "${habit_id}" not found or inactive for this user.\n\n` +
-          `**CRITICAL**: You MUST call get_context("habits") FIRST to get the list of active habits and their IDs.\n` +
-          `Never guess or make up habit IDs. Only use IDs that come directly from get_context("habits") or review_daily_habits.\n\n` +
-          `Available active habits for this user:\n${habitList}\n\n` +
-          `Workflow:\n` +
-          `1. Call get_context("habits") to see all active habits\n` +
-          `2. Match the user's message to a habit by title/description\n` +
-          `3. Use the exact "id" field from that habit object\n` +
-          `4. Then call log_habit_completion with that exact id`
+          `Could not find a matching habit for "${habit_description}".\n\n` +
+          `Available active habits:\n${habitList}\n\n` +
+          `Please describe the habit using one of the names above, or guide the user to create a new goal/habit if this is something new they want to track.`
         );
       }
+      
+      // Use the matched habit's ID
+      const habit_id = matchedHabit.id;
       
       // Log the completion (this also updates streaks and related goal progress)
       const completion = await logHabitCompletion({
@@ -437,14 +449,14 @@ export const logHabitCompletionTool = new DynamicStructuredTool({
       const result = {
         type: "habit_completion",
         habit: {
-          id: habit.id,
-          title: habit.name,
+          id: matchedHabit.id,
+          title: matchedHabit.name,
           completedAt: completion.completedAt.toISOString(),
           streak: completion.currentStreak || 0,
         }
       };
       
-      console.log("[logHabitCompletionTool] ✅ Logged habit completion:", habit.name);
+      console.log("[logHabitCompletionTool] ✅ Logged habit completion:", matchedHabit.name, "(matched from:", habit_description, ")");
       return JSON.stringify(result);
     } catch (error: any) {
       if (error?.status === 409) {
