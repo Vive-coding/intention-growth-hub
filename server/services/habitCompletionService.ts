@@ -254,5 +254,10 @@ export async function logHabitCompletion(options: LogHabitCompletionOptions) {
     .set({ globalCompletions: sql`COALESCE(${habitDefinitions.globalCompletions}, 0) + 1`, globalStreak: longestStreak })
     .where(eq(habitDefinitions.id, habitId));
 
-  return completion;
+  // Return completion with streak info for card display
+  return {
+    ...completion,
+    currentStreak,
+    longestStreak,
+  };
 }

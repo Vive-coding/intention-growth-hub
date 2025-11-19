@@ -228,7 +228,8 @@ export default function ConversationStream({ threadId }: Props) {
                       const habit = payload.habit || {};
                       const completedAt = habit.completedAt ? new Date(habit.completedAt) : new Date();
                       const timeStr = completedAt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-                      const streak = Math.max(0, habit.streak || 0);
+                      // Ensure streak is at least 1 since we just completed it
+                      const streak = Math.max(1, habit.streak || 1);
                       
                       // Invalidate habits queries to update slide-out
                       queryClient.invalidateQueries({ queryKey: ["/api/habits/today-completions"] });
@@ -242,7 +243,6 @@ export default function ConversationStream({ threadId }: Props) {
                           </div>
                           <div className="text-base text-gray-900 font-semibold break-words mb-2">{habit.title || 'Habit'}</div>
                           <div className="text-[11px] sm:text-xs text-gray-500 flex flex-wrap items-center gap-x-2 gap-y-1 mb-2">
-                            <span>Streak {streak}d</span>
                             {habit.relatedGoal && (
                               <span className="inline-flex items-center gap-1">
                                 Focus:&nbsp;
@@ -252,9 +252,12 @@ export default function ConversationStream({ threadId }: Props) {
                               </span>
                             )}
                           </div>
-                          <div className="flex items-center gap-1.5 text-xs text-teal-700">
-                            <Clock className="w-3 h-3" />
-                            <span>Completed at {timeStr}</span>
+                          <div className="text-[11px] sm:text-xs text-gray-500 flex flex-wrap items-center gap-x-2 gap-y-1">
+                            <span>Streak {streak}d</span>
+                            <span className="flex items-center gap-1.5 text-teal-700">
+                              <Clock className="w-3 h-3" />
+                              <span>Completed at {timeStr}</span>
+                            </span>
                           </div>
                           {payload.already_completed && (
                             <div className="text-xs text-gray-500 mt-2 italic">

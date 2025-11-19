@@ -491,54 +491,43 @@ export const logHabitCompletionTool = new DynamicStructuredTool({
       }) as any; // Type assertion since the function returns more than the schema defines
       
       // Get the related goal info to show in the card
+      // Try to get goal from habit instance first, then fallback to validGoalId
       let relatedGoalTitle: string | undefined;
-      if (validGoalId) {
-        try {
-          const { goalInstances: goalInstancesTable, goalDefinitions: goalDefinitionsTable } = await import('../../../shared/schema');
+      try {
+        const { habitInstances: habitInstancesTable, goalInstances: goalInstancesTable, goalDefinitions: goalDefinitionsTable } = await import('../../../shared/schema');
+        
+        // First, try to get goal from habit instance (most reliable)
+        const habitInstanceRows = await db
+          .select({ goalInstanceId: habitInstancesTable.goalInstanceId })
+          .from(habitInstancesTable)
+          .where(eq(habitInstancesTable.habitDefinitionId, habit_id))
+          .limit(1);
+        
+        let goalInstanceIdToUse = validGoalId;
+        if (habitInstanceRows.length > 0 && habitInstanceRows[0].goalInstanceId) {
+          goalInstanceIdToUse = habitInstanceRows[0].goalInstanceId;
+        }
+        
+        if (goalInstanceIdToUse) {
           const goalRows = await db
             .select({ title: goalDefinitionsTable.title })
             .from(goalInstancesTable)
             .innerJoin(goalDefinitionsTable, eq(goalInstancesTable.goalDefinitionId, goalDefinitionsTable.id))
-            .where(eq(goalInstancesTable.id, validGoalId))
+            .where(eq(goalInstancesTable.id, goalInstanceIdToUse))
             .limit(1);
           
           if (goalRows.length > 0) {
             relatedGoalTitle = goalRows[0].title;
           }
-        } catch (error) {
-          console.error("[logHabitCompletionTool] Failed to fetch goal title:", error);
-        }
-      }
-      
-      // Get the current streak from the habit instance
-      let currentStreak = 0;
-      try {
-        const { habitInstances: habitInstancesTable } = await import('../../../shared/schema');
-        const habitInstanceRows = await db
-          .select({ goalSpecificStreak: habitInstancesTable.goalSpecificStreak, globalStreak: habitDefinitions.globalStreak })
-          .from(habitInstancesTable)
-          .innerJoin(habitDefinitions, eq(habitInstancesTable.habitDefinitionId, habitDefinitions.id))
-          .where(eq(habitInstancesTable.habitDefinitionId, habit_id))
-          .limit(1);
-        
-        if (habitInstanceRows.length > 0) {
-          // Prefer goal-specific streak if available, otherwise use global streak
-          currentStreak = habitInstanceRows[0].goalSpecificStreak || habitInstanceRows[0].globalStreak || 0;
-        } else {
-          // Fallback: get from habit definition directly
-          const habitDef = await db
-            .select({ globalStreak: habitDefinitions.globalStreak })
-            .from(habitDefinitions)
-            .where(eq(habitDefinitions.id, habit_id))
-            .limit(1);
-          
-          if (habitDef.length > 0) {
-            currentStreak = habitDef[0].globalStreak || 0;
-          }
         }
       } catch (error) {
-        console.error("[logHabitCompletionTool] Failed to fetch streak:", error);
+        console.error("[logHabitCompletionTool] Failed to fetch goal title:", error);
       }
+      
+      // Get the current streak from the completion result
+      // logHabitCompletion now returns currentStreak, so use that directly
+      // Ensure streak is at least 1 since we just completed it
+      const currentStreak = Math.max(1, completionResult.currentStreak || 1);
       
       // Return structured data for confirmation card
       const result = {
