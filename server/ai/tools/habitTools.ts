@@ -510,6 +510,36 @@ export const logHabitCompletionTool = new DynamicStructuredTool({
         }
       }
       
+      // Get the current streak from the habit instance
+      let currentStreak = 0;
+      try {
+        const { habitInstances: habitInstancesTable } = await import('../../../shared/schema');
+        const habitInstanceRows = await db
+          .select({ goalSpecificStreak: habitInstancesTable.goalSpecificStreak, globalStreak: habitDefinitions.globalStreak })
+          .from(habitInstancesTable)
+          .innerJoin(habitDefinitions, eq(habitInstancesTable.habitDefinitionId, habitDefinitions.id))
+          .where(eq(habitInstancesTable.habitDefinitionId, habit_id))
+          .limit(1);
+        
+        if (habitInstanceRows.length > 0) {
+          // Prefer goal-specific streak if available, otherwise use global streak
+          currentStreak = habitInstanceRows[0].goalSpecificStreak || habitInstanceRows[0].globalStreak || 0;
+        } else {
+          // Fallback: get from habit definition directly
+          const habitDef = await db
+            .select({ globalStreak: habitDefinitions.globalStreak })
+            .from(habitDefinitions)
+            .where(eq(habitDefinitions.id, habit_id))
+            .limit(1);
+          
+          if (habitDef.length > 0) {
+            currentStreak = habitDef[0].globalStreak || 0;
+          }
+        }
+      } catch (error) {
+        console.error("[logHabitCompletionTool] Failed to fetch streak:", error);
+      }
+      
       // Return structured data for confirmation card
       const result = {
         type: "habit_completion",
@@ -517,7 +547,7 @@ export const logHabitCompletionTool = new DynamicStructuredTool({
           id: matchedHabit.id,
           title: matchedHabit.name,
           completedAt: completionResult.completedAt ? new Date(completionResult.completedAt).toISOString() : new Date().toISOString(),
-          streak: completionResult.currentStreak || 0,
+          streak: currentStreak,
           relatedGoal: relatedGoalTitle,
         }
       };

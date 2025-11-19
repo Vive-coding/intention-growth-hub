@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
-import { Check, Target as TargetIcon, Trophy } from "lucide-react";
+import { Check, Target as TargetIcon, Trophy, Clock } from "lucide-react";
 import GoalSuggestionCard from "@/pages/chat/components/GoalSuggestionCard";
 import HabitCard from "@/pages/chat/components/HabitCard";
 import PrioritizationCard from "@/pages/chat/components/PrioritizationCard";
@@ -228,6 +228,7 @@ export default function ConversationStream({ threadId }: Props) {
                       const habit = payload.habit || {};
                       const completedAt = habit.completedAt ? new Date(habit.completedAt) : new Date();
                       const timeStr = completedAt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+                      const streak = Math.max(0, habit.streak || 0);
                       
                       // Invalidate habits queries to update slide-out
                       queryClient.invalidateQueries({ queryKey: ["/api/habits/today-completions"] });
@@ -240,14 +241,20 @@ export default function ConversationStream({ threadId }: Props) {
                             <span className="font-semibold">Habit Logged!</span>
                           </div>
                           <div className="text-base text-gray-900 font-semibold break-words mb-2">{habit.title || 'Habit'}</div>
-                          <div className="flex items-center flex-wrap gap-x-3 gap-y-1 text-xs text-gray-600">
-                            <span>✓ {timeStr}</span>
-                            {habit.streak !== undefined && habit.streak > 0 && (
-                              <span className="text-orange-600 font-medium">🔥 {habit.streak} day streak</span>
-                            )}
+                          <div className="text-[11px] sm:text-xs text-gray-500 flex flex-wrap items-center gap-x-2 gap-y-1 mb-2">
+                            <span>Streak {streak}d</span>
                             {habit.relatedGoal && (
-                              <span className="text-gray-500">→ {habit.relatedGoal}</span>
+                              <span className="inline-flex items-center gap-1">
+                                Focus:&nbsp;
+                                <span className="text-gray-700 truncate max-w-[150px] sm:max-w-[200px]">
+                                  {habit.relatedGoal}
+                                </span>
+                              </span>
                             )}
+                          </div>
+                          <div className="flex items-center gap-1.5 text-xs text-teal-700">
+                            <Clock className="w-3 h-3" />
+                            <span>Completed at {timeStr}</span>
                           </div>
                           {payload.already_completed && (
                             <div className="text-xs text-gray-500 mt-2 italic">
