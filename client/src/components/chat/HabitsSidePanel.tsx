@@ -224,12 +224,6 @@ export function HabitsSidePanel({ open, onOpenChange, todaySummary }: HabitsSide
             </div>
           )}
         </ScrollArea>
-
-        <div className="px-4 sm:px-6 py-4 border-t border-emerald-100 bg-white/80">
-          <Button variant="outline" className="w-full" onClick={() => onOpenChange(false)}>
-            Close
-          </Button>
-        </div>
       </SheetContent>
     </Sheet>
   );

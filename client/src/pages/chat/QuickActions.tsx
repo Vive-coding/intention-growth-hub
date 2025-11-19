@@ -1,4 +1,4 @@
-import { CheckSquare, Lightbulb, Sparkles, Zap, Plus, MoreHorizontal } from "lucide-react";
+import { CheckSquare, Lightbulb, Sparkles, Zap, Plus, MoreHorizontal, Trash2 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { apiRequest } from "@/lib/queryClient";
 
@@ -7,10 +7,11 @@ interface Props {
   onViewSuggestions: () => void;
   onOptimize: () => void;
   onSurpriseMe: () => void;
+  onDelete?: () => void;
   mode?: 'plus' | 'full';
 }
 
-export default function QuickActions({ onReviewHabits, onViewSuggestions, onOptimize, onSurpriseMe, mode = 'full' }: Props) {
+export default function QuickActions({ onReviewHabits, onViewSuggestions, onOptimize, onSurpriseMe, onDelete, mode = 'full' }: Props) {
   return (
     <div className="max-w-3xl mx-auto px-0 pb-2">
       {mode === 'plus' ? (
@@ -35,6 +36,14 @@ export default function QuickActions({ onReviewHabits, onViewSuggestions, onOpti
                 <button onClick={onSurpriseMe} className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center gap-2">
                   <Zap className="w-4 h-4" /> Surprise me
                 </button>
+                {onDelete && (
+                  <>
+                    <div className="border-t border-gray-200 my-1" />
+                    <button onClick={onDelete} className="w-full text-left px-3 py-2 text-sm hover:bg-red-50 text-red-600 flex items-center gap-2">
+                      <Trash2 className="w-4 h-4" /> Delete conversation
+                    </button>
+                  </>
+                )}
               </div>
             </PopoverContent>
           </Popover>

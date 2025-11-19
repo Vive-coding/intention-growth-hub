@@ -402,16 +402,9 @@ export default function ChatHome() {
                     </button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-48">
-                    <DropdownMenuItem onClick={() => navigate('/?new=1')}>
+                    <DropdownMenuItem onClick={() => { navigate('/?new=1'); setShowMobileNav(false); }}>
                       <MessageSquare className="w-4 h-4 mr-2" />
                       New conversation
-                    </DropdownMenuItem>
-                    <DropdownMenuItem 
-                      onClick={() => setDeleteConfirm({ threadId, title: activeThread.title || 'Daily Coaching' })}
-                      className="text-red-600 focus:text-red-600"
-                    >
-                      <Trash2 className="w-4 h-4 mr-2" />
-                      Delete conversation
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
@@ -487,6 +480,7 @@ export default function ChatHome() {
                 onViewSuggestions={() => sendAction('Please suggest some goals based on our conversation so far.', 'suggest_goals')}
                 onOptimize={() => sendAction('Help me optimize and prioritize my focus.', 'prioritize_optimize')}
                 onSurpriseMe={() => sendAction('Surprise me with some insights about myself.', 'surprise_me')}
+                onDelete={threadId && activeThread ? () => setDeleteConfirm({ threadId, title: activeThread.title || 'Daily Coaching' }) : undefined}
               />
             </div>
             <div className="flex-1">
