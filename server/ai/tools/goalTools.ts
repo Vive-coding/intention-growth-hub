@@ -5,12 +5,10 @@ import {
   goalDefinitions,
   goalInstances,
   habitDefinitions,
-  habitInstances,
   lifeMetricDefinitions,
   insights,
 } from "../../../shared/schema";
 import { eq, and, desc } from "drizzle-orm";
-import { logHabitCompletion } from "../../services/habitCompletionService";
 
 /**
  * Helper: Generate habit suggestions for a goal
@@ -383,7 +381,7 @@ export const updateGoalProgressTool = new DynamicStructuredTool({
       const targetValue = instance.targetValue || 100;
       const currentPercentage = Math.round((currentProgress / targetValue) * 100);
       
-      // Look for numbers in the update
+      // Look for numbers in the update text
       const numberMatch = progress_update.match(/(\d+)/);
       const increment = numberMatch ? parseInt(numberMatch[1]) : Math.round(targetValue * 0.1); // 10% default
       
@@ -399,37 +397,6 @@ export const updateGoalProgressTool = new DynamicStructuredTool({
           completedAt: newValue >= targetValue ? new Date() : instance.completedAt
         })
         .where(eq(goalInstances.id, goalInstanceId));
-      
-      // Also try to log a related habit completion (so daily stats stay in sync)
-      try {
-        // Find a primary habit linked to this goal instance
-        const [primaryHabitInstance] = await db
-          .select()
-          .from(habitInstances)
-          .where(eq(habitInstances.goalInstanceId, goalInstanceId))
-          .limit(1);
-
-        if (primaryHabitInstance) {
-          try {
-            await logHabitCompletion({
-              userId,
-              habitId: primaryHabitInstance.habitDefinitionId,
-              goalId: goalInstanceId,
-              notes: progress_update,
-              completedAt: new Date(),
-            });
-          } catch (habitError: any) {
-            // If the habit was already completed for this period, ignore; otherwise log for debugging
-            if (habitError?.status === 409) {
-              console.log("[updateGoalProgressTool] Habit already completed for this period; skipping extra log");
-            } else {
-              console.error("[updateGoalProgressTool] Failed to auto-log habit completion:", habitError);
-            }
-          }
-        }
-      } catch (linkError) {
-        console.error("[updateGoalProgressTool] Error while finding linked habits:", linkError);
-      }
       
       // Get goal definition for title
       const goalDef = resolved.definition;
