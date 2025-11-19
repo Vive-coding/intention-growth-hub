@@ -1,8 +1,16 @@
 import { DynamicStructuredTool } from "@langchain/core/tools";
 import { z } from "zod";
 import { db } from "../../db";
-import { goalDefinitions, goalInstances, habitDefinitions, lifeMetricDefinitions, insights } from "../../../shared/schema";
+import {
+  goalDefinitions,
+  goalInstances,
+  habitDefinitions,
+  habitInstances,
+  lifeMetricDefinitions,
+  insights,
+} from "../../../shared/schema";
 import { eq, and, desc } from "drizzle-orm";
+import { logHabitCompletion } from "../../services/habitCompletionService";
 
 /**
  * Helper: Generate habit suggestions for a goal
@@ -382,7 +390,7 @@ export const updateGoalProgressTool = new DynamicStructuredTool({
       const newValue = Math.min(currentProgress + increment, targetValue);
       const newPercentage = Math.round((newValue / targetValue) * 100);
       
-      // Update in database
+      // Update goal instance progress in database
       await db
         .update(goalInstances)
         .set({ 
@@ -391,6 +399,37 @@ export const updateGoalProgressTool = new DynamicStructuredTool({
           completedAt: newValue >= targetValue ? new Date() : instance.completedAt
         })
         .where(eq(goalInstances.id, goalInstanceId));
+      
+      // Also try to log a related habit completion (so daily stats stay in sync)
+      try {
+        // Find a primary habit linked to this goal instance
+        const [primaryHabitInstance] = await db
+          .select()
+          .from(habitInstances)
+          .where(eq(habitInstances.goalInstanceId, goalInstanceId))
+          .limit(1);
+
+        if (primaryHabitInstance) {
+          try {
+            await logHabitCompletion({
+              userId,
+              habitId: primaryHabitInstance.habitDefinitionId,
+              goalId: goalInstanceId,
+              notes: progress_update,
+              completedAt: new Date(),
+            });
+          } catch (habitError: any) {
+            // If the habit was already completed for this period, ignore; otherwise log for debugging
+            if (habitError?.status === 409) {
+              console.log("[updateGoalProgressTool] Habit already completed for this period; skipping extra log");
+            } else {
+              console.error("[updateGoalProgressTool] Failed to auto-log habit completion:", habitError);
+            }
+          }
+        }
+      } catch (linkError) {
+        console.error("[updateGoalProgressTool] Error while finding linked habits:", linkError);
+      }
       
       // Get goal definition for title
       const goalDef = resolved.definition;

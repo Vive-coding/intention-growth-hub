@@ -127,10 +127,14 @@ ${myFocus.keyInsights.map((i: any) => `- ${i.title}: ${i.explanation.substring(0
             })
           );
           
+          // Filter out goals that have no instances for the requested status
+          // (prevents the agent from selecting archived/empty goals that can't be updated)
+          const activeGoals = goalsWithInstances.filter(g => Array.isArray(g.instances) && g.instances.length > 0);
+          
           return JSON.stringify({
             success: true,
-            data: goalsWithInstances,
-            summary: `Found ${goalsWithInstances.length} goals with status: ${status}`
+            data: activeGoals,
+            summary: `Found ${activeGoals.length} goals with status: ${status}`
           });
         }
         
