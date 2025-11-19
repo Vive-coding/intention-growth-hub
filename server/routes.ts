@@ -1305,7 +1305,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const total = focusHabitIds.length;
       
       // Count completed habits today (using timezone-aware window)
-      const { gte, lt } = await import('drizzle-orm');
       const completedRows = await db
         .select({ habitDefinitionId: habitCompletions.habitDefinitionId })
         .from(habitCompletions)
