@@ -412,8 +412,8 @@ export const logHabitCompletionTool = new DynamicStructuredTool({
       }
       
       // Try keyword matching (split search terms and check if they appear in habit name)
-      // But calculate a confidence score to avoid bad matches
-      let bestMatch: { habit: typeof activeHabits[0], score: number } | null = null;
+      // Calculate a confidence score to avoid bad matches
+      let bestMatch: { habit: typeof activeHabits[0], score: number, confidence: number } | null = null;
       
       if (!matchedHabit) {
         const searchTerms = normalizedSearch.split(/\s+/).filter(term => term.length > 2);
@@ -422,55 +422,43 @@ export const logHabitCompletionTool = new DynamicStructuredTool({
           const habitName = habit.name.toLowerCase();
           const habitDesc = (habit.description || '').toLowerCase();
           
-          let score = 0;
-          let matchedTerms = 0;
+          // Check for very high similarity (most key words in common)
+          let titleMatchedTerms = 0;
+          let descMatchedTerms = 0;
           
           for (const term of searchTerms) {
             if (habitName.includes(term)) {
-              matchedTerms++;
-              score += 2; // Higher weight for title matches
+              titleMatchedTerms++;
             } else if (habitDesc.includes(term)) {
-              matchedTerms++;
-              score += 1; // Lower weight for description matches
+              descMatchedTerms++;
             }
           }
           
-          // Calculate confidence as % of terms matched
-          const confidence = searchTerms.length > 0 ? (matchedTerms / searchTerms.length) * 100 : 0;
+          // Calculate confidence based on title matches (more important)
+          const titleConfidence = searchTerms.length > 0 ? (titleMatchedTerms / searchTerms.length) * 100 : 0;
+          const score = (titleMatchedTerms * 3) + descMatchedTerms; // Title matches worth 3x more
           
-          if (confidence >= 75 && (!bestMatch || score > bestMatch.score)) {
-            bestMatch = { habit, score };
-          } else if (confidence >= 50 && confidence < 75 && (!bestMatch || score > bestMatch.score)) {
-            // Store potential matches but don't auto-log them
-            bestMatch = { habit, score: score * 0.5 }; // Reduce score for low-confidence matches
+          // High confidence if:
+          // - 75%+ of search terms appear in title (e.g., "warm-up cool-down" in "Include Warm-up and Cool-down")
+          // - OR very high score (5+) indicating strong match
+          if ((titleConfidence >= 60 || score >= 5) && (!bestMatch || score > bestMatch.score)) {
+            bestMatch = { habit, score, confidence: titleConfidence };
           }
         }
       }
       
       // If we have a matched habit from earlier logic, use it
-      // Otherwise, check if keyword match is confident enough
-      if (!matchedHabit && bestMatch && bestMatch.score >= 4) {
-        // Score of 4+ means at least 2 terms matched in title, or 4 in description
+      // Otherwise, use keyword match if confidence is high enough
+      if (!matchedHabit && bestMatch) {
+        // Accept the match if confidence is reasonable
         matchedHabit = bestMatch.habit;
       }
       
       if (!matchedHabit) {
-        // Provide helpful error with available habits
-        const habitList = activeHabits
-          .map(h => `  - "${h.name}"${h.description ? ` (${h.description.substring(0, 50)}...)` : ''}`)
-          .join('\n');
-        
-        const suggestion = bestMatch && bestMatch.score > 0 && bestMatch.score < 4
-          ? `\n\nPossible match (low confidence): "${bestMatch.habit.name}"\nIf this is correct, ask the user to confirm: "I think you completed '${bestMatch.habit.name}'. Is that right?" Then call this tool again with the exact habit name if confirmed.`
-          : '';
-        
+        // No confident match found - guide the agent to help the user log manually
         throw new Error(
-          `Could not find a confident match for "${habit_description}".\n\n` +
-          `Available active habits:\n${habitList}${suggestion}\n\n` +
-          `Please:\n` +
-          `1. If there's a clear match in the list above, call this tool again with that exact habit name\n` +
-          `2. Ask the user which habit they completed if unclear\n` +
-          `3. Guide the user to create a new goal/habit if this is something new they want to track`
+          `Could not find a matching habit for "${habit_description}".\n\n` +
+          `Tell the user: "I couldn't find that habit in your active list. You can log it manually by opening the habits menu (click the habits pill at the top), or we can create a new habit for this if you'd like to track it going forward."`
         );
       }
       
