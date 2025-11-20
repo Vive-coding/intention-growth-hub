@@ -722,7 +722,7 @@ export const Dashboard = ({ onOpenGPT, onDetailedViewChange, onClearDetailedView
   }
 
   return (
-    <div className="p-4 lg:px-6 lg:py-8 pb-24 lg:pb-8">
+    <div className="px-4 sm:px-6 lg:px-6 -mt-6 pt-10 pb-24 lg:pb-8">
       <div className="max-w-7xl mx-auto">
         {/* Header - centered above journal box on all screen sizes */}
         <div className="mb-4 lg:mb-6">
