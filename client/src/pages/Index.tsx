@@ -13,7 +13,7 @@ import SharedLeftNav from "@/components/layout/SharedLeftNav";
 import { GPTModal } from "@/components/GPTModal";
 import { useAuth } from "@/hooks/useAuth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import type { User as UserType } from "@shared/schema";
 import { HabitsScreen } from "@/components/HabitsScreen";
 import { Landing } from "./Landing";
@@ -88,6 +88,24 @@ const Index = () => {
     isLoading,
     isAuthenticated,
     shouldShowAuthButton
+  });
+
+  // Shared habit completion summary for header pill (chat + journal)
+  const { data: todayCompletions } = useQuery({
+    queryKey: ["/api/habits/today-completions"],
+    queryFn: async () => {
+      try {
+        const resp = await apiRequest("/api/habits/today-completions");
+        return resp || { completed: 0, total: 0 };
+      } catch {
+        return { completed: 0, total: 0 };
+      }
+    },
+    staleTime: 0,
+    refetchInterval: 10_000,
+    refetchOnMount: true,
+    refetchOnWindowFocus: true,
+    enabled: isAuthenticated,
   });
 
   // If not authenticated and not loading, show landing page
@@ -202,8 +220,8 @@ const Index = () => {
           </SharedLeftNav>
           
           <main className="flex-1 flex flex-col h-full overflow-hidden">
-            {/* Mobile header */}
-            <div className="px-3 sm:px-4 py-3 border-b bg-white z-30 overflow-x-hidden shrink-0">
+            {/* Top header: mobile nav + global mode toggle + habit pill */}
+            <div className="px-3 sm:px-4 py-3 border-b border-transparent bg-transparent z-30 overflow-x-hidden shrink-0">
               <div className="flex items-center justify-between gap-2 min-w-0">
                 <div className="flex items-center gap-2 min-w-0 flex-1">
                   <div className="lg:hidden">
@@ -265,8 +283,19 @@ const Index = () => {
                     {/* Page greeting is rendered within each screen (e.g., Dashboard); no separate title needed here. */}
                   </div>
                 </div>
-                <div className="flex items-center gap-3 flex-wrap justify-end flex-shrink-0 pr-1 sm:pr-2">
+                <div className="flex items-center gap-2 flex-wrap justify-end flex-shrink-0 pr-1 sm:pr-2">
                   <ModeToggle className="hidden md:flex shrink-0" />
+                  {todayCompletions && todayCompletions.total > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        (window as any).openHabitsPanel?.();
+                      }}
+                      className="px-2 py-1 bg-teal-100 text-teal-700 rounded-full text-xs font-medium shrink-0 hover:bg-teal-200 transition-colors"
+                    >
+                      {todayCompletions.completed}/{todayCompletions.total} ✓
+                    </button>
+                  )}
                   <div className="lg:hidden shrink-0 flex items-center">
                     <ModeToggle className="md:hidden flex" />
                   </div>
@@ -289,6 +318,24 @@ const Index = () => {
               onLogout={handleLogout}
               profileVisibility="all"
               showLogo={true}
+              rightSlot={
+                <div className="flex items-center gap-2">
+                  <ModeToggle />
+                  {todayCompletions && todayCompletions.total > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        // Navigate to chat home (which exposes openHabitsPanel) and open the habits panel.
+                        window.location.href = "/?new=1";
+                        (window as any).openHabitsPanel?.();
+                      }}
+                      className="px-2 py-1 bg-teal-100 text-teal-700 rounded-full text-xs font-medium shrink-0 hover:bg-teal-200 transition-colors"
+                    >
+                      {todayCompletions.completed}/{todayCompletions.total} ✓
+                    </button>
+                  )}
+                </div>
+              }
             />
           </div>
           <div className="relative px-4 sm:px-6 lg:px-8 py-6">

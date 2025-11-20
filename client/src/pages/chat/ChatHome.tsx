@@ -303,6 +303,14 @@ export default function ChatHome() {
 
   const showModeToggle = !threadId;
 
+  const currentTime = new Date().getHours();
+  const greeting =
+    currentTime < 12 ? "Good morning" : currentTime < 18 ? "Good afternoon" : "Good evening";
+  const userName =
+    (user as any)?.firstName ||
+    ((user as any)?.email?.split("@")[0] as string | undefined) ||
+    "there";
+
   return (
     <>
       <NotificationSetupModal
@@ -328,8 +336,8 @@ export default function ChatHome() {
 
       {/* Main chat column */}
       <main className="flex-1 flex flex-col h-full overflow-hidden">
-        {/* Mobile header: hamburger + logo, fixed */}
-        <div className="px-3 sm:px-4 py-3 border-b bg-white z-30 overflow-x-hidden shrink-0">
+        {/* Top header: hamburger + mode toggle + habit pill */}
+        <div className="px-3 sm:px-4 py-3 border-b border-gray-100 bg-gray-50 z-30 overflow-x-hidden shrink-0">
           <div className="flex items-center justify-between gap-2 min-w-0">
             <div className="flex items-center gap-2 min-w-0 flex-1">
               <div className="lg:hidden">
@@ -449,7 +457,14 @@ export default function ChatHome() {
             <ConversationStream threadId={threadId} />
           ) : (
             <div className="max-w-3xl mx-auto px-3 sm:px-4 py-16 overflow-x-hidden">
-              <div className="text-center text-gray-600 mb-6">Start a conversation with your coach</div>
+              <div className="mb-6 text-left">
+                <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-800 mb-2">
+                  {greeting}, {userName}
+                </h1>
+                <p className="text-sm lg:text-base text-gray-600">
+                  Start a conversation with your coach.
+                </p>
+              </div>
               {/* New chat: show full agent buttons directly */}
               <div className="mb-3">
                 <QuickActions

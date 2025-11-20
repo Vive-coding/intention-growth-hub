@@ -93,6 +93,16 @@ export const Dashboard = ({ onOpenGPT, onDetailedViewChange, onClearDetailedView
   const userName = typedUser?.firstName || 
                   (typedUser?.email?.split('@')[0]) || "there";
 
+  // Expose a global helper so the shared header habit pill can open this slideout
+  useEffect(() => {
+    (window as any).openHabitsPanel = () => setShowHabitsPanel(true);
+    return () => {
+      if ((window as any).openHabitsPanel) {
+        (window as any).openHabitsPanel = undefined;
+      }
+    };
+  }, []);
+
   // Save journal entry
   const handleSaveJournal = async () => {
     if (!journalContent.trim()) {
@@ -724,15 +734,6 @@ export const Dashboard = ({ onOpenGPT, onDetailedViewChange, onClearDetailedView
               Ready to reflect and grow today?
             </p>
           </div>
-          {todayCompletions && todayCompletions.total > 0 && (
-            <button
-              type="button"
-              onClick={() => setShowHabitsPanel(true)}
-              className="px-2 py-1 bg-teal-100 text-teal-700 rounded-full text-xs font-medium shrink-0 hover:bg-teal-200 transition-colors"
-            >
-              {todayCompletions.completed}/{todayCompletions.total} ✓
-            </button>
-          )}
         </div>
 
         {/* Mobile Layout: Single Column */}
@@ -1679,17 +1680,6 @@ export const Dashboard = ({ onOpenGPT, onDetailedViewChange, onClearDetailedView
 
 
       
-      {/* Habits slideout (shared with chat) */}
-      <HabitsSidePanel
-        open={showHabitsPanel}
-        onOpenChange={setShowHabitsPanel}
-        todaySummary={
-          todayCompletions
-            ? { completed: todayCompletions.completed, total: todayCompletions.total }
-            : undefined
-        }
-      />
-
       {/* Add Habit Modal */}
       <AddHabitModal
         isOpen={showAddHabitModal}
@@ -1779,6 +1769,17 @@ export const Dashboard = ({ onOpenGPT, onDetailedViewChange, onClearDetailedView
           prefillData={selectedSuggestedGoal}
         />
       )}
+
+      {/* Shared habits slideout used by journal & home header pill */}
+      <HabitsSidePanel
+        open={showHabitsPanel}
+        onOpenChange={setShowHabitsPanel}
+        todaySummary={
+          todayCompletions
+            ? { completed: todayCompletions.completed, total: todayCompletions.total }
+            : undefined
+        }
+      />
     </div>
   );
 };
