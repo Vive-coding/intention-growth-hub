@@ -263,7 +263,7 @@ const onboardingSteps: OnboardingStep[] = [
     description:
       "We’ll bring these insights into your opening chat so the coach can suggest the right goals, habits, and next steps.",
     actionDescription: "When you’re ready, we’ll start a conversation that guides you toward your first goal and supporting habits.",
-    actionLabel: "Start my first chat",
+    actionLabel: "Start chat with Coach",
   },
 ];
 
@@ -624,6 +624,8 @@ export const OnboardingFlow = ({ onComplete }: OnboardingFlowProps) => {
   };
 
   const handleSkip = () => {
+    // Navigate to chat screen when skipping onboarding
+    navigate('/?new=1');
     onComplete();
   };
 
@@ -908,7 +910,7 @@ export const OnboardingFlow = ({ onComplete }: OnboardingFlowProps) => {
                   onClick={handleSkip}
                   className="text-sm text-slate-500 hover:text-slate-700"
                 >
-                  Skip for now
+                  Skip - I'll customize later
                 </Button>
               )}
           </div>

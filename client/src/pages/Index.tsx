@@ -283,23 +283,25 @@ const Index = () => {
                     {/* Page greeting is rendered within each screen (e.g., Dashboard); no separate title needed here. */}
                   </div>
                 </div>
-                <div className="flex items-center gap-2 flex-wrap justify-end flex-shrink-0 pr-1 sm:pr-2">
-                  <ModeToggle className="hidden md:flex shrink-0" />
-                  {todayCompletions && todayCompletions.total > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        (window as any).openHabitsPanel?.();
-                      }}
-                      className="px-2 py-1 bg-teal-100 text-teal-700 rounded-full text-xs font-medium shrink-0 hover:bg-teal-200 transition-colors"
-                    >
-                      {todayCompletions.completed}/{todayCompletions.total} ✓
-                    </button>
-                  )}
-                  <div className="lg:hidden shrink-0 flex items-center">
-                    <ModeToggle className="md:hidden flex" />
+                {hasCompletedOnboarding && (
+                  <div className="flex items-center gap-2 flex-wrap justify-end flex-shrink-0 pr-1 sm:pr-2">
+                    <ModeToggle className="hidden md:flex shrink-0" />
+                    {todayCompletions && todayCompletions.total > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          (window as any).openHabitsPanel?.();
+                        }}
+                        className="px-2 py-1 bg-teal-100 text-teal-700 rounded-full text-xs font-medium shrink-0 hover:bg-teal-200 transition-colors"
+                      >
+                        {todayCompletions.completed}/{todayCompletions.total} ✓
+                      </button>
+                    )}
+                    <div className="lg:hidden shrink-0 flex items-center">
+                      <ModeToggle className="md:hidden flex" />
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
             </div>
 
