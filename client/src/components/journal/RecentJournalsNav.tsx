@@ -37,7 +37,7 @@ export function RecentJournalsNav({ onSelectEntry, onViewAll }: RecentJournalsNa
         <button
           type="button"
           onClick={() => window.location.assign("/journal")}
-          className="w-6 h-6 inline-flex items-center justify-center rounded-full border border-gray-300 text-gray-600 text-base leading-none hover:bg-gray-50 hover:text-gray-900 transition-colors"
+          className="text-gray-600 text-lg leading-none hover:text-gray-900 transition-colors"
           aria-label="New journal entry"
         >
           +

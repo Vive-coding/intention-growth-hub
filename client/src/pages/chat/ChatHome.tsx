@@ -323,7 +323,7 @@ export default function ChatHome() {
       />
 
       <div
-        className="flex bg-gray-50 overflow-hidden"
+        className="flex bg-gradient-to-br from-green-50 via-white to-blue-50 overflow-hidden"
         style={{ height: "100dvh" }}
       >
       {/* Desktop left nav + conversations list */}
@@ -337,7 +337,7 @@ export default function ChatHome() {
       {/* Main chat column */}
       <main className="flex-1 flex flex-col h-full overflow-hidden">
         {/* Top header: hamburger + mode toggle + habit pill (no bottom border for seamless surface) */}
-        <div className="px-3 sm:px-4 py-3 bg-gray-50 z-30 overflow-x-hidden shrink-0">
+        <div className="px-3 sm:px-4 py-3 bg-gradient-to-br from-green-50 via-white to-blue-50 z-30 overflow-x-hidden shrink-0">
           <div className="flex items-center justify-between gap-2 min-w-0">
             <div className="flex items-center gap-2 min-w-0 flex-1">
               <div className="lg:hidden">

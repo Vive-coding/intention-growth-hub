@@ -724,9 +724,17 @@ export const Dashboard = ({ onOpenGPT, onDetailedViewChange, onClearDetailedView
   return (
     <div className="p-4 lg:px-6 lg:py-8 pb-24 lg:pb-8">
       <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="mb-4 lg:mb-6 flex items-center justify-between gap-4">
-          <div>
+        {/* Header - centered above journal box on desktop */}
+        <div className="mb-4 lg:mb-6">
+          <div className="hidden lg:block max-w-3xl mx-auto text-center">
+            <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-800 mb-2">
+              {greeting}, {userName}
+            </h1>
+            <p className="text-sm lg:text-base text-gray-600">
+              Ready to reflect and grow today?
+            </p>
+          </div>
+          <div className="lg:hidden">
             <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-800 mb-2">
               {greeting}, {userName}
             </h1>
@@ -739,7 +747,7 @@ export const Dashboard = ({ onOpenGPT, onDetailedViewChange, onClearDetailedView
         {/* Mobile Layout: Single Column */}
         <div className="lg:hidden space-y-6">
           {/* Journal Chat Box - Mobile (Primary Action) */}
-          <div className="bg-gradient-to-br from-purple-600 to-blue-600 rounded-2xl p-3">
+          <div className="bg-gradient-to-br from-purple-600 to-blue-600 rounded-2xl p-2">
             {/* Chat-like input box with buttons inside */}
             <div className="bg-white rounded-xl p-1">
               <div className="text-left mb-1.5">
@@ -1106,7 +1114,7 @@ export const Dashboard = ({ onOpenGPT, onDetailedViewChange, onClearDetailedView
         <div className="hidden lg:block lg:px-0">
           <div className="max-w-3xl mx-auto space-y-6">
             {/* Journal Chat Box - Desktop (Primary Action) */}
-            <div className="bg-gradient-to-br from-purple-600 to-blue-600 rounded-2xl p-4">
+            <div className="bg-gradient-to-br from-purple-600 to-blue-600 rounded-2xl p-3">
               {/* Chat-like input box with buttons inside */}
               <div className="bg-white rounded-xl p-1.5">
                 <div className="text-left mb-2">
