@@ -1,7 +1,7 @@
 import { DynamicStructuredTool } from "@langchain/core/tools";
 import { z } from "zod";
 import { db } from "../../db";
-import { habitDefinitions, habitCompletions } from "../../../shared/schema";
+import { habitDefinitions, habitCompletions, habitInstances, goalInstances, goalDefinitions } from "../../../shared/schema";
 import { MyFocusService } from "../../services/myFocusService";
 import { logHabitCompletion } from "../../services/habitCompletionService";
 import { eq, and, desc, gte, inArray, sql } from "drizzle-orm";
@@ -385,6 +385,47 @@ export const logHabitCompletionTool = new DynamicStructuredTool({
       if (activeHabits.length === 0) {
         throw new Error("No active habits found for this user. The user needs to create goals and habits first.");
       }
+
+      // Load My Focus to prioritize high-leverage habits
+      const myFocus = await MyFocusService.getMyFocus(userId);
+      const focusHabitIds: string[] = Array.isArray(myFocus?.highLeverageHabits)
+        ? myFocus.highLeverageHabits.map((h: any) => h.id).filter(Boolean)
+        : [];
+
+      // Narrow candidate habits using goal_id when provided, so we don't pick a duplicate habit
+      // attached to a different goal instance.
+      let candidateHabits = activeHabits;
+      if (goal_id) {
+        try {
+          const goalScopedHabits = await db
+            .select({ habitId: habitInstances.habitDefinitionId })
+            .from(habitInstances)
+            .where(
+              and(
+                eq(habitInstances.goalInstanceId, goal_id),
+                inArray(habitInstances.habitDefinitionId, activeHabits.map((h) => h.id) as any)
+              )
+            );
+
+          const goalHabitIdSet = new Set(goalScopedHabits.map((row) => String(row.habitId)));
+          if (goalHabitIdSet.size > 0) {
+            candidateHabits = activeHabits.filter((h) => goalHabitIdSet.has(String(h.id)));
+          }
+        } catch (error) {
+          console.warn("[logHabitCompletionTool] Failed to scope habits by goal_id; falling back to My Focus preferences", error);
+        }
+      }
+
+      // If we still have many candidates (or no goal_id), prefer habits that are part of My Focus.
+      if (candidateHabits.length === activeHabits.length && focusHabitIds.length > 0) {
+        const focusSet = new Set(focusHabitIds.map(String));
+        const focusCandidates = activeHabits.filter((h) => focusSet.has(String(h.id)));
+        if (focusCandidates.length > 0) {
+          candidateHabits = focusCandidates;
+        }
+      }
+
+      // If all filtering failed for some reason, we still have candidateHabits = activeHabits as a fallback.
       // Normalize the search description
       const normalizeText = (text: string) =>
         text
@@ -397,14 +438,14 @@ export const logHabitCompletionTool = new DynamicStructuredTool({
       const normalizedSearchRaw = habit_description.toLowerCase().trim();
       const normalizedSearch = normalizeText(habit_description);
       
-      // Try exact match first (case-insensitive, normalized)
-      let matchedHabit = activeHabits.find(h => 
+      // Try exact match first (case-insensitive, normalized) within the narrowed candidates
+      let matchedHabit = candidateHabits.find(h => 
         normalizeText(h.name) === normalizedSearch
       );
       
       // Try partial match (habit name contains search or search contains habit name)
       if (!matchedHabit) {
-        matchedHabit = activeHabits.find(h => {
+        matchedHabit = candidateHabits.find(h => {
           const habitName = normalizeText(h.name);
           return habitName.includes(normalizedSearch) || normalizedSearch.includes(habitName);
         });
@@ -412,7 +453,7 @@ export const logHabitCompletionTool = new DynamicStructuredTool({
       
       // Try fuzzy match on description if available
       if (!matchedHabit) {
-        matchedHabit = activeHabits.find(h => {
+        matchedHabit = candidateHabits.find(h => {
           if (!h.description) return false;
           const habitDesc = normalizeText(h.description);
           return habitDesc.includes(normalizedSearch) || normalizedSearch.includes(habitDesc);
@@ -426,7 +467,7 @@ export const logHabitCompletionTool = new DynamicStructuredTool({
       if (!matchedHabit) {
         const searchTerms = normalizedSearch.split(/\s+/).filter(term => term.length > 2);
         
-        for (const habit of activeHabits) {
+        for (const habit of candidateHabits) {
           const habitName = habit.name.toLowerCase();
           const habitDesc = (habit.description || '').toLowerCase();
           
@@ -484,11 +525,10 @@ export const logHabitCompletionTool = new DynamicStructuredTool({
       // This ensures we pass a valid goal_id to the logging service
       let validGoalId = goal_id;
       if (!validGoalId) {
-        const { habitInstances: habitInstancesTable } = await import('../../../shared/schema');
         const habitInstanceRows = await db
-          .select({ goalInstanceId: habitInstancesTable.goalInstanceId })
-          .from(habitInstancesTable)
-          .where(eq(habitInstancesTable.habitDefinitionId, habit_id))
+          .select({ goalInstanceId: habitInstances.goalInstanceId })
+          .from(habitInstances)
+          .where(eq(habitInstances.habitDefinitionId, habit_id))
           .limit(1);
         
         if (habitInstanceRows.length > 0) {
@@ -509,13 +549,11 @@ export const logHabitCompletionTool = new DynamicStructuredTool({
       // Try to get goal from habit instance first, then fallback to validGoalId
       let relatedGoalTitle: string | undefined;
       try {
-        const { habitInstances: habitInstancesTable, goalInstances: goalInstancesTable, goalDefinitions: goalDefinitionsTable } = await import('../../../shared/schema');
-        
         // First, try to get goal from habit instance (most reliable)
         const habitInstanceRows = await db
-          .select({ goalInstanceId: habitInstancesTable.goalInstanceId })
-          .from(habitInstancesTable)
-          .where(eq(habitInstancesTable.habitDefinitionId, habit_id))
+          .select({ goalInstanceId: habitInstances.goalInstanceId })
+          .from(habitInstances)
+          .where(eq(habitInstances.habitDefinitionId, habit_id))
           .limit(1);
         
         let goalInstanceIdToUse = validGoalId;
@@ -525,10 +563,10 @@ export const logHabitCompletionTool = new DynamicStructuredTool({
         
         if (goalInstanceIdToUse) {
           const goalRows = await db
-            .select({ title: goalDefinitionsTable.title })
-            .from(goalInstancesTable)
-            .innerJoin(goalDefinitionsTable, eq(goalInstancesTable.goalDefinitionId, goalDefinitionsTable.id))
-            .where(eq(goalInstancesTable.id, goalInstanceIdToUse))
+            .select({ title: goalDefinitions.title })
+            .from(goalInstances)
+            .innerJoin(goalDefinitions, eq(goalInstances.goalDefinitionId, goalDefinitions.id))
+            .where(eq(goalInstances.id, goalInstanceIdToUse))
             .limit(1);
           
           if (goalRows.length > 0) {
