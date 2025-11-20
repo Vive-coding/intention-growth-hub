@@ -457,7 +457,7 @@ export default function ChatHome() {
             <ConversationStream threadId={threadId} />
           ) : (
             <div className="max-w-3xl mx-auto px-3 sm:px-4 py-10 overflow-x-hidden">
-              <div className="mb-6 text-left">
+              <div className="mb-6 text-center">
                 <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-800 mb-2">
                   {greeting}, {userName}
                 </h1>
