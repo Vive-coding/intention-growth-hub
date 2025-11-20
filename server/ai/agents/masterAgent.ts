@@ -46,7 +46,7 @@ export class MasterAgent {
     this.model = new ChatOpenAI({
       model: "gpt-5-mini",
       temperature: 0.7,
-      maxTokens: 400,
+      maxCompletionTokens: 400,
     });
   }
 

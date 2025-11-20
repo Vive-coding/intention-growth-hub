@@ -130,7 +130,7 @@ export class GoalFollowUpService {
       const model = new ChatOpenAI({
         model: "gpt-5-mini",
         temperature: 0.7,
-        maxTokens: 300,
+        maxCompletionTokens: 300,
       });
 
       const systemPrompt = `You are a warm, encouraging life coach writing a brief check-in email. Your goal is to:

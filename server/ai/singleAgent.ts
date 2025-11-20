@@ -394,7 +394,7 @@ export async function createLifeCoachAgentWithTools(tools: any[], mode?: string,
   const model = new ChatOpenAI({
     model: "gpt-5-mini",
     temperature: 0.7,
-    maxTokens: 800,
+    maxCompletionTokens: 800,
   });
 
   // CRITICAL: Convert tools to OpenAI function format

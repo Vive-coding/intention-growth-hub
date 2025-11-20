@@ -42,7 +42,7 @@ If you cannot find 3 specific goal titles in the reasoning, choose the 3 most re
           { role: 'user', content: prompt }
         ],
         temperature: 0,
-        max_tokens: 200,
+        max_completion_tokens: 200,
       }),
     });
     

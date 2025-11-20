@@ -41,7 +41,7 @@ export class PrioritizeOptimizeAgent {
     this.model = new ChatOpenAI({
       model: "gpt-5-mini",
       temperature: 0.6,
-      maxTokens: 8000,
+      maxCompletionTokens: 8000,
     });
   }
 
