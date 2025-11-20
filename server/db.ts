@@ -109,6 +109,7 @@ export async function ensureChatTables(): Promise<void> {
         "summary" text,
         "is_test" boolean DEFAULT false NOT NULL,
         "privacy_scope" jsonb,
+        "deleted_at" timestamp,
         "created_at" timestamp DEFAULT now(),
         "updated_at" timestamp DEFAULT now()
       )

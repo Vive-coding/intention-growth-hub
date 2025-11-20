@@ -14,7 +14,7 @@ import { formatToOpenAIFunctionMessages } from "langchain/agents/format_scratchp
 import { OpenAIFunctionsAgentOutputParser } from "langchain/agents/openai/output_parser";
 import { RunnableSequence } from "@langchain/core/runnables";
 import { convertToOpenAIFunction } from "@langchain/core/utils/function_calling";
-import { HumanMessage, AIMessage, SystemMessage } from "@langchain/core/messages";
+import { HumanMessage, AIMessage, SystemMessage, FunctionMessage } from "@langchain/core/messages";
 import { MyFocusService } from "../services/myFocusService";
 import { createTracingCallbacks, generateTraceTags, generateTraceMetadata } from "./utils/langsmithTracing";
 import * as fs from "fs";
@@ -484,6 +484,20 @@ export async function createLifeCoachAgentWithTools(tools: any[], mode?: string,
         if (Array.isArray(scratchpad)) {
           // Validate each message in scratchpad before adding
           for (const msg of scratchpad) {
+            // GPT-5-mini doesn't support 'function' role - filter out FunctionMessage objects
+            // Convert function results to AIMessage format instead
+            const msgType = msg instanceof FunctionMessage 
+              ? 'function' 
+              : (msg as any)?.getType?.() || (msg as any)?._getType?.() || (msg as any)?.role;
+            
+            if (msg instanceof FunctionMessage || msgType === 'function' || (msg as any)?.role === 'function') {
+              // Convert function message to AIMessage with function result in content
+              const functionResult = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content);
+              const functionName = (msg as any).name || 'function';
+              messages.push(new AIMessage(`[Function ${functionName} result]: ${functionResult}`));
+              continue;
+            }
+            
             // Ensure the message has valid content (string or array, not undefined/null)
             if (msg && (msg.content !== undefined && msg.content !== null)) {
               // If content is empty string, that's fine - but ensure it's a string
@@ -502,24 +516,55 @@ export async function createLifeCoachAgentWithTools(tools: any[], mode?: string,
         console.error("[agent_scratchpad] Steps causing error:", JSON.stringify(i.steps, null, 2).substring(0, 500));
       }
       
+      // Final filter: Convert any messages with 'function' role to AIMessage (GPT-5-mini compatibility)
+      // This is a safety net in case any FunctionMessage objects slipped through earlier filters
+      const filteredMessages = messages.map((msg) => {
+        // Check multiple ways the role might be stored
+        const msgRole = (msg as any)?._getType?.() 
+          || (msg as any)?.getType?.() 
+          || (msg as any)?.role
+          || (msg instanceof FunctionMessage ? 'function' : null);
+        
+        if (msgRole === 'function' || msg instanceof FunctionMessage) {
+          console.warn("[agent/messages] Converting FunctionMessage to AIMessage:", {
+            type: msg?.constructor?.name,
+            role: msgRole,
+            content: String((msg as any)?.content ?? '').substring(0, 100)
+          });
+          // Convert to AIMessage instead of filtering out
+          const functionResult = typeof (msg as any).content === 'string' 
+            ? (msg as any).content 
+            : JSON.stringify((msg as any).content || {});
+          const functionName = (msg as any).name || 'function';
+          return new AIMessage(`[Function ${functionName} result]: ${functionResult}`);
+        }
+        return msg;
+      });
+      
       // DEBUG: Log messages being sent to the model
       try {
-        console.log("[agent/messages] count:", messages.length);
-        messages.forEach((m, idx) => {
+        console.log("[agent/messages] count:", filteredMessages.length, "(filtered from", messages.length, ")");
+        filteredMessages.forEach((m, idx) => {
           const type = (m && (m as any).constructor && (m as any).constructor.name) || typeof m;
           const content = String((m as any)?.content ?? "");
-          console.log(`  [${idx}] type=${type} content="${content.slice(0, 160)}"`);
+          const role = (m as any)?._getType?.() || (m as any)?.getType?.() || (m as any)?.role || 'unknown';
+          console.log(`  [${idx}] type=${type} role=${role} content="${content.slice(0, 160)}"`);
           
           // Validate content is not undefined/null
           if ((m as any)?.content === undefined || (m as any)?.content === null) {
             console.error(`  ⚠️  [${idx}] INVALID: content is ${(m as any)?.content === undefined ? 'undefined' : 'null'}`);
+          }
+          
+          // Warn if we still see function role
+          if (role === 'function') {
+            console.error(`  ❌ [${idx}] ERROR: Function role still present after filtering!`);
           }
         });
       } catch (e) {
         console.error("[agent/messages] Logging error:", e);
       }
       
-      return messages;
+      return filteredMessages;
     },
     modelWithTools,
     new OpenAIFunctionsAgentOutputParser(),

@@ -39,7 +39,7 @@ async function addDeletedAtColumn() {
     console.log('➕ Adding deleted_at column to chat_threads table...');
     await sql`
       ALTER TABLE chat_threads 
-      ADD COLUMN deleted_at TIMESTAMP
+      ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP
     `;
 
     console.log('✅ Successfully added deleted_at column');
