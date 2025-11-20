@@ -725,14 +725,16 @@ export const Dashboard = ({ onOpenGPT, onDetailedViewChange, onClearDetailedView
     <div className="p-4 lg:px-6 lg:py-8 pb-24 lg:pb-8">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="mb-2 lg:mb-4">
-          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-800">
-            {greeting}, {userName}
-          </h1>
+        <div className="mb-4 lg:mb-6 flex items-center justify-between gap-4">
+          <div>
+            <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-800 mb-2">
+              {greeting}, {userName}
+            </h1>
+            <p className="text-sm lg:text-base text-gray-600">
+              Ready to reflect and grow today?
+            </p>
+          </div>
         </div>
-        <p className="text-sm lg:text-base text-gray-600 text-center mb-6 lg:mb-8">
-          Journal your thoughts.
-        </p>
 
         {/* Mobile Layout: Single Column */}
         <div className="lg:hidden space-y-6">

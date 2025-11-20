@@ -323,7 +323,7 @@ export default function ChatHome() {
       />
 
       <div
-        className="flex bg-gradient-to-br from-green-50 via-white to-blue-50 overflow-hidden"
+        className="flex bg-gray-50 overflow-hidden"
         style={{ height: "100dvh" }}
       >
       {/* Desktop left nav + conversations list */}
@@ -336,8 +336,8 @@ export default function ChatHome() {
 
       {/* Main chat column */}
       <main className="flex-1 flex flex-col h-full overflow-hidden">
-        {/* Top header: hamburger + mode toggle + habit pill */}
-        <div className="px-3 sm:px-4 py-3 border-b border-gray-100 bg-transparent z-30 overflow-x-hidden shrink-0">
+        {/* Top header: hamburger + mode toggle + habit pill (no bottom border for seamless surface) */}
+        <div className="px-3 sm:px-4 py-3 bg-gray-50 z-30 overflow-x-hidden shrink-0">
           <div className="flex items-center justify-between gap-2 min-w-0">
             <div className="flex items-center gap-2 min-w-0 flex-1">
               <div className="lg:hidden">
@@ -457,14 +457,14 @@ export default function ChatHome() {
             <ConversationStream threadId={threadId} />
           ) : (
             <div className="max-w-3xl mx-auto px-3 sm:px-4 py-10 overflow-x-hidden">
-              <div className="mb-4 text-left">
-                <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-800">
+              <div className="mb-6 text-left">
+                <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-800 mb-2">
                   {greeting}, {userName}
                 </h1>
+                <p className="text-sm lg:text-base text-gray-600">
+                  Start a conversation with your coach.
+                </p>
               </div>
-              <p className="text-sm lg:text-base text-gray-600 text-center mb-6">
-                Start a conversation with your coach.
-              </p>
               {/* New chat: show full agent buttons directly */}
               <div className="mb-3">
                 <QuickActions
@@ -475,7 +475,7 @@ export default function ChatHome() {
                   onSurpriseMe={() => sendAction('Surprise me', 'surprise_me')}
                 />
               </div>
-              <div className="border-2 border-transparent bg-gradient-to-r from-emerald-400 to-teal-400 p-[2px] rounded-2xl">
+              <div className="border-2 border-transparent bg-gradient-to-r from-purple-500 to-blue-500 p-[2px] rounded-2xl">
                 <div className="bg-white rounded-2xl p-4">
                   <Composer threadId={undefined as any} />
                 </div>
