@@ -357,18 +357,13 @@ export default function ConversationStream({ threadId }: Props) {
                       );
                     }
                     if (type === 'habit_review') {
-                      const list = Array.isArray(payload.habits) ? payload.habits : [];
-                      const completed = list.filter((h: any, idx: number) => h.completed || recentlyCompleted[h.id || idx]).length;
-
                       return (
                         <div className="bg-white rounded-xl border border-gray-200 p-3 sm:p-4 shadow-sm min-w-0 overflow-hidden">
                           <div className="text-sm font-semibold text-gray-800 mb-2 uppercase tracking-wide">
                             Review Today's Habits
                           </div>
                           <div className="text-xs text-gray-600 mb-3">
-                            {list.length > 0
-                              ? `(${completed}/${list.length}) habits completed today. Tap below to open your habits panel and check things off.`
-                              : "Tap below to open your habits panel and review today's focus habits."}
+                            Tap below to open your habits panel and check things off.
                           </div>
                           <button
                             type="button"
