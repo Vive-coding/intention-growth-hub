@@ -102,12 +102,12 @@ export class ReviewProgressAgent {
 
   constructor() {
     this.model = new ChatOpenAI({
-      model: "gpt-4o-mini",
+      model: "gpt-5-mini",
       temperature: 0.7,
       maxTokens: 400,
     });
     this.extractionModel = new ChatOpenAI({
-      model: "gpt-4o-mini",
+      model: "gpt-5-mini",
       temperature: 0,
       maxTokens: 400,
     });

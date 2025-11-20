@@ -128,7 +128,7 @@ export class GoalFollowUpService {
 
       // Use AI to generate personalized email content
       const model = new ChatOpenAI({
-        model: "gpt-4o-mini",
+        model: "gpt-5-mini",
         temperature: 0.7,
         maxTokens: 300,
       });

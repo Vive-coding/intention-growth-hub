@@ -67,7 +67,7 @@ export class SuggestGoalsAgent {
 
   constructor() {
     this.model = new ChatOpenAI({
-      model: "gpt-4o-mini",
+      model: "gpt-5-mini",
       temperature: 0.6,
       maxTokens: 500,
     });

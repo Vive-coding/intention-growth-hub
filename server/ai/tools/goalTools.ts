@@ -339,13 +339,18 @@ export const updateGoalProgressTool = new DynamicStructuredTool({
   - The tool will automatically match it to their active goals
   - You do NOT need to call get_context first - just describe the goal
   
+  **CRITICAL DISTINCTION**:
+  - Use log_habit_completion when user describes an ACTION they took that matches a habit (e.g., "I reached out to contacts", "I worked out", "I journaled", "I applied to jobs")
+  - Use update_goal_progress ONLY when user describes OVERALL PROGRESS or PERCENTAGE advancement without mentioning a specific habit action (e.g., "I'm 40% done with the launch", "I made good progress on the project this week", "I finished half the slides")
+  
   Use when:
-  - User reports GENERAL progress on a goal (not a specific daily habit)
-  - User wants to manually adjust goal percentage
-  - Example: "I made a lot of progress on the Substack launch this week" (general work, not a habit)
+  - User reports percentage-based progress ("I'm 40% done", "halfway there")
+  - User reports general work/advancement without describing a specific habit action
+  - Example: "I made a lot of progress on the Substack launch this week" (general work, not a specific habit action)
   
   DO NOT use when:
-  - User completed a specific daily habit - use log_habit_completion instead
+  - User describes completing a specific HABIT ACTION (e.g., "I reached out to contacts", "I worked out", "I applied to jobs") - use log_habit_completion instead
+  - User says "I did [habit name]" or describes a specific action - use log_habit_completion
   - You just called log_habit_completion - goal progress is already updated
   
   Returns: Updated goal card with celebration if milestone reached`,
@@ -453,41 +458,82 @@ export const updateGoalProgressTool = new DynamicStructuredTool({
 
       const instance = resolved.instance;
       const goalInstanceId = instance.id;
+      const goalDef = resolved.definition;
       
-      // Simple progress parsing (can be enhanced with AI)
-      const currentProgress = instance.currentValue || 0;
-      const targetValue = instance.targetValue || 100;
-      const currentPercentage = Math.round((currentProgress / targetValue) * 100);
+      // Calculate OLD progress using the same formula as everywhere else:
+      // habitBasedProgress (avg of habits, capped at 90%) + manualOffset (currentValue)
+      const { habitInstances: habitInstancesTable, habitDefinitions: habitDefinitionsTable } = await import('../../../shared/schema');
+      const associatedHabits = await db
+        .select({ habitInst: habitInstancesTable, habitDef: habitDefinitionsTable })
+        .from(habitInstancesTable)
+        .leftJoin(habitDefinitionsTable, eq(habitInstancesTable.habitDefinitionId, habitDefinitionsTable.id))
+        .where(eq(habitInstancesTable.goalInstanceId, goalInstanceId));
       
-      // Look for numbers in the update text
+      let oldHabitBasedProgress = 0;
+      if (associatedHabits.length > 0) {
+        let total = 0;
+        for (const hi of associatedHabits) {
+          const target = (hi as any).habitInst?.targetValue || 0;
+          const current = (hi as any).habitInst?.currentValue || 0;
+          const p = target > 0 ? Math.min((current / target) * 100, 100) : 0;
+          total += p;
+        }
+        const average = total / associatedHabits.length;
+        oldHabitBasedProgress = Math.min(average, 90);
+      }
+      
+      const oldManualOffset = instance.currentValue || 0;
+      const oldTotalProgress = Math.max(0, Math.min(100, oldHabitBasedProgress + oldManualOffset));
+      const oldPercentage = Math.round(oldTotalProgress);
+      
+      // Parse the progress update to determine the manual offset increment
+      // Look for numbers in the update text (percentage or raw number)
       const numberMatch = progress_update.match(/(\d+)/);
-      const increment = numberMatch ? parseInt(numberMatch[1]) : Math.round(targetValue * 0.1); // 10% default
+      let manualOffsetIncrement = 0;
       
-      const newValue = Math.min(currentProgress + increment, targetValue);
-      const newPercentage = Math.round((newValue / targetValue) * 100);
+      if (numberMatch) {
+        const num = parseInt(numberMatch[1]);
+        // If the number is > 50, it's likely a percentage (e.g., "I'm 40% done")
+        // Otherwise, treat as a small increment
+        if (num >= 1 && num <= 100 && progress_update.toLowerCase().includes('%')) {
+          // User specified a target percentage - calculate offset needed
+          const desiredTotal = Math.min(num, 99); // Cap at 99% (100% only via complete_goal)
+          manualOffsetIncrement = desiredTotal - oldTotalProgress;
+        } else {
+          // Small increment (e.g., "added 5 more slides")
+          manualOffsetIncrement = Math.min(num, 10); // Cap small increments
+        }
+      } else {
+        // Default: add 5% manual offset for general progress reports
+        manualOffsetIncrement = 5;
+      }
       
-      // Update goal instance progress in database
+      // Calculate new manual offset
+      const newManualOffset = oldManualOffset + manualOffsetIncrement;
+      
+      // Calculate new total progress (same formula)
+      const newTotalProgress = Math.max(0, Math.min(100, oldHabitBasedProgress + newManualOffset));
+      const newPercentage = Math.round(newTotalProgress);
+      
+      // Update goal instance: store the new manual offset in currentValue
       await db
         .update(goalInstances)
         .set({ 
-          currentValue: newValue,
-          status: newValue >= targetValue ? "completed" : instance.status,
-          completedAt: newValue >= targetValue ? new Date() : instance.completedAt
+          currentValue: newManualOffset,
+          status: newPercentage >= 100 ? "completed" : instance.status,
+          completedAt: newPercentage >= 100 ? new Date() : instance.completedAt
         })
         .where(eq(goalInstances.id, goalInstanceId));
       
-      // Get goal definition for title
-      const goalDef = resolved.definition;
-      
-      const milestoneReached = (currentPercentage < 25 && newPercentage >= 25) ||
-                                (currentPercentage < 50 && newPercentage >= 50) ||
-                                (currentPercentage < 75 && newPercentage >= 75);
+      const milestoneReached = (oldPercentage < 25 && newPercentage >= 25) ||
+                                (oldPercentage < 50 && newPercentage >= 50) ||
+                                (oldPercentage < 75 && newPercentage >= 75);
       
       return {
         type: "progress_update",
         goal_id: goalInstanceId,
         goal_title: goalDef?.title || "Goal",
-        old_progress: currentPercentage,
+        old_progress: oldPercentage,
         new_progress: newPercentage,
         update_text: progress_update,
         milestone_reached: milestoneReached,

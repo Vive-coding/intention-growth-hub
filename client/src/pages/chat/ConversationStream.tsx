@@ -279,7 +279,7 @@ export default function ConversationStream({ threadId }: Props) {
                         <div className="bg-emerald-50 border-2 border-emerald-200 rounded-2xl p-3 sm:p-4 shadow-sm min-w-0 overflow-hidden">
                           <div className="flex items-center gap-2 text-emerald-700 mb-2">
                             <TargetIcon className="w-5 h-5" />
-                            <span className="font-semibold">Goal Updated</span>
+                            <span className="font-semibold">Goal Progressed</span>
                           </div>
                           <div className="text-sm text-gray-900 font-semibold break-words">{title}</div>
                           {oldPct !== undefined && newPct !== undefined && (
