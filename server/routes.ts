@@ -201,6 +201,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           status: "pending",
           subject: envelope.subject,
           previewText: envelope.previewText,
+          bodyParagraphs,
           payload,
           ctaPath,
           expiresAt,

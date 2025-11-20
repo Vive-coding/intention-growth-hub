@@ -17,6 +17,14 @@ const REVIEW_PROGRESS_AGENT_SYSTEM_PROMPT = `You are a specialized progress revi
 6. **Encourage keeping streaks** where they're building momentum.
 7. **Support longer-term review** when users ask for 1 week, month, quarters, or all-time progress.
 
+Current local date for the user: {localDate}
+Current time-of-day bucket: {timeOfDay} (morning / afternoon / evening / anytime).
+
+- If {timeOfDay} = "morning": focus on how they want to approach **today**, referencing what worked or didn’t work **yesterday**.
+- If {timeOfDay} = "afternoon": ask how **today is going so far**, what’s already been done, and what still feels realistic.
+- If {timeOfDay} = "evening": invite a brief **reflection on how today went**, celebrate any wins, and suggest one tiny adjustment for tomorrow.
+- If {timeOfDay} = "anytime": mix gentle reflection on recent days with one simple next step.
+
 **Persona & tone (based on onboarding preferences in the profile):**
 - The profile JSON includes onboarding fields like \`onboarding.coachingStyle\` and \`onboarding.coachPersonality\`. Always adapt your tone and level of candor to these:
   - If coach personality includes **\"tough_but_fair\"** or **\"brutally_honest\"**:
@@ -108,6 +116,57 @@ export class ReviewProgressAgent {
   async processMessage(context: AgentContext): Promise<AgentResponse> {
     const { userId, userMessage, profile, workingSet, recentMessages } = context;
 
+    // Derive user's local date and time-of-day bucket from timezone
+    const timezone = profile?.timezone || "UTC";
+    let timeOfDay: "morning" | "afternoon" | "evening" | "anytime" = "anytime";
+    let localDate = "";
+    try {
+      const now = new Date();
+      const formatter = new Intl.DateTimeFormat("en-CA", {
+        timeZone: timezone,
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        hour12: false,
+      });
+      const parts = formatter.formatToParts(now);
+      const year = parts.find((p) => p.type === "year")?.value;
+      const month = parts.find((p) => p.type === "month")?.value;
+      const day = parts.find((p) => p.type === "day")?.value;
+      const hourPart = parts.find((p) => p.type === "hour")?.value;
+
+      if (year && month && day) {
+        localDate = `${year}-${month}-${day}`;
+      } else {
+        localDate = now.toISOString().split("T")[0];
+      }
+
+      if (hourPart) {
+        const hour = parseInt(hourPart, 10);
+        if (!Number.isNaN(hour)) {
+          if (hour >= 8 && hour < 12) {
+            timeOfDay = "morning";
+          } else if (hour >= 14 && hour < 18) {
+            timeOfDay = "afternoon";
+          } else if (hour >= 18 && hour < 22) {
+            timeOfDay = "evening";
+          }
+        }
+      }
+    } catch {
+      const now = new Date();
+      localDate = now.toISOString().split("T")[0];
+      const hour = now.getUTCHours();
+      if (hour >= 8 && hour < 12) {
+        timeOfDay = "morning";
+      } else if (hour >= 14 && hour < 18) {
+        timeOfDay = "afternoon";
+      } else if (hour >= 18 && hour < 22) {
+        timeOfDay = "evening";
+      }
+    }
+
     // Get My Focus, recent habits and completion data
     const [myFocus, recentHabits, initialCompletionData] = await Promise.all([
       MyFocusService.getMyFocus(userId),
@@ -139,7 +198,9 @@ export class ReviewProgressAgent {
       .replace('{workingSet}', JSON.stringify(workingSet, null, 2))
       .replace('{recentHabits}', JSON.stringify(recentHabits, null, 2))
       .replace('{completionData}', JSON.stringify(completionData, null, 2))
-      .replace('{recentMessages}', recentMessagesText);
+      .replace('{recentMessages}', recentMessagesText)
+      .replace('{timeOfDay}', timeOfDay)
+      .replace('{localDate}', localDate);
 
     const response = await this.model.invoke([
       { role: 'system', content: prompt },
@@ -157,13 +218,20 @@ ${finalText}`.trim();
     // Generate habit review data for card rendering (prioritize My Focus high-leverage habits)
     const habitReview = this.generateHabitReviewData(recentHabits, completionData, myFocus);
 
-    // Prepend a deterministic summary so counts always match the card
+    // Prepend a gentle, time-aware summary so counts always match the card
     try {
       const displayed = (habitReview?.habits || []);
       const todayCompletedCount = displayed.filter(h => h.completed).length;
       const totalShown = displayed.length;
-      const summary = `You completed ${todayCompletedCount}/${totalShown} priority habits today.`;
-      finalText = `${summary}\n\n${finalText}`.trim();
+      if (totalShown > 0) {
+        let summary: string;
+        if (todayCompletedCount > 0) {
+          summary = `You completed ${todayCompletedCount}/${totalShown} priority habits today. Nice work keeping things moving.`;
+        } else {
+          summary = `You’ve set ${totalShown} priority habits to focus on today. Let’s decide which one small action matters most right now.`;
+        }
+        finalText = `${summary}\n\n${finalText}`.trim();
+      }
     } catch {}
 
     // If we have habit review data, also compute goals progressed

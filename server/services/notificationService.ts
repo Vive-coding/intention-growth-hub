@@ -129,13 +129,8 @@ export class NotificationService {
         continue;
       }
 
-      // Check frequency preference
-      const frequency = row.notificationFrequency;
-      if (!frequency) {
-        // No frequency preference = send daily
-        eligibleUsers.push(row);
-        continue;
-      }
+      // Check frequency preference (default to daily if not set)
+      const frequency = row.notificationFrequency || "daily";
 
       // Get the most recent sent notification for this user
       const [lastNotification] = await db
@@ -161,14 +156,11 @@ export class NotificationService {
       switch (frequency) {
         case "daily":
         case "weekday":
-          // Daily/weekday: send if no email sent today (same UTC date)
+          // Daily/weekday: send if no email in the last ~24 hours.
+          // Use a 20-hour buffer so users with shifting schedules still get a check-in most days,
+          // while avoiding multiple emails in a single day.
           if (lastSentAt) {
-            const lastSentDate = new Date(lastSentAt);
-            const todayDate = new Date(now);
-            // Check if last email was sent on a different UTC date
-            isDue = lastSentDate.getUTCFullYear() !== todayDate.getUTCFullYear() ||
-                    lastSentDate.getUTCMonth() !== todayDate.getUTCMonth() ||
-                    lastSentDate.getUTCDate() !== todayDate.getUTCDate();
+            isDue = hoursSinceLastEmail >= 20;
           } else {
             // No previous email, so eligible
             isDue = true;
@@ -176,24 +168,25 @@ export class NotificationService {
           break;
         
         case "every_2_days":
-        case "twice_per_week":
-          // Every 2 days / twice per week: send if no email sent in last 48 hours
+          // Every 2 days: send if no email sent in last 48 hours
           isDue = hoursSinceLastEmail >= 48;
           break;
         
+        case "twice_per_week":
+          // Twice per week: send if no email sent in last ~3.5 days (84 hours)
+          // This ensures roughly 2 emails per week with some buffer
+          isDue = hoursSinceLastEmail >= 84;
+          break;
+        
         case "weekly":
-          // Weekly: send if no email sent in last 6 days (144 hours = 6 days)
-          isDue = hoursSinceLastEmail >= 144;
+          // Weekly: send if no email sent in last 7 days (168 hours = 7 days)
+          isDue = hoursSinceLastEmail >= 168;
           break;
         
         default:
-          // Unknown frequency: default to daily behavior (check if sent today)
+          // Unknown frequency: behave like daily (single check-in per ~day)
           if (lastSentAt) {
-            const lastSentDate = new Date(lastSentAt);
-            const todayDate = new Date(now);
-            isDue = lastSentDate.getUTCFullYear() !== todayDate.getUTCFullYear() ||
-                    lastSentDate.getUTCMonth() !== todayDate.getUTCMonth() ||
-                    lastSentDate.getUTCDate() !== todayDate.getUTCDate();
+            isDue = hoursSinceLastEmail >= 20;
           } else {
             isDue = true;
           }

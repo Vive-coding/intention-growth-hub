@@ -320,24 +320,6 @@ const Index = () => {
               onLogout={handleLogout}
               profileVisibility="all"
               showLogo={true}
-              rightSlot={
-                <div className="flex items-center gap-2">
-                  <ModeToggle />
-                  {todayCompletions && todayCompletions.total > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        // Navigate to chat home (which exposes openHabitsPanel) and open the habits panel.
-                        window.location.href = "/?new=1";
-                        (window as any).openHabitsPanel?.();
-                      }}
-                      className="px-2 py-1 bg-teal-100 text-teal-700 rounded-full text-xs font-medium shrink-0 hover:bg-teal-200 transition-colors"
-                    >
-                      {todayCompletions.completed}/{todayCompletions.total} ✓
-                    </button>
-                  )}
-                </div>
-              }
             />
           </div>
           <div className="relative px-4 sm:px-6 lg:px-8 py-6">

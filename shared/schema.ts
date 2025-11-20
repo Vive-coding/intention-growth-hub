@@ -345,6 +345,7 @@ export const notificationFollowups = pgTable("notification_followups", {
   status: varchar("status", { length: 20 }).default("pending").notNull(),
   subject: text("subject"),
   previewText: text("preview_text"),
+  bodyParagraphs: jsonb("body_paragraphs"),
   payload: jsonb("payload"),
   ctaPath: varchar("cta_path", { length: 255 }),
   createdAt: timestamp("created_at").defaultNow().notNull(),

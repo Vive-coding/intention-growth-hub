@@ -497,6 +497,9 @@ router.post("/followups/redeem", async (req: any, res) => {
 
     const payload = (followup as any).payload || {};
     const goals = Array.isArray(payload.goals) ? payload.goals : [];
+    const bodyParagraphs = Array.isArray((followup as any).bodyParagraphs)
+      ? (followup as any).bodyParagraphs.filter((p: any) => typeof p === "string" && p.trim().length > 0)
+      : [];
     const goalLines = goals.map((g: any) => {
       const progress = typeof g.progress === "number" ? `${g.progress}%` : g.progress || "in progress";
       return `• ${g.title}${progress ? ` — ${progress}` : ""}`;
@@ -509,15 +512,29 @@ router.post("/followups/redeem", async (req: any, res) => {
       .limit(1);
     const firstName = userRow?.firstName || "there";
 
-    const assistantMessageLines = [
-      `Hi ${firstName}, thanks for opening this check-in.`,
-      goalLines.length > 0
-        ? `Here’s what I’m seeing for your focus goals:\n${goalLines.join("\n")}`
-        : `I’d love to hear how your focus goals felt this week.`,
-      `Share what felt smooth and where you might need backup—I'm ready to help you plan the next step.`,
-    ].filter(Boolean);
+    let assistantMessage: string;
+    if (bodyParagraphs.length > 0) {
+      // Reuse the exact email body to make the chat feel like a continuation
+      const intro = `Hi ${firstName}, let's pick up from the check-in email you just opened.`;
+      const emailBody = bodyParagraphs.join("\n\n");
+      const closing =
+        goalLines.length > 0
+          ? `As you think about these focus goals:\n${goalLines.join(
+              "\n"
+            )}\n\nWhat feels most important to talk through right now?`
+          : `What feels most important to talk through right now about your habits and goals?`;
+      assistantMessage = [intro, emailBody, closing].join("\n\n");
+    } else {
+      const assistantMessageLines = [
+        `Hi ${firstName}, thanks for opening this check-in.`,
+        goalLines.length > 0
+          ? `Here’s what I’m seeing for your focus goals:\n${goalLines.join("\n")}`
+          : `I’d love to hear how your focus goals felt this week.`,
+        `Share what felt smooth and where you might need backup—I'm ready to help you plan the next step.`,
+      ].filter(Boolean);
 
-    const assistantMessage = assistantMessageLines.join("\n\n");
+      assistantMessage = assistantMessageLines.join("\n\n");
+    }
     const title = goals.length > 0 ? `Coach check-in: ${goals[0].title}` : "Coach check-in";
 
     const thread = await ChatThreadService.createThread({
@@ -540,9 +557,10 @@ router.post("/followups/redeem", async (req: any, res) => {
       .set({ status: "used", usedAt: now, threadId: thread.id })
       .where(eq(notificationFollowups.id, followup.id));
 
-    const prefill = goals.length > 0
-      ? `Here’s how ${goals[0].title} has been going...`
-      : "Here’s how my focus goals felt this week...";
+    const prefill =
+      goals.length > 0
+        ? `Following up on that email, here’s how ${goals[0].title} has been going...`
+        : "Following up on that email, here’s how my focus goals have been feeling...";
 
     res.json({ threadId: thread.id, prefill });
   } catch (e) {
@@ -643,6 +661,7 @@ router.post("/test-followup-email", async (req: any, res) => {
         status: "pending",
         subject: envelope.subject,
         previewText: envelope.previewText,
+        bodyParagraphs,
         payload,
         ctaPath,
         expiresAt,

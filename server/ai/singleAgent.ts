@@ -535,6 +535,47 @@ export async function processWithToolAgent(context: AgentContext, requestedAgent
 }> {
   const { userMessage, profile, workingSet, threadSummary, recentMessages, userId, onboardingProfile } = context;
   
+  // Derive a simple time-of-day bucket from the user's timezone (if available)
+  const timezone =
+    profile?.timezone ||
+    profile?.onboarding?.timezone ||
+    process.env.DEFAULT_TZ ||
+    "UTC";
+  let timeOfDayForCoach: "morning" | "afternoon" | "evening" | "anytime" = "anytime";
+  try {
+    const now = new Date();
+    const formatter = new Intl.DateTimeFormat("en-CA", {
+      timeZone: timezone,
+      hour: "2-digit",
+      hour12: false,
+    });
+    const parts = formatter.formatToParts(now);
+    const hourPart = parts.find((p) => p.type === "hour")?.value;
+    if (hourPart) {
+      const hour = parseInt(hourPart, 10);
+      if (!Number.isNaN(hour)) {
+        if (hour >= 8 && hour < 12) {
+          timeOfDayForCoach = "morning";
+        } else if (hour >= 14 && hour < 18) {
+          timeOfDayForCoach = "afternoon";
+        } else if (hour >= 18 && hour < 22) {
+          timeOfDayForCoach = "evening";
+        }
+      }
+    }
+  } catch {
+    // Fall back to UTC-based hour if timezone parsing fails
+    const now = new Date();
+    const hour = now.getUTCHours();
+    if (hour >= 8 && hour < 12) {
+      timeOfDayForCoach = "morning";
+    } else if (hour >= 14 && hour < 18) {
+      timeOfDayForCoach = "afternoon";
+    } else if (hour >= 18 && hour < 22) {
+      timeOfDayForCoach = "evening";
+    }
+  }
+  
   // Determine mode and context-specific instructions
   let mode = "Standard Coaching";
   let contextInstructions = "";
@@ -595,6 +636,11 @@ export async function processWithToolAgent(context: AgentContext, requestedAgent
     mode = "Review Progress";
     contextInstructions = `You are helping the user review their progress.
 
+The user's current local time-of-day is approximately **${timeOfDayForCoach}** based on timezone "${timezone}".
+- If it's morning, lead with questions about how they want to approach today and which one habit or goal matters most.
+- If it's afternoon, ask how today is going so far and what they've already done.
+- If it's evening, invite a brief reflection on how today went and what they want to carry into tomorrow.
+
 ### Core goals of this mode
 - Start the check-in like a short coach email, not a dashboard or report.
 - Ask how their day is going and how things are going on 1–2 key habits/goals, using My Focus and recent progress for context.
@@ -617,6 +663,7 @@ export async function processWithToolAgent(context: AgentContext, requestedAgent
     - "Quick check-in: were you able to {habit} today? We talked about how this supports {goal}."
     - "How has today felt overall for your {goal or habit area}?"
   - Mention at most one or two specific habits/goals by name.
+  - Make the opening feel like a continuation of a warm coach email, not a brand-new topic.
 - As they answer and you log habits, you may:
   - Provide a **brief narrative summary** of streaks, why they might be working, and where they're struggling.
   - Use numbers sparingly (e.g., "3 of the last 5 days") instead of listing every habit or saying "you have 86 goals".

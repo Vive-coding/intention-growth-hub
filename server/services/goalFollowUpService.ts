@@ -32,9 +32,56 @@ export class GoalFollowUpService {
     userId: string,
     goals: any[],
     habits: any[],
-    firstName: string | null
+    firstName: string | null,
+    options?: { timezone?: string | null; now?: Date }
   ): Promise<string[]> {
     try {
+      const now = options?.now ?? new Date();
+      const tz = options?.timezone || process.env.DEFAULT_TZ || "UTC";
+
+      // Derive coarse time-of-day in the user's local timezone
+      let timePeriod: "morning" | "afternoon" | "evening" | "anytime" = "anytime";
+      try {
+        const formatter = new Intl.DateTimeFormat("en-CA", {
+          timeZone: tz,
+          hour: "2-digit",
+          hour12: false,
+        });
+        const parts = formatter.formatToParts(now);
+        const hourPart = parts.find((p) => p.type === "hour");
+        if (hourPart?.value) {
+          const parsedHour = parseInt(hourPart.value, 10);
+          if (!Number.isNaN(parsedHour)) {
+            if (parsedHour >= 8 && parsedHour < 12) {
+              timePeriod = "morning";
+            } else if (parsedHour >= 14 && parsedHour < 18) {
+              timePeriod = "afternoon";
+            } else if (parsedHour >= 18 && parsedHour < 22) {
+              timePeriod = "evening";
+            }
+          }
+        }
+      } catch {
+        // If timezone parsing fails, fall back to UTC-based hour
+        const hour = now.getUTCHours();
+        if (hour >= 8 && hour < 12) {
+          timePeriod = "morning";
+        } else if (hour >= 14 && hour < 18) {
+          timePeriod = "afternoon";
+        } else if (hour >= 18 && hour < 22) {
+          timePeriod = "evening";
+        }
+      }
+
+      const timeContext =
+        timePeriod === "morning"
+          ? "It's morning for the user. Focus on how they want to approach today, referencing wins or effort from yesterday to motivate them."
+          : timePeriod === "afternoon"
+          ? "It's afternoon for the user. Ask how the day is going so far and which habits or goals they've already touched, using recent streaks as encouragement."
+          : timePeriod === "evening"
+          ? "It's evening for the user. Ask how the day went overall, what they were able to complete, and gently surface any habits that could use a reset tomorrow."
+          : "The exact time of day is unclear. Mix gentle planning questions with light reflection on recent days.";
+
       // Get the most recent conversation thread
       const recentThreads = await ChatThreadService.listThreads(userId, 1);
       let conversationContext = "";
@@ -60,16 +107,24 @@ export class GoalFollowUpService {
 
       // Build context about goals and habits
       const habitsList = habits.length > 0
-        ? habits.map((h: any) => {
-            const goalTitles = (h.linkedGoals || []).map((g: any) => g.title).join(', ');
-            return `- ${h.title}${goalTitles ? ` (linked to: ${goalTitles})` : ''}`;
-          }).join('\n')
+        ? habits
+            .map((h: any) => {
+              const goalTitles = (h.linkedGoals || []).map((g: any) => g.title).join(', ');
+              const streak =
+                typeof h.streak === "number" && h.streak > 0
+                  ? ` — current streak: ${h.streak} days`
+                  : "";
+              return `- ${h.title}${goalTitles ? ` (linked to: ${goalTitles})` : ''}${streak}`;
+            })
+            .join('\n')
         : 'No active habits yet';
       
-      const goalsList = goals.map((g: any) => {
-        const progress = typeof g.progress === "number" ? `${g.progress}%` : "in progress";
-        return `- ${g.title} — ${progress}`;
-      }).join('\n');
+      const goalsList = goals
+        .map((g: any) => {
+          const progress = typeof g.progress === "number" ? `${g.progress}%` : "in progress";
+          return `- ${g.title} — ${progress}`;
+        })
+        .join('\n');
 
       // Use AI to generate personalized email content
       const model = new ChatOpenAI({
@@ -84,15 +139,21 @@ export class GoalFollowUpService {
 3. Ask about specific habits that are important and in focus
 4. Keep it conversational, warm, and brief (2-3 short paragraphs max)
 5. Focus on engagement and starting a conversation, not just reporting status
+6. Use the time-of-day context to shape your questions:
+   - Morning: focus on how they want to approach today, grounded in what worked or didn't work yesterday.
+   - Afternoon: ask how the day is going so far and what they've already done.
+   - Evening: review how the day went and reinforce streaks and small wins.
+
+Time-of-day context: ${timeContext}
 
 Format your response as 2-3 separate paragraphs, each on a new line.`;
 
       const userPrompt = `Generate a personalized check-in email for ${firstName || 'the user'}.
 
-Their current focus goals:
+Their current focus goals (including current progress % which reflects recent days of effort):
 ${goalsList}
 
-Their high-leverage habits:
+Their high-leverage habits (including streaks that reflect recent consistency):
 ${habitsList}
 ${conversationContext}
 
@@ -101,6 +162,8 @@ Write a warm, engaging email that:
 - References the last conversation if there's anything relevant (motivation struggles, progress challenges, excitement)
 - Invites them to share how things are going
 - Keeps it brief and conversational
+- Uses the time-of-day guidance above so the questions feel natural (planning in the morning, check-in during the afternoon, reflection in the evening)
+- Uses habit streaks and goal progress to encourage them based on the last few days, not just today
 
 Return ONLY the email body paragraphs (2-3 paragraphs), one per line. Do not include greetings or signatures.`;
 
@@ -188,12 +251,13 @@ Return ONLY the email body paragraphs (2-3 paragraphs), one per line. Do not inc
         // Get high-leverage habits for email personalization
         const habits = (focus?.highLeverageHabits || []).slice(0, 5); // Get top 5 habits
 
-        // Generate AI-powered personalized email content
+        // Generate AI-powered personalized email content (time-of-day aware)
         const bodyParagraphs = await this.generateEmailContent(
           profile.userId,
           goals,
           habits,
-          profile.firstName
+          profile.firstName,
+          { timezone: (profile as any).timezone ?? null }
         );
 
         const appOrigin = this.resolveAppOrigin();
@@ -229,6 +293,7 @@ Return ONLY the email body paragraphs (2-3 paragraphs), one per line. Do not inc
             status: "pending",
             subject: envelope.subject,
             previewText: envelope.previewText,
+            bodyParagraphs,
             payload,
             ctaPath,
             expiresAt,
