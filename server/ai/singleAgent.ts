@@ -393,9 +393,8 @@ export async function createLifeCoachAgentWithTools(tools: any[], mode?: string,
   
   const model = new ChatOpenAI({
     model: "gpt-5-mini",
-    temperature: 0.7,
-    // Note: GPT-5-mini requires max_completion_tokens instead of max_tokens,
-    // but LangChain doesn't support this yet. Removing token limit to use defaults.
+    // Note: GPT-5-mini only supports default temperature (1) and max_completion_tokens
+    // LangChain doesn't support these parameters yet, so using defaults
     // TODO: Update when LangChain adds GPT-5 support
   });
 

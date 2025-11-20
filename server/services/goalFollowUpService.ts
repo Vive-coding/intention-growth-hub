@@ -129,8 +129,8 @@ export class GoalFollowUpService {
       // Use AI to generate personalized email content
       const model = new ChatOpenAI({
         model: "gpt-5-mini",
-        temperature: 0.7,
-        // Note: GPT-5-mini requires max_completion_tokens, but LangChain doesn't support this yet
+        // Note: GPT-5-mini only supports default temperature (1)
+        // LangChain doesn't support max_completion_tokens yet, so using defaults
       });
 
       const systemPrompt = `You are a warm, encouraging life coach writing a brief check-in email. Your goal is to:

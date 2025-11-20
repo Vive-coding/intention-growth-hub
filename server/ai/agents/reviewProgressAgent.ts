@@ -103,13 +103,13 @@ export class ReviewProgressAgent {
   constructor() {
     this.model = new ChatOpenAI({
       model: "gpt-5-mini",
-      temperature: 0.7,
-      // Note: GPT-5-mini requires max_completion_tokens, but LangChain doesn't support this yet
+      // Note: GPT-5-mini only supports default temperature (1)
+      // LangChain doesn't support max_completion_tokens yet, so using defaults
     });
     this.extractionModel = new ChatOpenAI({
       model: "gpt-5-mini",
-      temperature: 0,
-      // Note: GPT-5-mini requires max_completion_tokens, but LangChain doesn't support this yet
+      // Note: GPT-5-mini only supports default temperature (1)
+      // LangChain doesn't support max_completion_tokens yet, so using defaults
     });
   }
 
