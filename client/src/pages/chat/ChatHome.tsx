@@ -41,6 +41,16 @@ export default function ChatHome() {
   const followupHandledRef = useRef(false);
   const { user, isLoading, isAuthenticated } = useAuth();
 
+  // Expose a global helper so agent cards can open the habits panel
+  useEffect(() => {
+    (window as any).openHabitsPanel = () => setShowHabitsPanel(true);
+    return () => {
+      if ((window as any).openHabitsPanel === setShowHabitsPanel) {
+        (window as any).openHabitsPanel = undefined;
+      }
+    };
+  }, []);
+
   const handleReturnToOnboarding = () => {
     localStorage.setItem("onboardingCompleted", "false");
     localStorage.removeItem("bypassOnboarding");

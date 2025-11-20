@@ -385,19 +385,27 @@ export const logHabitCompletionTool = new DynamicStructuredTool({
       if (activeHabits.length === 0) {
         throw new Error("No active habits found for this user. The user needs to create goals and habits first.");
       }
-      
       // Normalize the search description
-      const normalizedSearch = habit_description.toLowerCase().trim();
+      const normalizeText = (text: string) =>
+        text
+          .toLowerCase()
+          .replace(/\d+/g, "") // remove numbers like \"10\" in \"10 push-ups\"
+          .replace(/[^a-z\s-]/g, "") // strip punctuation/symbols
+          .replace(/\s+/g, " ")
+          .trim();
+
+      const normalizedSearchRaw = habit_description.toLowerCase().trim();
+      const normalizedSearch = normalizeText(habit_description);
       
-      // Try exact match first (case-insensitive)
+      // Try exact match first (case-insensitive, normalized)
       let matchedHabit = activeHabits.find(h => 
-        h.name.toLowerCase() === normalizedSearch
+        normalizeText(h.name) === normalizedSearch
       );
       
       // Try partial match (habit name contains search or search contains habit name)
       if (!matchedHabit) {
         matchedHabit = activeHabits.find(h => {
-          const habitName = h.name.toLowerCase();
+          const habitName = normalizeText(h.name);
           return habitName.includes(normalizedSearch) || normalizedSearch.includes(habitName);
         });
       }
@@ -406,7 +414,7 @@ export const logHabitCompletionTool = new DynamicStructuredTool({
       if (!matchedHabit) {
         matchedHabit = activeHabits.find(h => {
           if (!h.description) return false;
-          const habitDesc = h.description.toLowerCase();
+          const habitDesc = normalizeText(h.description);
           return habitDesc.includes(normalizedSearch) || normalizedSearch.includes(habitDesc);
         });
       }
@@ -455,11 +463,18 @@ export const logHabitCompletionTool = new DynamicStructuredTool({
       }
       
       if (!matchedHabit) {
-        // No confident match found - guide the agent to help the user log manually
-        throw new Error(
-          `Could not find a matching habit for "${habit_description}".\n\n` +
-          `Tell the user: "I couldn't find that habit in your active list. You can log it manually by opening the habits menu (click the habits pill at the top), or we can create a new habit for this if you'd like to track it going forward."`
-        );
+        // No confident match found - return a structured failure object instead of throwing,
+        // so the agent can tell the user honestly and offer alternatives.
+        return {
+          type: "habit_completion_error",
+          reason: "no_match",
+          habit_description,
+          message:
+            `I couldn't find a matching habit for "${habit_description}" in your active list. ` +
+            `You can log it manually by opening the habits panel (tap the habits pill at the top), ` +
+            `or we can create a new habit for this if you'd like to track it going forward.`,
+          activeHabits: activeHabits.map(h => h.name),
+        };
       }
       
       // Use the matched habit's ID
