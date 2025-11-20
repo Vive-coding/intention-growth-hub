@@ -69,7 +69,7 @@ export class SuggestGoalsAgent {
     this.model = new ChatOpenAI({
       model: "gpt-5-mini",
       temperature: 0.6,
-      maxCompletionTokens: 500,
+      // Note: GPT-5-mini requires max_completion_tokens, but LangChain doesn't support this yet
     });
   }
 

@@ -130,7 +130,7 @@ export class GoalFollowUpService {
       const model = new ChatOpenAI({
         model: "gpt-5-mini",
         temperature: 0.7,
-        maxCompletionTokens: 300,
+        // Note: GPT-5-mini requires max_completion_tokens, but LangChain doesn't support this yet
       });
 
       const systemPrompt = `You are a warm, encouraging life coach writing a brief check-in email. Your goal is to:

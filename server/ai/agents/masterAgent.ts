@@ -46,7 +46,7 @@ export class MasterAgent {
     this.model = new ChatOpenAI({
       model: "gpt-5-mini",
       temperature: 0.7,
-      maxCompletionTokens: 400,
+      // Note: GPT-5-mini requires max_completion_tokens, but LangChain doesn't support this yet
     });
   }
 
