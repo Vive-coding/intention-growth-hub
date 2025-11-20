@@ -23,6 +23,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { insightsService } from "@/services/insightsService";
 import { toast } from "@/components/ui/sonner";
 import { analytics } from "@/services/analyticsService";
+import { HabitsSidePanel } from "@/components/chat/HabitsSidePanel";
 
 // Custom pill color mapping for unique, meaningful colors
 const getPillBackgroundColor = (metricName: string) => {
@@ -85,6 +86,7 @@ export const Dashboard = ({ onOpenGPT, onDetailedViewChange, onClearDetailedView
   const [, setLocation] = useLocation();
   const typedUser = user as UserType | undefined;
   const queryClient = useQueryClient();
+  const [showHabitsPanel, setShowHabitsPanel] = useState(false);
   
   const currentTime = new Date().getHours();
   const greeting = currentTime < 12 ? "Good morning" : currentTime < 18 ? "Good afternoon" : "Good evening";
@@ -266,6 +268,24 @@ export const Dashboard = ({ onOpenGPT, onDetailedViewChange, onClearDetailedView
     },
     retry: 1,
     enabled: isAuthenticated, // Only fetch when authenticated
+  });
+
+  // Fetch today's habit completion summary for header pill
+  const { data: todayCompletions } = useQuery({
+    queryKey: ["/api/habits/today-completions"],
+    queryFn: async () => {
+      try {
+        const resp = await apiRequest("/api/habits/today-completions");
+        return resp || { completed: 0, total: 0 };
+      } catch {
+        return { completed: 0, total: 0 };
+      }
+    },
+    staleTime: 0,
+    refetchInterval: 10_000,
+    refetchOnMount: true,
+    refetchOnWindowFocus: true,
+    enabled: !isLoading && isAuthenticated,
   });
 
   // Debug logging for habit data
@@ -695,7 +715,7 @@ export const Dashboard = ({ onOpenGPT, onDetailedViewChange, onClearDetailedView
     <div className="p-4 lg:px-6 lg:py-8 pb-24 lg:pb-8">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="mb-6 lg:mb-8">
+        <div className="mb-6 lg:mb-8 flex items-center justify-between gap-4">
           <div>
             <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-800 mb-2">
               {greeting}, {userName}
@@ -704,6 +724,15 @@ export const Dashboard = ({ onOpenGPT, onDetailedViewChange, onClearDetailedView
               Ready to reflect and grow today?
             </p>
           </div>
+          {todayCompletions && todayCompletions.total > 0 && (
+            <button
+              type="button"
+              onClick={() => setShowHabitsPanel(true)}
+              className="px-2 py-1 bg-teal-100 text-teal-700 rounded-full text-xs font-medium shrink-0 hover:bg-teal-200 transition-colors"
+            >
+              {todayCompletions.completed}/{todayCompletions.total} ✓
+            </button>
+          )}
         </div>
 
         {/* Mobile Layout: Single Column */}
@@ -736,15 +765,6 @@ export const Dashboard = ({ onOpenGPT, onDetailedViewChange, onClearDetailedView
             </div>
           </div>
           
-          {/* Life Metrics Dashboard - Mobile */}
-          <div className="w-full">
-            <LifeMetricsDashboard 
-              onMetricClick={handleMetricClick}
-              selectedPeriod={selectedPeriod}
-              onPeriodChange={setSelectedPeriod}
-            />
-          </div>
-
           {/* Recent Insights - Mobile */}
           {insightsLoading ? (
             <div className="bg-white rounded-lg p-4 shadow-md">
@@ -832,20 +852,8 @@ export const Dashboard = ({ onOpenGPT, onDetailedViewChange, onClearDetailedView
             </div>
           )}
 
-          {/* Complete Habits - Mobile: reuse the exact same module as desktop */}
-          <UnifiedHabitManager
-            todaysHabits={todaysHabits}
-            smartSuggestions={smartSuggestions}
-            completedHabits={completedHabits}
-            onCompleteHabits={handleCompleteSelected}
-            onToggleHabitSelection={toggleHabitSelection}
-            selectedHabitIds={selectedHabitIds}
-            showHabitModal={showHabitModal}
-            onShowHabitModalChange={setShowHabitModal}
-          />
-
           {/* Smart Suggestions removed on mobile (now integrated into habit priority) */}
-          
+
           {/* Suggested Goals and Habits - Mobile */}
           {(suggestedGoalsLoading || suggestedHabitsLoading) ? (
             <div className="bg-white rounded-lg p-4 shadow-md">
@@ -1093,10 +1101,9 @@ export const Dashboard = ({ onOpenGPT, onDetailedViewChange, onClearDetailedView
           {/* Removed legacy mobile habits panel; UnifiedHabitManager above handles mobile */}
         </div>
 
-        {/* Desktop Layout: Two Column (symmetric spacing; optimized for 1280px) */}
-        <div className="hidden lg:grid lg:grid-cols-[minmax(0,1fr)_280px] xl:grid-cols-[minmax(0,1fr)_320px] lg:gap-6 xl:gap-8 lg:px-0">
-          {/* Left Column - Journal CTA, Life Metrics, and Suggested Goals & Habits */}
-          <div className="space-y-6 lg:col-start-1 lg:col-end-2">
+        {/* Desktop Layout: Centered single column */}
+        <div className="hidden lg:block lg:px-0">
+          <div className="max-w-3xl mx-auto space-y-6">
             {/* Journal Chat Box - Desktop (Primary Action) */}
             <div className="bg-gradient-to-br from-purple-600 to-blue-600 rounded-2xl p-4">
               {/* Chat-like input box with buttons inside */}
@@ -1125,15 +1132,6 @@ export const Dashboard = ({ onOpenGPT, onDetailedViewChange, onClearDetailedView
               </div>
             </div>
             
-            {/* Life Metrics Dashboard */}
-            <div className="w-full">
-              <LifeMetricsDashboard 
-                onMetricClick={handleMetricClick}
-                selectedPeriod={selectedPeriod}
-                onPeriodChange={setSelectedPeriod}
-              />
-            </div>
-
             {/* Recent Insights - Moved here from right column */}
             {insightsLoading ? (
               <Card className="shadow-md border-0 bg-white/80 backdrop-blur-sm">
@@ -1674,20 +1672,6 @@ export const Dashboard = ({ onOpenGPT, onDetailedViewChange, onClearDetailedView
               </div>
             )}
           </div>
-
-          {/* Right Column - Unified Habit Management */}
-          <div className="lg:col-start-2 lg:col-end-3 lg:sticky lg:top-8 lg:h-fit space-y-6">
-            <UnifiedHabitManager
-              todaysHabits={todaysHabits}
-              smartSuggestions={smartSuggestions}
-              completedHabits={completedHabits}
-              onCompleteHabits={handleCompleteSelected}
-              onToggleHabitSelection={toggleHabitSelection}
-              selectedHabitIds={selectedHabitIds}
-              showHabitModal={showHabitModal}
-              onShowHabitModalChange={setShowHabitModal}
-            />
-          </div>
         </div>
 
         {/* Mobile Floating Action Button removed */}
@@ -1695,6 +1679,17 @@ export const Dashboard = ({ onOpenGPT, onDetailedViewChange, onClearDetailedView
 
 
       
+      {/* Habits slideout (shared with chat) */}
+      <HabitsSidePanel
+        open={showHabitsPanel}
+        onOpenChange={setShowHabitsPanel}
+        todaySummary={
+          todayCompletions
+            ? { completed: todayCompletions.completed, total: todayCompletions.total }
+            : undefined
+        }
+      />
+
       {/* Add Habit Modal */}
       <AddHabitModal
         isOpen={showAddHabitModal}

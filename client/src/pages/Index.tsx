@@ -262,7 +262,7 @@ const Index = () => {
                     </Sheet>
                   </div>
                   <div className="text-sm sm:text-base md:text-lg font-semibold text-gray-800 truncate min-w-0">
-                    Daily Coaching
+                    {/* Page greeting is rendered within each screen (e.g., Dashboard); no separate title needed here. */}
                   </div>
                 </div>
                 <div className="flex items-center gap-3 flex-wrap justify-end flex-shrink-0 pr-1 sm:pr-2">

@@ -381,9 +381,9 @@ export default function ChatHome() {
                   </SheetContent>
                 </Sheet>
               </div>
-              {/* Chat title */}
+              {/* Chat title (thread title only; no generic page title) */}
               <div className="text-sm sm:text-base md:text-lg font-semibold text-gray-800 truncate min-w-0">
-                {activeThread?.title || 'Daily Coaching'}
+                {activeThread?.title ?? ""}
               </div>
             </div>
             <div className="flex items-center gap-2 flex-wrap justify-end flex-shrink-0 pr-1 sm:pr-2">
