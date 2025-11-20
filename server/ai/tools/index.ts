@@ -15,7 +15,8 @@ import {
   suggestHabitsForGoalTool,
   updateGoalProgressTool,
   completeGoalTool,
-  adjustGoalTool
+  adjustGoalTool,
+  swapHabitsForGoalTool
 } from "./goalTools";
 import {
   reviewDailyHabitsTool,
@@ -40,6 +41,7 @@ export const allTools = [
   updateGoalProgressTool,
   completeGoalTool,
   adjustGoalTool,
+  swapHabitsForGoalTool,
   
   // Habits (3 tools)
   reviewDailyHabitsTool,
@@ -83,6 +85,7 @@ export {
   updateGoalProgressTool,
   completeGoalTool,
   adjustGoalTool,
+  swapHabitsForGoalTool,
   
   // Habits
   reviewDailyHabitsTool,

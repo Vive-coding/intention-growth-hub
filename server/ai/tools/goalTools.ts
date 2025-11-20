@@ -5,10 +5,11 @@ import {
   goalDefinitions,
   goalInstances,
   habitDefinitions,
+  habitInstances,
   lifeMetricDefinitions,
   insights,
 } from "../../../shared/schema";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, inArray } from "drizzle-orm";
 
 /**
  * Helper: Generate habit suggestions for a goal
@@ -641,5 +642,180 @@ export const adjustGoalTool = new DynamicStructuredTool({
       throw error;
     }
   }
+});
+
+/**
+ * Tool 6: Swap habits for an existing goal
+ *
+ * Use this ONLY after the user explicitly confirms they want to update
+ * the habits under an existing focus goal instead of creating a new goal.
+ */
+export const swapHabitsForGoalTool = new DynamicStructuredTool({
+  name: "swap_habits_for_goal",
+  description: `Replaces or augments habits for an existing goal.
+
+Use this when:
+- The user is struggling with a goal's current habits and has agreed to try new ones instead.
+- You have suggested 1–3 concrete new habits and the user says \"yes\" to swapping them in.
+
+Behavior:
+- Optionally removes specific existing habits from the goal.
+- Adds new habits under the same goal (reusing existing habit definitions by title when possible).
+
+IMPORTANT:
+- Never call this without explicit confirmation from the user.
+- Prefer to use it on one clearly identified focus goal at a time.`,
+
+  schema: z.object({
+    goal_id: z.string().describe("UUID of the goal instance whose habits should be updated"),
+    remove_habit_ids: z
+      .array(z.string())
+      .optional()
+      .describe("Optional list of habit definition UUIDs to detach from this goal"),
+    new_habits: z
+      .array(
+        z.object({
+          title: z.string().describe("Name of the new habit"),
+          description: z.string().optional().describe("Why this habit matters or what it involves"),
+          frequency: z
+            .enum(["daily", "weekly", "monthly"])
+            .optional()
+            .describe("Rough cadence; defaults to daily"),
+          perPeriodTarget: z
+            .number()
+            .int()
+            .positive()
+            .optional()
+            .describe("How many times per period; defaults to 1"),
+        })
+      )
+      .min(1)
+      .describe("New habits the user has agreed to try for this goal"),
+  }),
+
+  func: async ({ goal_id, remove_habit_ids, new_habits }, config) => {
+    let userId = (config as any)?.configurable?.userId;
+    if (!userId) {
+      userId = (global as any).__TOOL_USER_ID__;
+    }
+    if (!userId) {
+      throw new Error("User ID required");
+    }
+
+    return await db.transaction(async (tx) => {
+      // Verify goal belongs to user
+      const [goalRow] = await tx
+        .select({
+          inst: goalInstances,
+          def: goalDefinitions,
+        })
+        .from(goalInstances)
+        .innerJoin(goalDefinitions, eq(goalInstances.goalDefinitionId, goalDefinitions.id))
+        .where(and(eq(goalInstances.id, goal_id), eq(goalInstances.userId, userId)))
+        .limit(1);
+
+      if (!goalRow) {
+        throw new Error("Goal not found or does not belong to this user.");
+      }
+
+      const goalTitle = goalRow.def.title;
+
+      // Optionally remove existing habit links for this goal
+      if (remove_habit_ids && remove_habit_ids.length > 0) {
+        await tx
+          .delete(habitInstances)
+          .where(
+            and(
+              eq(habitInstances.userId, userId),
+              eq(habitInstances.goalInstanceId, goal_id),
+              inArray(habitInstances.habitDefinitionId, remove_habit_ids as any),
+            ),
+          );
+      }
+
+      const addedHabits: Array<{
+        habit_definition_id: string;
+        habit_instance_id: string;
+        title: string;
+      }> = [];
+
+      // Simple default frequency settings similar to goal creation
+      const computeDefaults = () => {
+        const perPeriodTarget = 1;
+        const periodsCount = 30; // ~1 month
+        const targetValue = perPeriodTarget * periodsCount;
+        return {
+          frequency: "daily",
+          perPeriodTarget,
+          periodsCount,
+          targetValue,
+        };
+      };
+
+      for (const h of new_habits) {
+        // Try to reuse an existing habit definition with the same title
+        const [existingDef] = await tx
+          .select()
+          .from(habitDefinitions)
+          .where(and(eq(habitDefinitions.userId, userId), eq(habitDefinitions.name, h.title)))
+          .limit(1);
+
+        let habitDefId: string;
+        if (existingDef) {
+          habitDefId = existingDef.id as string;
+        } else {
+          const [createdDef] = await tx
+            .insert(habitDefinitions)
+            .values({
+              userId,
+              name: h.title,
+              description: h.description || "",
+              category: null as any,
+              isActive: true,
+            } as any)
+            .returning({ id: habitDefinitions.id });
+
+          habitDefId = createdDef.id as string;
+        }
+
+        const freqDefaults = computeDefaults();
+        const frequency = h.frequency || "daily";
+        const perPeriodTarget = h.perPeriodTarget ?? freqDefaults.perPeriodTarget;
+        const periodsCount = freqDefaults.periodsCount;
+        const targetValue = perPeriodTarget * periodsCount;
+
+        const [instance] = await tx
+          .insert(habitInstances)
+          .values({
+            userId,
+            goalInstanceId: goal_id,
+            habitDefinitionId: habitDefId,
+            targetValue,
+            currentValue: 0,
+            goalSpecificStreak: 0,
+            frequencySettings: {
+              frequency,
+              perPeriodTarget,
+              periodsCount,
+            },
+          } as any)
+          .returning({ id: habitInstances.id });
+
+        addedHabits.push({
+          habit_definition_id: habitDefId,
+          habit_instance_id: instance.id as string,
+          title: h.title,
+        });
+      }
+
+      return {
+        type: "goal_habit_swap",
+        goal_id,
+        goal_title: goalTitle,
+        removed_habit_ids: remove_habit_ids || [],
+        added_habits: addedHabits,
+      };
+    });
+  },
 });
 
