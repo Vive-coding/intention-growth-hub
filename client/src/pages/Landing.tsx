@@ -100,10 +100,10 @@ export const Landing = () => {
 
       {/* Hero Section */}
       <section className="relative py-20 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-3xl mx-auto text-center">
-          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-semibold text-gray-900 mb-6 tracking-tight">
-            Discover and build life-changing habits{" "}
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-600 to-purple-600">
+        <div className="max-w-5xl mx-auto text-center">
+          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-semibold text-gray-900 mb-6 tracking-tight leading-[1.1] pb-2">
+            <span className="block sm:whitespace-nowrap">Discover and build life-changing habits</span>
+            <span className="block text-transparent bg-clip-text bg-gradient-to-r from-emerald-600 to-purple-600 sm:whitespace-nowrap">
               to achieve your goals
             </span>
           </h1>
@@ -130,19 +130,73 @@ export const Landing = () => {
             What makes this coach feel different
           </h2>
 
-          {/* Frameworks row */}
-          <Card className="relative overflow-hidden rounded-3xl bg-white/85 border border-emerald-100 p-6 sm:p-8">
-            <div className="grid gap-6 md:grid-cols-[1.2fr_minmax(0,1fr)] md:items-center">
-              <div>
-                <h3 className="text-xl font-semibold text-gray-900 mb-3">
-                  Informed by time-tested frameworks
+          {/* On-demand sounding board row - FIRST */}
+          <Card className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-white via-emerald-50/30 to-white border border-emerald-100/50 shadow-xl p-6 sm:p-8">
+            <div className="grid gap-6 md:grid-cols-[minmax(0,1fr)_1.2fr] md:items-center">
+              {/* Chat visual on the left */}
+              <div className="relative order-2 md:order-1">
+                <div className="rounded-2xl bg-gradient-to-br from-gray-50 to-emerald-50/30 border border-emerald-100 shadow-lg p-4 space-y-3 overflow-hidden">
+                  <div className="flex flex-col gap-3">
+                    {/* User message */}
+                    <div className="self-start max-w-[80%] rounded-2xl bg-white/90 backdrop-blur-sm px-4 py-2.5 shadow-sm text-gray-800 text-sm">
+                      I'm feeling overwhelmed with work and can't focus on my side project.
+                    </div>
+                    {/* Coach insightful suggestion */}
+                    <div className="self-end max-w-[85%] rounded-2xl bg-gradient-to-br from-emerald-600 to-emerald-700 text-white px-4 py-3 shadow-md text-left text-sm leading-relaxed">
+                      Based on your patterns, your peak energy happens before 9am. What if we protect just two mornings this week—30 minutes each—to chip away at the side project? You can keep those windows sacred, no work emails.
+                    </div>
+                  </div>
+                </div>
+              </div>
+              {/* Text content on the right */}
+              <div className="order-1 md:order-2">
+                <h3 className="text-xl sm:text-2xl font-semibold text-gray-900 mb-3">
+                  On-demand coach as a sounding board
                 </h3>
                 <p className="text-sm sm:text-base text-gray-700 max-w-xl">
-                  Under the hood, GoodHabit blends classic coaching frameworks so the questions feel grounded and practical,
-                  not generic self-help quotes.
+                  Bring in a messy brain-dump. Your coach reflects it back, pulls out the signal, and proposes concrete next
+                  moves you can actually take this week.
                 </p>
               </div>
-              <div id="frameworks-wheel" className="relative flex flex-row items-center justify-center gap-3">
+            </div>
+            </Card>
+
+          {/* Discover your patterns row - SECOND */}
+          <Card className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-white via-white/50 to-white border border-gray-100/50 shadow-xl p-6 sm:p-8">
+            <div className="grid gap-6 md:grid-cols-[1.2fr_minmax(0,1fr)] md:items-center">
+              <div>
+                <h3 className="text-xl sm:text-2xl font-semibold text-gray-900 mb-3">
+                  Discover your patterns, not just your streaks
+                </h3>
+                <p className="text-sm sm:text-base text-gray-700 max-w-xl">
+                  Instead of only counting checkmarks, the coach notices when and why things work for you — and when they
+                  quietly fall off.
+                </p>
+              </div>
+              <div className="relative">
+                <div className="rounded-2xl bg-amber-50 border border-amber-200 shadow-md p-4 text-sm">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[11px] font-semibold text-amber-800 tracking-wide">
+                      PATTERN INSIGHT
+                    </span>
+                    <span className="text-[11px] text-amber-700">Confidence: 85%</span>
+                  </div>
+                  <p className="text-gray-900 font-semibold mb-1">
+                    Early morning workouts compound into consistent energy, evening sessions fall off completely
+                  </p>
+                  <p className="text-xs text-gray-700">
+                    Your weekday movement habit sticks when scheduled before 9am — morning slots protect against decision fatigue and show a 92% completion rate. Evening workouts drop to 30% due to energy depletion. Shift high-priority habits to your peak windows for lasting momentum.
+                  </p>
+                </div>
+              </div>
+            </div>
+            </Card>
+
+          {/* Frameworks row - THIRD */}
+          <Card className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-white via-purple-50/30 to-white border border-purple-100/50 shadow-xl p-6 sm:p-8">
+            <div className="grid gap-6 md:grid-cols-[minmax(0,1fr)_1.2fr] md:items-center">
+              {/* Visual on the left */}
+              <div id="frameworks-wheel" className="relative flex flex-row items-center justify-center gap-3 order-2 md:order-1">
                 {/* Wheel picker - rotating wheel with center selection indicator */}
                 <div className="relative w-52 h-60 flex items-center justify-center">
                   {/* Overflow container to clip items outside visible area */}
@@ -215,70 +269,18 @@ export const Landing = () => {
                   <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
                 </svg>
               </div>
-            </div>
-            </Card>
-
-          {/* On-demand sounding board row */}
-          <Card className="relative overflow-hidden rounded-3xl bg-white/90 border border-purple-100 shadow-md p-6 sm:p-8">
-            <div className="grid gap-6 md:grid-cols-[minmax(0,1fr)_1.2fr] md:items-center">
-              {/* Chat visual on the left */}
-              <div className="relative order-2 md:order-1">
-                <div className="rounded-2xl bg-gradient-to-br from-gray-50 to-purple-50/30 border border-purple-100 shadow-lg p-4 space-y-3">
-                  <div className="flex flex-col gap-3">
-                    {/* User message */}
-                    <div className="self-start max-w-[80%] rounded-2xl bg-white/90 backdrop-blur-sm px-4 py-2.5 shadow-sm text-gray-800 text-sm">
-                      I'm feeling overwhelmed with work and can't focus on my side project.
-                    </div>
-                    {/* Coach insightful suggestion */}
-                    <div className="self-end max-w-[85%] rounded-2xl bg-gradient-to-br from-emerald-600 to-emerald-700 text-white px-4 py-3 shadow-md text-left text-sm leading-relaxed">
-                      Based on your patterns, your peak energy happens before 9am. What if we protect just two mornings this week—30 minutes each—to chip away at the side project? You can keep those windows sacred, no work emails.
-                    </div>
-                  </div>
-                </div>
-              </div>
               {/* Text content on the right */}
               <div className="order-1 md:order-2">
-                <h3 className="text-xl font-semibold text-gray-900 mb-3">
-                  On-demand coach as a sounding board
+                <h3 className="text-xl sm:text-2xl font-semibold text-gray-900 mb-3">
+                  Informed by time-tested frameworks
                 </h3>
                 <p className="text-sm sm:text-base text-gray-700 max-w-xl">
-                  Bring in a messy brain-dump. Your coach reflects it back, pulls out the signal, and proposes concrete next
-                  moves you can actually take this week.
+                  Under the hood, GoodHabit blends classic coaching frameworks so the questions feel grounded and practical,
+                  not generic self-help quotes.
                 </p>
               </div>
             </div>
-            </Card>
-
-          {/* See your patterns row */}
-          <Card className="relative overflow-hidden rounded-3xl bg-white/90 border border-amber-100 shadow-md p-6 sm:p-8">
-            <div className="grid gap-6 md:grid-cols-[1.2fr_minmax(0,1fr)] md:items-center">
-              <div>
-                <h3 className="text-xl font-semibold text-gray-900 mb-3">
-                  Discover your patterns, not just your streaks
-                </h3>
-                <p className="text-sm sm:text-base text-gray-700 max-w-xl">
-                  Instead of only counting checkmarks, the coach notices when and why things work for you — and when they
-                  quietly fall off.
-                </p>
-              </div>
-              <div className="relative">
-                <div className="rounded-2xl bg-amber-50 border border-amber-200 shadow-md p-4 text-sm">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-[11px] font-semibold text-amber-800 tracking-wide">
-                      PATTERN INSIGHT
-                    </span>
-                    <span className="text-[11px] text-amber-700">Confidence: 85%</span>
-                </div>
-                  <p className="text-gray-900 font-semibold mb-1">
-                    Early morning workouts compound into consistent energy, evening sessions fall off completely
-                  </p>
-                  <p className="text-xs text-gray-700">
-                    Your weekday movement habit sticks when scheduled before 9am — morning slots protect against decision fatigue and show a 92% completion rate. Evening workouts drop to 30% due to energy depletion. Shift high-priority habits to your peak windows for lasting momentum.
-                  </p>
-                </div>
-              </div>
-            </div>
-            </Card>
+          </Card>
         </div>
       </section>
 
