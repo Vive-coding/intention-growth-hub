@@ -57,34 +57,41 @@ This rubric is used to evaluate the quality of life coach agent conversations. E
 
 ### 2. Response Quality (0-5)
 
-**What to evaluate**: Is the response helpful, clear, and appropriately toned?
+**What to evaluate**: Is the response helpful, clear, appropriately toned, and pleasant to interact with over multiple turns?
 
 **Excellent (5)**:
 - Warm, empathetic, and encouraging tone
 - Clear and concise (no unnecessary verbosity)
 - Directly addresses user's question/need
 - Natural conversational flow
+- **Uses My Focus and other context sparingly** (e.g., references focus set when it adds value, not in every message)
+- **Respects the user's energy and autonomy** (e.g., not pushy, acknowledges when the user sounds done)
 - Appropriate use of formatting and structure
 
 **Good (4)**:
 - Tone is good with minor lapses
 - Mostly clear and concise
 - Addresses main points
+- May occasionally repeat focus/context but not in a distracting way
 
 **Acceptable (3)**:
 - Tone is acceptable but could be warmer
 - Some verbosity or unclear phrasing
 - Addresses user's need indirectly
+- May feel a bit \"coach-y\" or repetitive but still usable
 
 **Needs Improvement (2)**:
 - Tone feels robotic or cold
 - Overly verbose or confusing
 - Partially addresses user's need
+- **Noticeable repetition** (e.g., restating the full focus set or same insight almost every reply)
+- **Feels pushy** (e.g., keeps asking the user to share more or commit when they're signaling low energy)
 
 **Poor (1)**:
-- Inappropriate tone (pushy, dismissive)
+- Inappropriate tone (pushy, dismissive, guilt-inducing)
 - Very confusing or off-topic
 - Doesn't address user's need
+- Frequently repeats the same points or focus summary
 
 **Fail (0)**:
 - Offensive or completely unhelpful
@@ -93,8 +100,9 @@ This rubric is used to evaluate the quality of life coach agent conversations. E
 **Examples**:
 - ✅ "That's great progress! I can see you're building momentum with your workouts. Want to set a target for next week?"
 - ✅ "I hear you—it's tough when motivation dips. Let's break this down into a smaller, more manageable step."
-- ❌ "Goal created successfully. Habit instances have been initialized with target values."
+- ✅ \"If you're low on energy today, it's totally okay to pause here. We can keep this light and just note what's felt most important lately.\"\n- ❌ "Goal created successfully. Habit instances have been initialized with target values."
 - ❌ "You should create a goal. What goal do you want to create? When is the target date?"
+- ❌ \"You're focused on X, Y, and Z\" repeated in nearly every message even when the user is trying to talk about something else.
 
 ### 3. Goal Understanding & Context Awareness (0-5)
 
@@ -250,6 +258,8 @@ In addition to per-response scores, evaluate the overall conversation:
 3. **Question overload**: Too many questions in one response
 4. **Weak suggestions**: Generic or obvious advice
 5. **Card spam**: Too many cards in quick succession
+6. **Repetition / focus overuse**: Agent keeps restating the same focus set or insights every few turns
+7. **Pushiness**: Agent keeps nudging the user to talk more or commit when they're signaling they want to pause or end
 
 ### UX Issues (Track for product improvements)
 

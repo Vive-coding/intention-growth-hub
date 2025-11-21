@@ -109,7 +109,7 @@ export class GoalFollowUpService {
       const habitsList = habits.length > 0
         ? habits
             .map((h: any) => {
-              const goalTitles = (h.linkedGoals || []).map((g: any) => g.title).join(', ');
+            const goalTitles = (h.linkedGoals || []).map((g: any) => g.title).join(', ');
               const streak =
                 typeof h.streak === "number" && h.streak > 0
                   ? ` — current streak: ${h.streak} days`
@@ -121,8 +121,8 @@ export class GoalFollowUpService {
       
       const goalsList = goals
         .map((g: any) => {
-          const progress = typeof g.progress === "number" ? `${g.progress}%` : "in progress";
-          return `- ${g.title} — ${progress}`;
+        const progress = typeof g.progress === "number" ? `${g.progress}%` : "in progress";
+        return `- ${g.title} — ${progress}`;
         })
         .join('\n');
 

@@ -1,17 +1,40 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { AuthModal } from "@/components/AuthModal";
-import { Target, TrendingUp, BookOpen, Users, Zap, Flame } from "lucide-react";
 import { Logo } from "@/components/ui/Logo";
 import { useAuth } from "@/hooks/useAuth";
 import { useLocation } from "wouter";
 
 export const Landing = () => {
   const [showAuthModal, setShowAuthModal] = useState(false);
-  const [authMode, setAuthMode] = useState<'signup' | 'signin'>('signup');
+  const [authMode, setAuthMode] = useState<"signup" | "signin">("signup");
   const { user, isAuthenticated, isLoading } = useAuth();
   const [, navigate] = useLocation();
+
+  // Full list of frameworks from coachingFrameworks.md
+  const frameworks = [
+    "GROW Model",
+    "SMART Goals",
+    "Habit Stacking",
+    "The Five Whys",
+    "Wheel of Life",
+    "Progress Over Perfection",
+    "Accountability",
+    "Implementation Intentions",
+    "Ikigai",
+    "Kaizen",
+    "Hansei"
+  ];
+  const [frameworkIndex, setFrameworkIndex] = useState(0);
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      // Infinite scroll: keep incrementing forever, never reset
+      setFrameworkIndex((prev) => prev + 1);
+    }, 2200);
+    return () => clearInterval(id);
+  }, []);
 
   const handleAuthClick = (mode: 'signup' | 'signin') => {
     setAuthMode(mode);
@@ -27,9 +50,14 @@ export const Landing = () => {
   }, [isLoading, isAuthenticated, user, navigate]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-blue-50">
+    <div className="min-h-screen bg-gradient-to-b from-emerald-50 via-white to-purple-50 relative overflow-hidden">
+      {/* Soft cloud-like shapes in the background */}
+      <div className="pointer-events-none absolute -top-24 -left-24 h-64 w-64 rounded-full bg-white/60 blur-3xl" />
+      <div className="pointer-events-none absolute -top-16 right-[-4rem] h-72 w-72 rounded-full bg-white/50 blur-3xl" />
+      <div className="pointer-events-none absolute top-1/2 -right-32 h-64 w-64 rounded-full bg-white/40 blur-3xl" />
+
       {/* Header */}
-      <header className="bg-white/80 backdrop-blur-sm border-b border-gray-200">
+      <header className="relative border-b border-transparent">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-4">
             <div className="flex items-center space-x-2">
@@ -37,8 +65,8 @@ export const Landing = () => {
             </div>
             <Button
               variant="outline"
-              onClick={() => handleAuthClick('signin')}
-              className="text-gray-700 hover:text-gray-900"
+              onClick={() => handleAuthClick("signin")}
+              className="rounded-full border border-gray-200 bg-white/70 text-gray-800 hover:bg-white"
             >
               Sign In
             </Button>
@@ -47,128 +75,141 @@ export const Landing = () => {
       </header>
 
       {/* Hero Section */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-7xl mx-auto text-center">
-          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-gray-900 mb-6">
-            Transform Your Life Through
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-blue-600"> Intentional Growth</span>
+      <section className="relative py-20 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-3xl mx-auto text-center">
+          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-semibold text-gray-900 mb-6 tracking-tight">
+            Discover and build life-changing habits{" "}
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-600 to-purple-600">
+              to achieve your goals
+            </span>
           </h1>
-          <p className="text-xl text-gray-600 mb-8 max-w-3xl mx-auto">
-            Journal your thoughts, track your progress, and get AI-powered insights to help you grow in every area of your life.
+          <p className="text-lg sm:text-xl text-gray-700 mb-8 max-w-2xl mx-auto">
+            Chat with an AI coach that actually fits your energy and life. Get guidance and tracking to build your personal
+            Operating System.
           </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+          <div className="flex justify-center">
             <Button
               size="lg"
-              onClick={() => handleAuthClick('signup')}
-              className="bg-purple-600 hover:bg-purple-700 text-white px-8 py-3 text-lg"
+              onClick={() => handleAuthClick("signup")}
+              className="rounded-full border-2 border-purple-500 bg-black text-white px-10 py-3 text-lg hover:bg-gray-900"
             >
-              Start Your Journey
-            </Button>
-            <Button
-              variant="outline"
-              size="lg"
-              onClick={() => handleAuthClick('signin')}
-              className="border-gray-300 text-gray-700 hover:text-gray-900 px-8 py-3 text-lg"
-            >
-              Sign In
+              Join Private Beta
             </Button>
           </div>
         </div>
       </section>
 
-      {/* Features Section */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-white/50">
-        <div className="max-w-7xl mx-auto">
-          <h2 className="text-3xl font-bold text-center text-gray-900 mb-12">
-            Everything you need to grow intentionally
+      {/* Middle Panel: three simple, full-width rows */}
+      <section className="py-16 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-5xl mx-auto space-y-8">
+          <h2 className="text-3xl font-semibold text-center text-gray-900">
+            What makes this coach feel different
           </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {/* Top Row - Mobile First */}
-            <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm">
-              <CardHeader>
-                <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mb-4">
-                  <BookOpen className="w-6 h-6 text-blue-600" />
-                </div>
-                <CardTitle className="text-xl">Smart Journaling</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-gray-600">
-                  Write your thoughts and get AI-powered insights that help you understand your patterns and growth areas.
-                </p>
-              </CardContent>
-            </Card>
 
-            <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm">
-              <CardHeader>
-                <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mb-4">
-                  <TrendingUp className="w-6 h-6 text-purple-600" />
-                </div>
-                <CardTitle className="text-xl">AI Insights</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-gray-600">
-                  Get personalized recommendations and insights based on your journal entries and progress patterns.
+          {/* Frameworks row */}
+          <Card className="relative overflow-hidden rounded-3xl bg-white/85 border border-emerald-100 p-6 sm:p-8">
+            <div className="grid gap-6 md:grid-cols-[1.2fr_minmax(0,1fr)] md:items-center">
+              <div>
+                <h3 className="text-xl font-semibold text-gray-900 mb-3">
+                  Informed by time-tested frameworks
+                </h3>
+                <p className="text-sm sm:text-base text-gray-700 max-w-xl">
+                  Under the hood, GoodHabit blends classic coaching frameworks so the questions feel grounded and practical,
+                  not generic self-help quotes.
                 </p>
-              </CardContent>
-            </Card>
+              </div>
+              <div className="relative flex justify-center">
+                <div className="relative w-48 h-14">
+                  {/* iPhone-style black box */}
+                  <div className="absolute inset-0 rounded-xl bg-black shadow-lg overflow-hidden">
+                    {/* Rotating frameworks text - slides down infinitely (never scrolls back up) */}
+                    <div 
+                      className="absolute inset-0 flex flex-col text-white font-semibold text-base transition-transform duration-700 ease-in-out"
+                      style={{
+                        transform: `translateY(${-(frameworkIndex % frameworks.length) * 100}%)`,
+                      }}
+                    >
+                      {/* Render frameworks multiple times for seamless infinite scroll */}
+                      {[...frameworks, ...frameworks].map((fw, idx) => (
+                        <div 
+                          key={`${fw}-${idx}`}
+                          className="flex-shrink-0 h-full flex items-center justify-center"
+                        >
+                          {fw}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  {/* Subtle label below */}
+                  <p className="absolute -bottom-5 left-1/2 -translate-x-1/2 text-[11px] text-gray-500 whitespace-nowrap">
+                    Rotating through frameworks
+                  </p>
+                </div>
+              </div>
+            </div>
+          </Card>
 
-            <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm">
-              <CardHeader>
-                <div className="w-12 h-12 bg-indigo-100 rounded-lg flex items-center justify-center mb-4">
-                  <Zap className="w-6 h-6 text-indigo-600" />
+          {/* On-demand sounding board row */}
+          <Card className="relative overflow-hidden rounded-3xl bg-white/90 border border-purple-100 shadow-md p-6 sm:p-8">
+            <div className="grid gap-6 md:grid-cols-[minmax(0,1fr)_1.2fr] md:items-center">
+              {/* Chat visual on the left */}
+              <div className="relative order-2 md:order-1">
+                <div className="rounded-2xl bg-gradient-to-br from-gray-50 to-purple-50/30 border border-purple-100 shadow-lg p-4 space-y-3">
+                  <div className="flex flex-col gap-3">
+                    {/* User message */}
+                    <div className="self-start max-w-[80%] rounded-2xl bg-white/90 backdrop-blur-sm px-4 py-2.5 shadow-sm text-gray-800 text-sm">
+                      I'm feeling overwhelmed with work and can't focus on my side project.
+                    </div>
+                    {/* Coach insightful suggestion */}
+                    <div className="self-end max-w-[85%] rounded-2xl bg-gradient-to-br from-emerald-600 to-emerald-700 text-white px-4 py-3 shadow-md text-left text-sm leading-relaxed">
+                      Based on your patterns, your peak energy happens before 9am. What if we protect just two mornings this week—30 minutes each—to chip away at the side project? You can keep those windows sacred, no work emails.
+                    </div>
+                  </div>
                 </div>
-                <CardTitle className="text-xl">Smart Suggestions</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-gray-600">
-                  Receive intelligent suggestions for goals and habits based on your unique patterns and aspirations.
+              </div>
+              {/* Text content on the right */}
+              <div className="order-1 md:order-2">
+                <h3 className="text-xl font-semibold text-gray-900 mb-3">
+                  On-demand coach as a sounding board
+                </h3>
+                <p className="text-sm sm:text-base text-gray-700 max-w-xl">
+                  Bring in a messy brain-dump. Your coach reflects it back, pulls out the signal, and proposes concrete next
+                  moves you can actually take this week.
                 </p>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
+          </Card>
 
-            {/* Bottom Row - Mobile Second */}
-            <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm">
-              <CardHeader>
-                <div className="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center mb-4">
-                  <Users className="w-6 h-6 text-red-600" />
-                </div>
-                <CardTitle className="text-xl">Life Areas</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-gray-600">
-                  Track your progress across all important life areas: Health, Career, Relationships, Finance, and more.
+          {/* See your patterns row */}
+          <Card className="relative overflow-hidden rounded-3xl bg-white/90 border border-amber-100 shadow-md p-6 sm:p-8">
+            <div className="grid gap-6 md:grid-cols-[1.2fr_minmax(0,1fr)] md:items-center">
+              <div>
+                <h3 className="text-xl font-semibold text-gray-900 mb-3">
+                  Discover your patterns, not just your streaks
+                </h3>
+                <p className="text-sm sm:text-base text-gray-700 max-w-xl">
+                  Instead of only counting checkmarks, the coach notices when and why things work for you — and when they
+                  quietly fall off.
                 </p>
-              </CardContent>
-            </Card>
-
-            <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm">
-              <CardHeader>
-                <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mb-4">
-                  <Target className="w-6 h-6 text-green-600" />
+              </div>
+              <div className="relative">
+                <div className="rounded-2xl bg-amber-50 border border-amber-200 shadow-md p-4 text-sm">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[11px] font-semibold text-amber-800 tracking-wide">
+                      PATTERN INSIGHT
+                    </span>
+                    <span className="text-[11px] text-amber-700">Confidence: 85%</span>
+                  </div>
+                  <p className="text-gray-900 font-semibold mb-1">
+                    Early morning workouts compound into consistent energy, evening sessions fall off completely
+                  </p>
+                  <p className="text-xs text-gray-700">
+                    Your weekday movement habit sticks when scheduled before 9am — morning slots protect against decision fatigue and show a 92% completion rate. Evening workouts drop to 30% due to energy depletion. Shift high-priority habits to your peak windows for lasting momentum.
+                  </p>
                 </div>
-                <CardTitle className="text-xl">Goal Tracking</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-gray-600">
-                  Set meaningful goals across all life areas and track your progress with visual metrics and insights.
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm">
-              <CardHeader>
-                <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center mb-4">
-                  <Flame className="w-6 h-6 text-orange-600" />
-                </div>
-                <CardTitle className="text-xl">Habit Building</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-gray-600">
-                  Build positive habits and track your streaks to create lasting change in your life.
-                </p>
-              </CardContent>
-            </Card>
-          </div>
+              </div>
+            </div>
+          </Card>
         </div>
       </section>
 
@@ -176,27 +217,26 @@ export const Landing = () => {
       <section className="py-20 px-4 sm:px-6 lg:px-8">
         <div className="max-w-4xl mx-auto text-center">
           <h2 className="text-3xl font-bold text-gray-900 mb-6">
-            Ready to start your growth journey?
+            Try GoodHabit in our private beta
           </h2>
           <p className="text-xl text-gray-600 mb-8">
-            Join thousands of people who are transforming their lives through intentional growth.
+            Get early access to chat-based coaching, My Focus, and habit tracking while we tune the experience with a small group of members.
           </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+          <div className="flex flex-col items-center gap-4 justify-center">
             <Button
               size="lg"
-              onClick={() => handleAuthClick('signup')}
-              className="bg-purple-600 hover:bg-purple-700 text-white px-8 py-3 text-lg"
+              onClick={() => handleAuthClick("signup")}
+              className="rounded-full border-2 border-purple-500 bg-black text-white px-10 py-3 text-lg hover:bg-gray-900"
             >
-              Create Your Account
+              Join Private Beta
             </Button>
-            <Button
-              variant="outline"
-              size="lg"
-              onClick={() => handleAuthClick('signin')}
-              className="border-gray-300 text-gray-700 hover:text-gray-900 px-8 py-3 text-lg"
+            <button
+              type="button"
+              onClick={() => handleAuthClick("signin")}
+              className="text-sm text-gray-600 hover:text-gray-900 underline-offset-2 hover:underline"
             >
-              Sign In
-            </Button>
+              Already have an account? Sign in
+            </button>
           </div>
         </div>
       </section>

@@ -525,13 +525,13 @@ router.post("/followups/redeem", async (req: any, res) => {
           : `What feels most important to talk through right now about your habits and goals?`;
       assistantMessage = [intro, emailBody, closing].join("\n\n");
     } else {
-      const assistantMessageLines = [
-        `Hi ${firstName}, thanks for opening this check-in.`,
-        goalLines.length > 0
-          ? `Here’s what I’m seeing for your focus goals:\n${goalLines.join("\n")}`
-          : `I’d love to hear how your focus goals felt this week.`,
-        `Share what felt smooth and where you might need backup—I'm ready to help you plan the next step.`,
-      ].filter(Boolean);
+    const assistantMessageLines = [
+      `Hi ${firstName}, thanks for opening this check-in.`,
+      goalLines.length > 0
+        ? `Here’s what I’m seeing for your focus goals:\n${goalLines.join("\n")}`
+        : `I’d love to hear how your focus goals felt this week.`,
+      `Share what felt smooth and where you might need backup—I'm ready to help you plan the next step.`,
+    ].filter(Boolean);
 
       assistantMessage = assistantMessageLines.join("\n\n");
     }

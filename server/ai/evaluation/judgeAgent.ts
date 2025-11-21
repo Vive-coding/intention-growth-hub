@@ -30,6 +30,12 @@ export const EvaluationResultSchema = z.object({
   goodExamples: z.array(z.string()).describe("List of good examples to reinforce"),
   overallAssessment: z.string().describe("Brief summary of conversation quality"),
   recommendations: z.array(z.string()).describe("Specific improvements for this conversation pattern"),
+  messageLevelNotes: z
+    .array(z.string())
+    .describe(
+      "Optional per-message justifications, e.g. 'Message 5 (assistant): repeated focus set and felt pushy.'"
+    )
+    .optional(),
 });
 
 export type EvaluationResult = z.infer<typeof EvaluationResultSchema>;
@@ -83,11 +89,11 @@ export class JudgeAgent {
 - **0**: Complete failure to use tools
 
 ### 2. Response Quality (0-5)
-- **5**: Warm, empathetic, clear, concise, natural
-- **4**: Good tone, mostly clear
-- **3**: Acceptable tone, some verbosity
-- **2**: Robotic or confusing
-- **1**: Inappropriate tone or very confusing
+- **5**: Warm, empathetic, clear, concise, natural. Uses focus/context sparingly and respects user's energy (not pushy).
+- **4**: Good tone, mostly clear. Minor repetition or mild pushiness but overall pleasant.
+- **3**: Acceptable tone, some verbosity. May feel slightly repetitive or coach-y but still usable.
+- **2**: Robotic or confusing, or noticeably repetitive / mildly pushy.
+- **1**: Inappropriate tone (pushy, dismissive, guilt-inducing) or very confusing.
 - **0**: Offensive or unhelpful
 
 ### 3. Goal Understanding & Context Awareness (0-5)
@@ -128,10 +134,11 @@ Evaluate this conversation carefully against the rubric. Provide:
    - User Engagement: User shares details and emotions?
    - Outcome Achievement: Tangible result (goal created, progress logged, clarity gained)?
 3. **Critical Issues**: List any hallucinations, tool failures, context loss, inappropriate suggestions
-4. **Quality Issues**: List verbose responses, robotic tone, weak suggestions, duplicate goals
-5. **Good Examples**: Note specific good responses or interactions
+4. **Quality Issues**: List verbose responses, robotic tone, weak suggestions, **repetition**, **pushiness**, duplicate goals, or overuse of focus context
+5. **Good Examples**: Note specific good responses or interactions (reference message numbers)
 6. **Overall Assessment**: 2-3 sentence summary
 7. **Recommendations**: 2-3 specific improvements for this conversation pattern
+8. **Message-Level Notes**: Brief justifications for individual messages where scores were influenced by repetition, pushiness, or great coaching moments.
 
 ## Response Format
 
@@ -156,7 +163,12 @@ Respond with ONLY valid JSON matching this structure:
   "qualityIssues": ["issue1", "issue2", ...],
   "goodExamples": ["example1", "example2", ...],
   "overallAssessment": "2-3 sentence summary",
-  "recommendations": ["rec1", "rec2", "rec3"]
+  "recommendations": ["rec1", "rec2", "rec3"],
+  "messageLevelNotes": [
+    "Message 3 (assistant): Good use of context, slightly verbose but warm.",
+    "Message 5 (assistant): Repeats focus set unnecessarily and feels a bit pushy.",
+    "Message 7 (assistant): Excellent concise wrap-up that respects user's energy."
+  ]
 }}`,
       inputVariables: ["conversation", "conversationId", "timestamp"],
     });

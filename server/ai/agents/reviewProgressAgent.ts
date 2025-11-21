@@ -230,7 +230,7 @@ ${finalText}`.trim();
         } else {
           summary = `You’ve set ${totalShown} priority habits to focus on today. Let’s decide which one small action matters most right now.`;
         }
-        finalText = `${summary}\n\n${finalText}`.trim();
+      finalText = `${summary}\n\n${finalText}`.trim();
       }
     } catch {}
 
