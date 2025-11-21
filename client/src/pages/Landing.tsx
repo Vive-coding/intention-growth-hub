@@ -12,29 +12,53 @@ export const Landing = () => {
   const { user, isAuthenticated, isLoading } = useAuth();
   const [, navigate] = useLocation();
 
-  // Full list of frameworks from coachingFrameworks.md
+  // Carousel picker frameworks list
   const frameworks = [
-    "GROW Model",
-    "SMART Goals",
-    "Habit Stacking",
-    "The Five Whys",
-    "Wheel of Life",
-    "Progress Over Perfection",
-    "Accountability",
-    "Implementation Intentions",
+    "GROW",
+    "SMART",
     "Ikigai",
     "Kaizen",
-    "Hansei"
+    "Habit stacking",
+    "Hansei",
+    "The Five Whys",
+    "Wheel of life"
   ];
   const [frameworkIndex, setFrameworkIndex] = useState(0);
+  const [isWheelVisible, setIsWheelVisible] = useState(false);
 
+  // Intersection observer to detect when wheel picker is visible
   useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          setIsWheelVisible(entry.isIntersecting);
+        });
+      },
+      { threshold: 0.3 } // Trigger when 30% of the element is visible
+    );
+
+    const wheelElement = document.getElementById('frameworks-wheel');
+    if (wheelElement) {
+      observer.observe(wheelElement);
+    }
+
+    return () => {
+      if (wheelElement) {
+        observer.unobserve(wheelElement);
+      }
+    };
+  }, []);
+
+  // Only animate when wheel is visible
+  useEffect(() => {
+    if (!isWheelVisible) return;
+
     const id = setInterval(() => {
       // Infinite scroll: keep incrementing forever, never reset
       setFrameworkIndex((prev) => prev + 1);
     }, 2200);
     return () => clearInterval(id);
-  }, []);
+  }, [isWheelVisible]);
 
   const handleAuthClick = (mode: 'signup' | 'signin') => {
     setAuthMode(mode);
@@ -118,36 +142,81 @@ export const Landing = () => {
                   not generic self-help quotes.
                 </p>
               </div>
-              <div className="relative flex justify-center">
-                <div className="relative w-48 h-14">
-                  {/* iPhone-style black box */}
-                  <div className="absolute inset-0 rounded-xl bg-black shadow-lg overflow-hidden">
-                    {/* Rotating frameworks text - slides down infinitely (never scrolls back up) */}
+              <div id="frameworks-wheel" className="relative flex flex-row items-center justify-center gap-3">
+                {/* Wheel picker - rotating wheel with center selection indicator */}
+                <div className="relative w-52 h-60 flex items-center justify-center">
+                  {/* Overflow container to clip items outside visible area */}
+                  <div className="absolute inset-0 overflow-hidden flex items-center justify-center">
+                    {/* Wheel container that rotates infinitely downward */}
                     <div 
-                      className="absolute inset-0 flex flex-col text-white font-semibold text-base transition-transform duration-700 ease-in-out"
+                      className="absolute flex flex-col items-center transition-transform duration-700 ease-out"
                       style={{
-                        transform: `translateY(${-(frameworkIndex % frameworks.length) * 100}%)`,
+                        // Move downward infinitely with 54px spacing
+                        // Offset by half to center the first item
+                        transform: `translateY(calc(50% - 27px - ${frameworkIndex * 54}px))`,
                       }}
                     >
-                      {/* Render frameworks multiple times for seamless infinite scroll */}
-                      {[...frameworks, ...frameworks].map((fw, idx) => (
-                        <div 
-                          key={`${fw}-${idx}`}
-                          className="flex-shrink-0 h-full flex items-center justify-center"
-                        >
-                          {fw}
-                        </div>
-                      ))}
+                      {/* Render frameworks 50 times for truly infinite scroll */}
+                      {Array.from({ length: 50 }).flatMap(() => frameworks).map((fw, idx) => {
+                        // Calculate which item should be styled as "center" (the one in the viewport center)
+                        const currentCenterIndex = frameworkIndex % frameworks.length;
+                        const itemFrameworkIndex = idx % frameworks.length;
+                        const isCenter = itemFrameworkIndex === currentCenterIndex && 
+                                       Math.floor(idx / frameworks.length) === Math.floor(frameworkIndex / frameworks.length);
+                        
+                        return (
+                          <div
+                            key={`${fw}-${idx}`}
+                            className="flex-shrink-0 flex items-center justify-center"
+                            style={{ height: '54px' }} // Fixed 54px spacing between all items
+                          >
+                            {/* Pill card - center item gets special styling */}
+                            {isCenter ? (
+                              <div className="relative">
+                                {/* Stacked depth effect behind center item */}
+                                <div className="absolute inset-0 rounded-full bg-red-800/40 -translate-y-1 translate-x-0.5 blur-sm z-0"></div>
+                                <div className="absolute inset-0 rounded-full bg-red-700/50 -translate-y-0.5 translate-x-0.5 blur-sm z-0"></div>
+                                <div className="absolute inset-0 rounded-full bg-red-600/60 z-0"></div>
+                                
+                                {/* Center selection box - dark red pill */}
+                                <div className="relative rounded-full bg-red-900 border-2 border-white/30 shadow-2xl h-10 w-40 flex items-center justify-center z-10 px-4">
+                                  <span className="text-red-100 font-bold text-sm tracking-wide whitespace-nowrap overflow-hidden text-ellipsis">
+                                    {fw}
+                                  </span>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="rounded-full bg-orange-300/50 border border-orange-200/60 shadow-sm h-8 w-36 flex items-center justify-center px-4">
+                                <span className="text-orange-900/60 font-medium text-xs whitespace-nowrap overflow-hidden text-ellipsis">
+                                  {fw}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
-                  {/* Subtle label below */}
-                  <p className="absolute -bottom-5 left-1/2 -translate-x-1/2 text-[11px] text-gray-500 whitespace-nowrap">
-                    Rotating through frameworks
-                  </p>
+                  
+                  {/* Top fade gradient to blend wheel items */}
+                  <div className="absolute top-0 left-0 right-0 h-24 bg-gradient-to-b from-white/95 via-white/60 to-transparent z-30 pointer-events-none"></div>
+                  {/* Bottom fade gradient */}
+                  <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-white/95 via-white/60 to-transparent z-30 pointer-events-none"></div>
                 </div>
+                
+                {/* Chevron icon pointing left at the center selection box */}
+                <svg 
+                  className="w-6 h-6 text-red-800/70 flex-shrink-0" 
+                  fill="none" 
+                  viewBox="0 0 24 24" 
+                  stroke="currentColor"
+                  strokeWidth={2.5}
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+                </svg>
               </div>
             </div>
-          </Card>
+            </Card>
 
           {/* On-demand sounding board row */}
           <Card className="relative overflow-hidden rounded-3xl bg-white/90 border border-purple-100 shadow-md p-6 sm:p-8">
@@ -178,7 +247,7 @@ export const Landing = () => {
                 </p>
               </div>
             </div>
-          </Card>
+            </Card>
 
           {/* See your patterns row */}
           <Card className="relative overflow-hidden rounded-3xl bg-white/90 border border-amber-100 shadow-md p-6 sm:p-8">
@@ -199,7 +268,7 @@ export const Landing = () => {
                       PATTERN INSIGHT
                     </span>
                     <span className="text-[11px] text-amber-700">Confidence: 85%</span>
-                  </div>
+                </div>
                   <p className="text-gray-900 font-semibold mb-1">
                     Early morning workouts compound into consistent energy, evening sessions fall off completely
                   </p>
@@ -209,7 +278,7 @@ export const Landing = () => {
                 </div>
               </div>
             </div>
-          </Card>
+            </Card>
         </div>
       </section>
 
