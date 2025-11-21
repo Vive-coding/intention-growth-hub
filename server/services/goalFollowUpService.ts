@@ -226,13 +226,15 @@ Return ONLY the email body paragraphs (2-3 paragraphs), one per line. Do not inc
           continue;
         }
 
+        // Only check for pending emails to avoid duplicate sends
+        // "sent" emails should not block new emails - the 20-hour frequency check already handles that
         const existing = await db
           .select({ id: notificationFollowups.id })
           .from(notificationFollowups)
           .where(
             and(
               eq(notificationFollowups.userId, profile.userId),
-              inArray(notificationFollowups.status, ACTIVE_FOLLOWUP_STATUSES as unknown as string[]),
+              eq(notificationFollowups.status, "pending"),
               gt(notificationFollowups.expiresAt, new Date())
             )
           )
