@@ -25,7 +25,80 @@ export async function ensureUsersTimezoneColumn(): Promise<void> {
     // Safe on Postgres: adds the column only if it's missing
     await client`ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "timezone" varchar`;
   } catch (e) {
-    console.warn("ensureUsersTimezoneColumn failed", e);
+    console.warn('ensureUsersTimezoneColumn failed to add timezone', e);
+  }
+  try {
+    await client`ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "onboarding_step" varchar(50) DEFAULT 'welcome'`;
+  } catch (e) {
+    console.warn('ensureUsersTimezoneColumn failed to add onboarding_step', e);
+  }
+  try {
+    await client`ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "first_goal_created" boolean DEFAULT false`;
+  } catch (e) {
+    console.warn('ensureUsersTimezoneColumn failed to add first_goal_created', e);
+  }
+  try {
+    await client`ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "first_chat_session" boolean DEFAULT false`;
+  } catch (e) {
+    console.warn('ensureUsersTimezoneColumn failed to add first_chat_session', e);
+  }
+  try {
+    await client`
+      CREATE TABLE IF NOT EXISTS "user_onboarding_profiles" (
+        "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        "user_id" varchar NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
+        "goal_setting_ability" varchar,
+        "habit_building_ability" varchar,
+        "coaching_style" text[],
+        "focus_life_metrics" text[],
+        "coach_personality" varchar,
+        "notification_enabled" boolean DEFAULT false,
+        "notification_frequency" varchar,
+        "preferred_notification_time" varchar,
+        "phone_number" varchar,
+        "completed_at" timestamp,
+        "created_at" timestamp DEFAULT now(),
+        "updated_at" timestamp DEFAULT now()
+      )
+    `;
+    await client`CREATE UNIQUE INDEX IF NOT EXISTS "user_onboarding_profiles_user_id_idx" ON "user_onboarding_profiles" ("user_id")`;
+  } catch (e) {
+    console.warn('ensureUsersTimezoneColumn failed ensuring user_onboarding_profiles table', e);
+  }
+  try {
+    await client`ALTER TABLE "user_onboarding_profiles" ADD COLUMN IF NOT EXISTS "coach_personality" varchar`;
+  } catch (e) {
+    console.warn('ensureUsersTimezoneColumn failed to add coach_personality', e);
+  }
+  try {
+    await client`ALTER TABLE "user_onboarding_profiles" ADD COLUMN IF NOT EXISTS "notification_enabled" boolean DEFAULT false`;
+  } catch (e) {
+    console.warn('ensureUsersTimezoneColumn failed to add notification_enabled', e);
+  }
+  try {
+    await client`ALTER TABLE "user_onboarding_profiles" ADD COLUMN IF NOT EXISTS "notification_frequency" varchar`;
+  } catch (e) {
+    console.warn('ensureUsersTimezoneColumn failed to add notification_frequency', e);
+  }
+  try {
+    await client`ALTER TABLE "user_onboarding_profiles" ADD COLUMN IF NOT EXISTS "preferred_notification_time" varchar`;
+  } catch (e) {
+    console.warn('ensureUsersTimezoneColumn failed to add preferred_notification_time', e);
+  }
+  try {
+    await client`ALTER TABLE "user_onboarding_profiles" ADD COLUMN IF NOT EXISTS "phone_number" varchar`;
+  } catch (e) {
+    console.warn('ensureUsersTimezoneColumn failed to add phone_number', e);
+  }
+  try {
+    await client`ALTER TABLE "user_onboarding_profiles" ADD COLUMN IF NOT EXISTS "completed_at" timestamp`;
+  } catch (e) {
+    console.warn('ensureUsersTimezoneColumn failed to add completed_at', e);
+  }
+  try {
+    await client`ALTER TABLE "user_onboarding_profiles" ADD COLUMN IF NOT EXISTS "updated_at" timestamp DEFAULT now()`;
+  } catch (e) {
+    console.warn('ensureUsersTimezoneColumn failed to add updated_at', e);
   }
 }
 
