@@ -82,26 +82,26 @@ export class GoalFollowUpService {
           ? "It's evening for the user. Ask how the day went overall, what they were able to complete, and gently surface any habits that could use a reset tomorrow."
           : "The exact time of day is unclear. Mix gentle planning questions with light reflection on recent days.";
 
-      // Get the most recent conversation thread
+      // Get the most recent conversation thread to reference where things left off
       const recentThreads = await ChatThreadService.listThreads(userId, 1);
       let conversationContext = "";
       
       if (recentThreads.length > 0) {
         const mostRecentThread = recentThreads[0];
-        const recentMessages = await ChatThreadService.getMessages(mostRecentThread.id, 10);
+        const recentMessages = await ChatThreadService.getMessages(mostRecentThread.id, 6); // Last 6 messages (3 exchanges)
         
         if (recentMessages.length > 0) {
-          // Extract key insights from recent conversation (last 5-10 messages)
-          const relevantMessages = recentMessages.slice(-10);
+          // Extract the last few exchanges to understand where the conversation left off
+          const relevantMessages = recentMessages.slice(-6);
           const conversationSummary = relevantMessages
             .map((msg: any) => {
               const role = msg.role === 'user' ? 'User' : 'Coach';
-              const content = (msg.content || '').substring(0, 200); // Truncate long messages
+              const content = (msg.content || '').substring(0, 150); // Keep it shorter
               return `${role}: ${content}`;
             })
             .join('\n\n');
           
-          conversationContext = `\n\nRecent conversation context:\n${conversationSummary}`;
+          conversationContext = `\n\nWhere the conversation left off (last few exchanges):\n${conversationSummary}`;
         }
       }
 
@@ -134,38 +134,36 @@ export class GoalFollowUpService {
       });
 
       const systemPrompt = `You are a warm, encouraging life coach writing a brief check-in email. Your goal is to:
-1. Reference the user's habits FIRST (since habits are the actions they take), then relate them to goals
-2. Ask intuitive questions that reference the last conversation if relevant (e.g., if they mentioned lacking motivation, struggling with progress, or feeling excited)
-3. Ask about specific habits that are important and in focus
-4. Keep it conversational, warm, and brief (2-3 short paragraphs max)
-5. Focus on engagement and starting a conversation, not just reporting status
-6. Use the time-of-day context to shape your questions:
-   - Morning: focus on how they want to approach today, grounded in what worked or didn't work yesterday.
-   - Afternoon: ask how the day is going so far and what they've already done.
-   - Evening: review how the day went and reinforce streaks and small wins.
+1. Start with where the last conversation left off - reference what was discussed, what next steps were mentioned, or what they were working through
+2. Check in on next steps or how things are going, based on that conversation context
+3. Keep it extremely brief: MAX 2-3 sentences total
+4. Be tactful and conversational - don't list out all habits or dump information
+5. Focus on one key thing from the conversation or one natural next step
+6. Use the time-of-day context to shape your check-in:
+   - Morning: gentle check-in on how they want to approach today, referencing what was discussed
+   - Afternoon: brief check-in on how the day is going
+   - Evening: brief reflection on how the day went
 
 Time-of-day context: ${timeContext}
 
-Format your response as 2-3 separate paragraphs, each on a new line.`;
+CRITICAL: Keep it to 2-3 sentences maximum. Do NOT list all habits or goals. Reference the conversation context naturally and check in on next steps.`;
 
-      const userPrompt = `Generate a personalized check-in email for ${firstName || 'the user'}.
+      const userPrompt = `Generate a brief, tactful check-in email for ${firstName || 'the user'}.
 
-Their current focus goals (including current progress % which reflects recent days of effort):
+${conversationContext ? `Recent conversation:\n${conversationContext}\n\n` : ''}Their current focus goals:
 ${goalsList}
 
-Their high-leverage habits (including streaks that reflect recent consistency):
+Their high-leverage habits:
 ${habitsList}
-${conversationContext}
 
-Write a warm, engaging email that:
-- Asks about specific habits first (e.g., "Were you able to send networking outreach today? We discussed that this is crucial for your goal of lining up calls for next week")
-- References the last conversation if there's anything relevant (motivation struggles, progress challenges, excitement)
-- Invites them to share how things are going
-- Keeps it brief and conversational
-- Uses the time-of-day guidance above so the questions feel natural (planning in the morning, check-in during the afternoon, reflection in the evening)
-- Uses habit streaks and goal progress to encourage them based on the last few days, not just today
+Write a warm, brief check-in email (MAX 2-3 sentences) that:
+- Starts with where the last conversation left off (if there was a recent conversation)
+- Checks in on next steps or how things are going
+- References ONE thing naturally from the conversation context or their current focus
+- Does NOT list out all habits or goals - just reference what's relevant naturally
+- Uses the time-of-day context to shape the check-in naturally
 
-Return ONLY the email body paragraphs (2-3 paragraphs), one per line. Do not include greetings or signatures.`;
+Return ONLY the email body (2-3 sentences max), as a single paragraph or two very short ones. Do not include greetings, signatures, or list formatting.`;
 
       const messages = [
         new SystemMessage(systemPrompt),
@@ -175,41 +173,65 @@ Return ONLY the email body paragraphs (2-3 paragraphs), one per line. Do not inc
       const response = await model.invoke(messages);
       const content = response.content as string;
       
-      // Split into paragraphs, clean up, and return
-      const paragraphs = content
+      // Split into paragraphs, clean up, and limit to 2-3 sentences
+      let paragraphs = content
         .split('\n')
         .map(p => p.trim())
         .filter(p => p.length > 0 && !p.match(/^(Hi|Hello|Dear|Best|Thanks|—)/i));
       
+      // If we got too many paragraphs, combine into 1-2 concise ones
+      if (paragraphs.length > 2) {
+        // Combine all paragraphs into sentences, then recombine into max 2 paragraphs
+        const allSentences = paragraphs
+          .join(' ')
+          .split(/[.!?]+/)
+          .map(s => s.trim())
+          .filter(s => s.length > 0)
+          .slice(0, 3); // Max 3 sentences
+        
+        // Split into 1-2 paragraphs
+        if (allSentences.length <= 2) {
+          paragraphs = [allSentences.join('. ') + '.'];
+        } else {
+          paragraphs = [
+            allSentences.slice(0, 2).join('. ') + '.',
+            allSentences.slice(2).join('. ') + '.'
+          ];
+        }
+      }
+      
       // If AI didn't generate good content, fall back to a simple personalized version
       if (paragraphs.length === 0) {
-        const primaryHabit = habits[0];
-        if (primaryHabit) {
+        // Use conversation context if available, otherwise simple check-in
+        if (conversationContext) {
           return [
-            `Quick check-in: Were you able to ${primaryHabit.title.toLowerCase()} today?`,
-            `We discussed that this habit is crucial for your goal of ${goals[0]?.title || 'making progress'}. How did it go?`,
+            "Quick check-in: How are things going with what we discussed? Anything you want to share or work through?",
+          ];
+        }
+        const primaryGoal = goals[0];
+        if (primaryGoal) {
+          return [
+            `Quick check-in: How are things going with ${primaryGoal.title}?`,
           ];
         }
         return [
-          "I wanted to check in on your focus goals.",
-          `How are things going with ${goals[0]?.title || 'your progress'}? Any wins to celebrate or challenges to work through?`,
+          "Quick check-in: How are things going? Anything you want to share?",
         ];
       }
 
-      return paragraphs;
+      // Ensure we don't return more than 2 paragraphs
+      return paragraphs.slice(0, 2);
     } catch (error) {
       console.error("[GoalFollowUpService] Failed to generate AI email content:", error);
-      // Fallback to simple personalized content
-      const primaryHabit = habits[0];
-      if (primaryHabit) {
+      // Fallback to simple, concise personalized content
+      const primaryGoal = goals[0];
+      if (primaryGoal) {
         return [
-          `Quick check-in: Were you able to ${primaryHabit.title.toLowerCase()} today?`,
-          `We discussed that this habit is crucial for your goal of ${goals[0]?.title || 'making progress'}. How did it go?`,
+          `Quick check-in: How are things going with ${primaryGoal.title}?`,
         ];
       }
       return [
-        "I wanted to check in on your focus goals.",
-        `How are things going with ${goals[0]?.title || 'your progress'}? Any wins to celebrate or challenges to work through?`,
+        "Quick check-in: How are things going? Anything you want to share?",
       ];
     }
   }
