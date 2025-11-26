@@ -2113,15 +2113,7 @@ router.post("/:goalId/habits", async (req: Request, res: Response) => {
         );
 
     // Reactivate the habit if it was archived (so it can be linked to this new goal)
-    const habitDef = await db
-      .select()
-      .from(habitDefinitions)
-      .where(and(
-        eq(habitDefinitions.id, habitDefinitionId),
-        eq(habitDefinitions.userId, userId)
-      ))
-      .limit(1);
-
+    // Note: habitDef was already fetched above, so we reuse it here
     if (habitDef[0] && !habitDef[0].isActive) {
       await db
         .update(habitDefinitions)
