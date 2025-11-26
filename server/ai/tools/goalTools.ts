@@ -777,6 +777,40 @@ IMPORTANT:
               inArray(habitInstances.habitDefinitionId, remove_habit_ids as any),
             ),
           );
+
+        // After removing habit instances, check if any of these habits are now orphaned
+        // and archive them if they have no remaining goal links
+        // We check within the transaction context to see if there are remaining links
+        for (const habitId of remove_habit_ids) {
+          const remainingLinks = await tx
+            .select({ id: habitInstances.id })
+            .from(habitInstances)
+            .innerJoin(goalInstances, eq(habitInstances.goalInstanceId, goalInstances.id))
+            .where(
+              and(
+                eq(habitInstances.habitDefinitionId, habitId),
+                eq(habitInstances.userId, userId),
+                eq(goalInstances.status, "active"),
+                eq(goalInstances.archived, false)
+              )
+            )
+            .limit(1);
+
+          // If no remaining links, archive the habit
+          if (remainingLinks.length === 0) {
+            await tx
+              .update(habitDefinitions)
+              .set({ isActive: false })
+              .where(
+                and(
+                  eq(habitDefinitions.id, habitId),
+                  eq(habitDefinitions.userId, userId),
+                  eq(habitDefinitions.isActive, true)
+                )
+              );
+            console.log(`[swapHabitsForGoal] Archived orphaned habit ${habitId} (no remaining goal links)`);
+          }
+        }
       }
 
       const addedHabits: Array<{
@@ -809,6 +843,14 @@ IMPORTANT:
         let habitDefId: string;
         if (existingDef) {
           habitDefId = existingDef.id as string;
+          // Reactivate the habit if it was archived (so it can be linked to this new goal)
+          if (!existingDef.isActive) {
+            await tx
+              .update(habitDefinitions)
+              .set({ isActive: true })
+              .where(eq(habitDefinitions.id, habitDefId));
+            console.log(`[swapHabitsForGoal] Reactivated archived habit ${habitDefId} for new goal link`);
+          }
         } else {
           const [createdDef] = await tx
             .insert(habitDefinitions)

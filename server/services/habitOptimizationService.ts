@@ -18,6 +18,57 @@ import {
 
 export class HabitOptimizationService {
   /**
+   * Check if specific habits have any remaining goal links and archive them if not
+   * This is called after habits are removed from goals to prevent them from being auto-added back
+   */
+  static async archiveHabitsIfOrphaned(userId: string, habitDefinitionIds: string[]): Promise<{ archivedCount: number; archivedHabitIds: string[] }> {
+    if (!habitDefinitionIds || habitDefinitionIds.length === 0) {
+      return { archivedCount: 0, archivedHabitIds: [] };
+    }
+
+    const archivedHabitIds: string[] = [];
+
+    for (const habitId of habitDefinitionIds) {
+      // Check if this habit has any remaining links to active goals
+      const remainingLinks = await db
+        .select({ id: habitInstances.id })
+        .from(habitInstances)
+        .innerJoin(goalInstances, eq(habitInstances.goalInstanceId, goalInstances.id))
+        .where(
+          and(
+            sql`${habitInstances.habitDefinitionId} = ${habitId}::uuid`,
+            eq(habitInstances.userId, userId),
+            eq(goalInstances.status, "active"),
+            eq(goalInstances.archived, false)
+          )
+        )
+        .limit(1);
+
+      // If no remaining links, archive the habit
+      if (remainingLinks.length === 0) {
+        await db
+          .update(habitDefinitions)
+          .set({ isActive: false })
+          .where(
+            and(
+              eq(habitDefinitions.id, habitId),
+              eq(habitDefinitions.userId, userId),
+              eq(habitDefinitions.isActive, true)
+            )
+          );
+
+        archivedHabitIds.push(habitId);
+        console.log(`[HabitOptimization] Archived orphaned habit ${habitId} (no remaining goal links)`);
+      }
+    }
+
+    return {
+      archivedCount: archivedHabitIds.length,
+      archivedHabitIds,
+    };
+  }
+
+  /**
    * Archive orphaned habits (habits not linked to any active goals)
    * These habits remain available for future goal associations
    */

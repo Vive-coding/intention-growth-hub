@@ -443,6 +443,32 @@ export default function ConversationStream({ threadId }: Props) {
                         />
                       );
                     }
+                    if (type === 'goal_habit_swap') {
+                      // When habits are swapped/removed from a goal, invalidate My Focus cache
+                      queryClient.invalidateQueries({ queryKey: ['/api/my-focus'] });
+                      queryClient.invalidateQueries({ queryKey: ['/api/goals'] });
+                      return (
+                        <div className="bg-emerald-50 border-2 border-emerald-200 rounded-xl p-3 sm:p-4 shadow-sm min-w-0 overflow-hidden">
+                          <div className="flex items-center gap-2 text-emerald-700 mb-2">
+                            <Check className="w-5 h-5" />
+                            <span className="font-semibold">Habits Updated</span>
+                          </div>
+                          <div className="text-sm text-gray-900 font-semibold break-words">
+                            {payload.goal_title || 'Goal'}
+                          </div>
+                          {payload.removed_habit_ids && payload.removed_habit_ids.length > 0 && (
+                            <div className="text-xs text-gray-600 mt-2">
+                              Removed {payload.removed_habit_ids.length} habit{payload.removed_habit_ids.length > 1 ? 's' : ''}
+                            </div>
+                          )}
+                          {payload.added_habits && payload.added_habits.length > 0 && (
+                            <div className="text-xs text-gray-600 mt-2">
+                              Added {payload.added_habits.length} new habit{payload.added_habits.length > 1 ? 's' : ''}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    }
                     return null;
                   })()}
                 </div>

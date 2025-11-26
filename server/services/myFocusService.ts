@@ -253,6 +253,7 @@ export class MyFocusService {
     // Build WHERE clause conditions
     const whereConditions = [
       eq(habitDefinitions.userId, userId),
+      eq(habitDefinitions.isActive, true), // Only show active habits
       eq(goalInstances.archived, false),
       eq(goalInstances.status, 'active')
     ];

@@ -20,8 +20,9 @@ export function HabitsSidePanel({ open, onOpenChange, todaySummary }: HabitsSide
   const { data: focusData, isLoading: focusLoading } = useQuery({
     queryKey: ["/api/my-focus"],
     queryFn: async () => apiRequest("/api/my-focus"),
-    staleTime: 20_000,
+    staleTime: 0, // Always refetch when panel opens to ensure consistency
     enabled: open,
+    refetchOnMount: true,
   });
 
   const { data: completedTodayData } = useQuery({

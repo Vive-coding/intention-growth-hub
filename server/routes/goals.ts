@@ -2112,6 +2112,24 @@ router.post("/:goalId/habits", async (req: Request, res: Response) => {
           perPeriodTarget || 1
         );
 
+    // Reactivate the habit if it was archived (so it can be linked to this new goal)
+    const habitDef = await db
+      .select()
+      .from(habitDefinitions)
+      .where(and(
+        eq(habitDefinitions.id, habitDefinitionId),
+        eq(habitDefinitions.userId, userId)
+      ))
+      .limit(1);
+
+    if (habitDef[0] && !habitDef[0].isActive) {
+      await db
+        .update(habitDefinitions)
+        .set({ isActive: true })
+        .where(eq(habitDefinitions.id, habitDefinitionId));
+      console.log(`[goals] Reactivated archived habit ${habitDefinitionId} for new goal link`);
+    }
+
     // Create habit instance
     const insertData = {
       habitDefinitionId,
@@ -2238,6 +2256,37 @@ router.delete("/:goalId/habits/:habitId", async (req: Request, res: Response) =>
 
     if (!deletedHabitInstance) {
       return res.status(404).json({ error: "Habit association not found" });
+    }
+
+    // Check if this habit has any remaining links to active goals
+    // If not, archive it to prevent it from being auto-added back to other goals
+    const remainingLinks = await db
+      .select({ id: habitInstances.id })
+      .from(habitInstances)
+      .innerJoin(goalInstances, eq(habitInstances.goalInstanceId, goalInstances.id))
+      .where(
+        and(
+          eq(habitInstances.habitDefinitionId, habitDefinitionId),
+          eq(habitInstances.userId, userId),
+          eq(goalInstances.status, "active"),
+          eq(goalInstances.archived, false)
+        )
+      )
+      .limit(1);
+
+    // If no remaining links, archive the habit
+    if (remainingLinks.length === 0) {
+      await db
+        .update(habitDefinitions)
+        .set({ isActive: false })
+        .where(
+          and(
+            eq(habitDefinitions.id, habitDefinitionId),
+            eq(habitDefinitions.userId, userId),
+            eq(habitDefinitions.isActive, true)
+          )
+        );
+      console.log(`[goals] Archived orphaned habit ${habitDefinitionId} (no remaining goal links)`);
     }
 
     res.json({ message: "Habit removed from goal successfully" });
@@ -2595,6 +2644,15 @@ router.post("/", async (req: Request, res: Response) => {
         });
 
         if (habitDef) {
+          // Reactivate the habit if it was archived (so it can be linked to this new goal)
+          if (!habitDef.isActive) {
+            await db
+              .update(habitDefinitions)
+              .set({ isActive: true })
+              .where(eq(habitDefinitions.id, habitId));
+            console.log(`[goals] Reactivated archived habit ${habitId} for new goal link during goal creation`);
+          }
+
           // Get target settings for this habit (from habitTargets object) or calculate defaults
           const requestedSettings = habitTargets?.[habitId];
           const targetSettings = requestedSettings || calculateFrequencySettings(
