@@ -1,4 +1,4 @@
-import { CheckSquare, Lightbulb, Sparkles, Zap, Plus, MoreHorizontal, Trash2 } from "lucide-react";
+import { CheckSquare, Lightbulb, Sparkles, Zap, Plus, Trash2 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { apiRequest } from "@/lib/queryClient";
 
@@ -56,23 +56,12 @@ export default function QuickActions({ onReviewHabits, onViewSuggestions, onOpti
           <button onClick={onViewSuggestions} className="text-sm px-3 py-1.5 rounded-xl bg-white border text-gray-700 hover:bg-gray-50 flex items-center gap-1.5">
             <Lightbulb className="w-4 h-4" /> Plan ahead
           </button>
-          <Popover>
-            <PopoverTrigger asChild>
-              <button className="text-sm px-3 py-1.5 rounded-xl bg-white border text-gray-700 hover:bg-gray-50 flex items-center gap-1.5">
-                <MoreHorizontal className="w-4 h-4" /> More
-              </button>
-            </PopoverTrigger>
-            <PopoverContent align="start" className="w-56 p-0 overflow-hidden">
-              <div className="py-1">
-                <button onClick={onOptimize} className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center gap-2">
-                  <Sparkles className="w-4 h-4" /> Optimize focus
-                </button>
-                <button onClick={onSurpriseMe} className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center gap-2">
-                  <Zap className="w-4 h-4" /> Surprise me
-                </button>
-              </div>
-            </PopoverContent>
-          </Popover>
+          <button onClick={onOptimize} className="text-sm px-3 py-1.5 rounded-xl bg-white border text-gray-700 hover:bg-gray-50 flex items-center gap-1.5">
+            <Sparkles className="w-4 h-4" /> Optimize focus
+          </button>
+          <button onClick={onSurpriseMe} className="text-sm px-3 py-1.5 rounded-xl bg-white border text-gray-700 hover:bg-gray-50 flex items-center gap-1.5">
+            <Zap className="w-4 h-4" /> Surprise me
+          </button>
         </div>
       )}
     </div>
