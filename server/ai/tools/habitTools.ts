@@ -598,10 +598,107 @@ export const logHabitCompletionTool = new DynamicStructuredTool({
       return JSON.stringify(result);
     } catch (error: any) {
       if (error?.status === 409) {
-        // Already completed today — treat as success but inform the user
+        // Frequency target for the period has been met — treat as success but inform the user
+        // We still need to return habit info for the UI to display properly
+        const habit_id = matchedHabit.id;
+        
+        // Get the most recent completion (not just today's, since frequency target might have been met earlier in the period)
+        const mostRecentCompletion = await db
+          .select({ completedAt: habitCompletions.completedAt })
+          .from(habitCompletions)
+          .where(
+            and(
+              eq(habitCompletions.habitDefinitionId, habit_id),
+              eq(habitCompletions.userId, userId)
+            )
+          )
+          .orderBy(desc(habitCompletions.completedAt))
+          .limit(1);
+        
+        const completedAt = mostRecentCompletion.length > 0 
+          ? new Date(mostRecentCompletion[0].completedAt).toISOString()
+          : new Date().toISOString();
+        
+        // Calculate current streak
+        const completions = await db
+          .select({ completedAt: habitCompletions.completedAt })
+          .from(habitCompletions)
+          .where(
+            and(
+              eq(habitCompletions.habitDefinitionId, habit_id),
+              eq(habitCompletions.userId, userId)
+            )
+          )
+          .orderBy(desc(habitCompletions.completedAt));
+        
+        // Calculate streak from completions
+        const normalize = (d: Date) => {
+          const x = new Date(d);
+          x.setHours(0, 0, 0, 0);
+          return x;
+        };
+        
+        let currentStreak = 0;
+        let lastCompletionDate: Date | null = null;
+        for (const completion of completions) {
+          if (lastCompletionDate === null) {
+            currentStreak = 1;
+            lastCompletionDate = completion.completedAt;
+          } else {
+            const daysDiff = Math.round(
+              (normalize(lastCompletionDate).getTime() - normalize(completion.completedAt).getTime()) / (1000 * 60 * 60 * 24)
+            );
+            if (daysDiff === 1) {
+              currentStreak++;
+              lastCompletionDate = completion.completedAt;
+            } else if (daysDiff === 0) {
+              // Same calendar day, ignore
+            } else {
+              break;
+            }
+          }
+        }
+        
+        // Get the related goal info to show in the card
+        let relatedGoalTitle: string | undefined;
+        try {
+          const habitInstanceRows = await db
+            .select({ goalInstanceId: habitInstances.goalInstanceId })
+            .from(habitInstances)
+            .where(eq(habitInstances.habitDefinitionId, habit_id))
+            .limit(1);
+          
+          let goalInstanceIdToUse = goal_id || undefined;
+          if (habitInstanceRows.length > 0 && habitInstanceRows[0].goalInstanceId) {
+            goalInstanceIdToUse = habitInstanceRows[0].goalInstanceId;
+          }
+          
+          if (goalInstanceIdToUse) {
+            const goalRows = await db
+              .select({ title: goalDefinitions.title })
+              .from(goalInstances)
+              .innerJoin(goalDefinitions, eq(goalInstances.goalDefinitionId, goalDefinitions.id))
+              .where(eq(goalInstances.id, goalInstanceIdToUse))
+              .limit(1);
+            
+            if (goalRows.length > 0) {
+              relatedGoalTitle = goalRows[0].title;
+            }
+          }
+        } catch (goalError) {
+          console.error("[logHabitCompletionTool] Failed to fetch goal title:", goalError);
+        }
+        
         return JSON.stringify({
           type: "habit_completion",
           already_completed: true,
+          habit: {
+            id: matchedHabit.id,
+            title: matchedHabit.name,
+            completedAt: completedAt,
+            streak: Math.max(1, currentStreak),
+            relatedGoal: relatedGoalTitle,
+          },
           message: "You've already logged this habit for today. If you did it more than once, update the habit's frequency or target instead of logging another completion."
         });
       }
