@@ -210,14 +210,25 @@ router.post("/optimization/apply", async (req: any, res) => {
 });
 
 // Apply a prioritization snapshot directly (respect user-selected items)
+// Allows empty array to clear all priorities
 router.post("/priorities/apply", async (req: any, res) => {
   try {
     const userId = req.user?.id || req.user?.claims?.sub;
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
     const { items, sourceThreadId } = req.body || {};
-    if (!Array.isArray(items) || items.length === 0) {
+    if (!Array.isArray(items)) {
       return res.status(400).json({ message: "Invalid payload: items[] required" });
+    }
+
+    // Allow empty array to clear all priorities
+    if (items.length === 0) {
+      await db.insert(myFocusPrioritySnapshots).values({
+        userId,
+        items: [] as any,
+        sourceThreadId: sourceThreadId || null,
+      } as any);
+      return res.json({ success: true });
     }
 
     const normalized = items
@@ -242,6 +253,69 @@ router.post("/priorities/apply", async (req: any, res) => {
   } catch (e) {
     console.error('[my-focus] priorities apply failed', e);
     res.status(500).json({ message: 'Failed to apply priorities' });
+  }
+});
+
+// Clear all priorities (remove all goals from My Focus)
+router.post("/priorities/clear", async (req: any, res) => {
+  try {
+    const userId = req.user?.id || req.user?.claims?.sub;
+    if (!userId) return res.status(401).json({ message: "Unauthorized" });
+
+    const { sourceThreadId } = req.body || {};
+
+    // Create empty snapshot to clear all priorities
+    await db.insert(myFocusPrioritySnapshots).values({
+      userId,
+      items: [] as any,
+      sourceThreadId: sourceThreadId || null,
+    } as any);
+
+    res.json({ success: true });
+  } catch (e) {
+    console.error('[my-focus] priorities clear failed', e);
+    res.status(500).json({ message: 'Failed to clear priorities' });
+  }
+});
+
+// Remove specific goals from priority
+router.post("/priorities/remove", async (req: any, res) => {
+  try {
+    const userId = req.user?.id || req.user?.claims?.sub;
+    if (!userId) return res.status(401).json({ message: "Unauthorized" });
+
+    const { goalInstanceIds, sourceThreadId } = req.body || {};
+    if (!Array.isArray(goalInstanceIds) || goalInstanceIds.length === 0) {
+      return res.status(400).json({ message: "Invalid payload: goalInstanceIds[] required" });
+    }
+
+    // Get current priority snapshot
+    const [currentSnapshot] = await db
+      .select()
+      .from(myFocusPrioritySnapshots)
+      .where(eq(myFocusPrioritySnapshots.userId, userId))
+      .orderBy(desc(myFocusPrioritySnapshots.createdAt))
+      .limit(1);
+
+    let updatedItems: any[] = [];
+    if (currentSnapshot?.items && Array.isArray(currentSnapshot.items)) {
+      // Filter out the goals to remove
+      updatedItems = (currentSnapshot.items as any[]).filter(
+        (item: any) => !goalInstanceIds.includes(item.goalInstanceId || item.id)
+      );
+    }
+
+    // Create new snapshot with remaining priorities (or empty if all removed)
+    await db.insert(myFocusPrioritySnapshots).values({
+      userId,
+      items: updatedItems as any,
+      sourceThreadId: sourceThreadId || null,
+    } as any);
+
+    res.json({ success: true, remainingCount: updatedItems.length });
+  } catch (e) {
+    console.error('[my-focus] priorities remove failed', e);
+    res.status(500).json({ message: 'Failed to remove priorities' });
   }
 });
 

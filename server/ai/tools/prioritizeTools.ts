@@ -2,8 +2,8 @@ import { DynamicStructuredTool } from "@langchain/core/tools";
 import { z } from "zod";
 import { db } from "../../db";
 import { eq, and, inArray } from "drizzle-orm";
-import { goalDefinitions, goalInstances, lifeMetricDefinitions } from "../../../shared/schema";
-import { MyFocusService } from "../../services/myFocusService";
+import { goalDefinitions, goalInstances, lifeMetricDefinitions, userOnboardingProfiles, myFocusPrioritySnapshots } from "../../../shared/schema";
+import { desc } from "drizzle-orm";
 
 /**
  * Use LLM to intelligently extract goal titles from reasoning
@@ -82,24 +82,29 @@ If you cannot find 3 specific goal titles in the reasoning, choose the 3 most re
  */
 export const prioritizeGoalsTool = new DynamicStructuredTool({
   name: "prioritize_goals",
-  description: `Helps user focus on top 3 priority goals.
+  description: `Helps user focus on their priority goals (1-3 goals, or up to their max focus limit).
   
-  Call when:
-  - User feels overwhelmed or mentions "too much on my plate"
-  - They have 4+ active goals after adding a new one
+  CRITICAL: DO NOT automatically set goals as priority when they are created. Only call this tool when:
+  - User EXPLICITLY asks to prioritize goals or set focus
+  - User EXPLICITLY mentions something is urgent/important and wants it prioritized
+  - User feels overwhelmed and asks for help prioritizing
   - User asks to re-prioritize or change priorities
+  
+  If you are unsure whether a newly created goal should be a priority, ASK the user first: "Should this be a priority goal in My Focus?"
   
   Workflow:
   1. First call get_context("all_goals") to see all available goals
-  2. Then call this tool with your selection and reasoning explaining which 3 goals to prioritize and why
+  2. Then call this tool with your selection and reasoning explaining which 1-3 goals to prioritize and why
   3. The tool will match those goals and create the prioritization
   
-  In the "reasoning" parameter, list the 3 goal titles you want to prioritize. The tool will search for those exact titles. After the tool returns prioritized goals, use those exact titles in your response.
+  In the "reasoning" parameter, list the goal titles you want to prioritize (1-3 goals). The tool will search for those exact titles. After the tool returns prioritized goals, use those exact titles in your response.
   
-  Returns: Priority focus card with top 3 goals`,
+  IMPORTANT: You can prioritize just 1 goal if the user is new or if they mention something is particularly important. This improves onboarding and makes it less overwhelming.
+  
+  Returns: Priority focus card with selected priority goals`,
   
   schema: z.object({
-    reasoning: z.string().describe("Which 3 goals to prioritize and why. Include the EXACT goal titles like '1. Secure First 100 Users, 2. Enter 3 more interview processes, 3. Sleep 7 hours' - use the exact titles you see in get_context('all_goals')."),
+    reasoning: z.string().describe("Which 1-3 goals to prioritize and why. Include the EXACT goal titles like '1. Secure First 100 Users' or '1. Secure First 100 Users, 2. Enter 3 more interview processes' - use the exact titles you see in get_context('all_goals'). You can prioritize just 1 goal for new users or when something is particularly important."),
   }),
   
   func: async ({ reasoning }) => {
@@ -168,12 +173,14 @@ export const prioritizeGoalsTool = new DynamicStructuredTool({
       }
 
       // Step 2: If regex failed or incomplete, use LLM to extract EXACT titles
-      if (selectedGoalTitles.length < 3) {
+      // Allow 1-3 goals (not always 3)
+      if (selectedGoalTitles.length === 0) {
         try {
           const availableGoalsList = allGoals.map(g => ({ title: g.goalDefinition.title }));
           const llmTitles = await parseGoalTitlesFromReasoning(reasoning, availableGoalsList);
           for (const t of llmTitles) {
             if (!selectedGoalTitles.includes(t)) selectedGoalTitles.push(t);
+            // Allow up to 3, but don't force 3
             if (selectedGoalTitles.length >= 3) break;
           }
           console.log("[prioritize_goals] LLM assistance added titles:", llmTitles);
@@ -192,7 +199,17 @@ export const prioritizeGoalsTool = new DynamicStructuredTool({
         normalized: g.goalDefinition.title.toLowerCase().trim()
       }));
 
-      for (const extractedTitle of selectedGoalTitles.slice(0, 3)) {
+      // Get user's focus limit (max 3-5 goals)
+      const [profileRow] = await db
+        .select({ focusGoalLimit: userOnboardingProfiles.focusGoalLimit })
+        .from(userOnboardingProfiles)
+        .where(eq(userOnboardingProfiles.userId, userId))
+        .limit(1);
+      const configuredLimit = profileRow?.focusGoalLimit ?? 3;
+      const focusGoalLimit = Math.min(Math.max(configuredLimit, 3), 5);
+      const maxGoalsToSelect = Math.min(selectedGoalTitles.length || focusGoalLimit, focusGoalLimit);
+
+      for (const extractedTitle of selectedGoalTitles.slice(0, maxGoalsToSelect)) {
         const normalized = extractedTitle.toLowerCase().trim();
         let found = goalTitles.find(g => g.normalized === normalized);
         if (!found) {
@@ -200,16 +217,16 @@ export const prioritizeGoalsTool = new DynamicStructuredTool({
         }
         if (found && !top3Goals.find(g => g.goalInstance.id === found!.goal.goalInstance.id)) {
           top3Goals.push(found.goal);
-          if (top3Goals.length >= 3) break;
+          if (top3Goals.length >= maxGoalsToSelect) break;
         }
       }
 
-      // Step 3: If still not enough, use keyword similarity to choose best matches from available goals
-      if (top3Goals.length < 3) {
+      // Step 3: If still not enough and we have less than 1 goal, use keyword similarity to choose best matches
+      // Only fill up if we have 0 goals selected (don't force 3 if user only wants 1-2)
+      if (top3Goals.length === 0 && selectedGoalTitles.length === 0) {
         const reasonTokens = tokenize(reasoning);
         const reasonSet = new Set(reasonTokens);
         const scored = allGoals
-          .filter(g => !top3Goals.find(t => t.goalInstance.id === g.goalInstance.id))
           .map(g => {
             const titleTokens = tokenize(g.goalDefinition.title);
             const descTokens = tokenize(g.goalDefinition.description || '');
@@ -220,22 +237,20 @@ export const prioritizeGoalsTool = new DynamicStructuredTool({
             return { goal: g, score, createdAt };
           })
           .sort((a, b) => (b.score - a.score) || (a.createdAt - b.createdAt));
-        for (const s of scored) {
-          top3Goals.push(s.goal);
-          if (top3Goals.length >= 3) break;
+        // Only add the top 1 goal if we have 0 (for single goal prioritization)
+        if (scored.length > 0) {
+          top3Goals.push(scored[0].goal);
+          console.log("[prioritize_goals] Added via similarity scoring:", scored[0].goal.goalDefinition.title);
         }
-        console.log("[prioritize_goals] Added via similarity scoring:", scored.slice(0, 3).map(s => s.goal.goalDefinition.title));
       }
 
-      // Step 4: Final safety fallback (oldest first) to ensure 3
-      if (top3Goals.length < 3) {
-        for (const goal of allGoals) {
-          if (!top3Goals.find(g => g.goalInstance.id === goal.goalInstance.id)) {
-            top3Goals.push(goal);
-            if (top3Goals.length >= 3) break;
-          }
+      // Step 4: Final safety fallback - only if we have 0 goals (shouldn't happen, but safety net)
+      if (top3Goals.length === 0) {
+        // Just take the first goal as a last resort
+        if (allGoals.length > 0) {
+          top3Goals.push(allGoals[0]);
+          console.log("[prioritize_goals] Filled via fallback; final count:", top3Goals.length);
         }
-        console.log("[prioritize_goals] Filled remainder via fallback; final count:", top3Goals.length);
       }
 
       console.log("[prioritize_goals] Final selected goals:", top3Goals.map(g => g.goalDefinition.title).join(', '));
@@ -266,33 +281,125 @@ export const prioritizeGoalsTool = new DynamicStructuredTool({
         id: g.goalInstance.id,
       }));
 
-      // Create prioritization data for card (format matches what persistFromAgent expects)
-      const prioritizationData = {
-        type: "prioritization",
-        items: items.map((item) => ({
-          goalInstanceId: item.goalInstanceId,
-          rank: item.rank,
-          title: item.title,
-          description: item.description,
-        }))
-      };
-
-      // Persist to MyFocus service
-      await MyFocusService.persistFromAgent(prioritizationData, { userId, threadId });
-      
-      console.log("[prioritize_goals] Created prioritization for", items.length, "goals");
-
       // Return structured data for frontend card rendering
+      // NOTE: Do NOT persist here - wait for user confirmation via PrioritizationCard
+      // The card will call /api/my-focus/priorities/apply when user accepts
       const result = {
         type: "prioritization",
         items: items
       };
+      
+      console.log("[prioritize_goals] Created prioritization proposal for", items.length, "goals (awaiting user confirmation)");
       
       // IMPORTANT: Return as JSON string for LangChain
       console.log("[prioritize_goals] ✅ Returning prioritization data:", result.type);
       return JSON.stringify(result);
     } catch (error) {
       console.error("[prioritize_goals] Error:", error);
+      throw error;
+    }
+  }
+});
+
+/**
+ * Tool: Remove goals from priority (My Focus)
+ * Allows removing specific goals or clearing all priorities
+ */
+export const removePriorityGoalsTool = new DynamicStructuredTool({
+  name: "remove_priority_goals",
+  description: `Remove goals from My Focus (priority goals).
+  
+  Call when:
+  - User wants to remove specific goals from their focus
+  - User wants to clear all priorities
+  - User says a goal shouldn't be a priority anymore
+  
+  You can remove specific goals or clear all priorities. If removing specific goals, provide their goalInstanceIds.
+  If clearing all, pass an empty array or use clearAll: true.
+  
+  Returns: Confirmation of removal`,
+  
+  schema: z.object({
+    goalInstanceIds: z.array(z.string()).optional().describe("Array of goal instance IDs to remove from priority. If empty or not provided, clears all priorities."),
+    clearAll: z.boolean().optional().describe("If true, clears all priorities regardless of goalInstanceIds. Default: false."),
+    reasoning: z.string().optional().describe("Optional reason for removing these goals from priority."),
+  }),
+  
+  func: async ({ goalInstanceIds, clearAll, reasoning }) => {
+    const userId = (global as any).__TOOL_USER_ID__;
+    const threadId = (global as any).__TOOL_THREAD_ID__;
+    if (!userId) {
+      throw new Error("User ID required");
+    }
+    
+    try {
+      console.log("\n=== [remove_priority_goals] TOOL CALLED ===");
+      console.log("[remove_priority_goals] User:", userId);
+      console.log("[remove_priority_goals] Clear all:", clearAll);
+      console.log("[remove_priority_goals] Goal IDs to remove:", goalInstanceIds);
+
+      // Get current priority snapshot
+      const [currentSnapshot] = await db
+        .select()
+        .from(myFocusPrioritySnapshots)
+        .where(eq(myFocusPrioritySnapshots.userId, userId))
+        .orderBy(desc(myFocusPrioritySnapshots.createdAt))
+        .limit(1);
+
+      let updatedItems: any[] = [];
+      let removedCount = 0;
+
+      if (clearAll) {
+        // Clear all priorities
+        updatedItems = [];
+        removedCount = currentSnapshot?.items && Array.isArray(currentSnapshot.items) 
+          ? (currentSnapshot.items as any[]).length 
+          : 0;
+        console.log("[remove_priority_goals] Clearing all priorities, removing", removedCount, "goals");
+      } else if (goalInstanceIds && goalInstanceIds.length > 0) {
+        // Remove specific goals
+        if (currentSnapshot?.items && Array.isArray(currentSnapshot.items)) {
+          const currentItems = currentSnapshot.items as any[];
+          const beforeCount = currentItems.length;
+          updatedItems = currentItems.filter(
+            (item: any) => !goalInstanceIds.includes(item.goalInstanceId || item.id)
+          );
+          removedCount = beforeCount - updatedItems.length;
+          console.log("[remove_priority_goals] Removing", removedCount, "specific goals,", updatedItems.length, "remaining");
+        } else {
+          console.log("[remove_priority_goals] No current priorities to remove from");
+        }
+      } else {
+        // No IDs provided and clearAll is false - clear all as fallback
+        updatedItems = [];
+        removedCount = currentSnapshot?.items && Array.isArray(currentSnapshot.items) 
+          ? (currentSnapshot.items as any[]).length 
+          : 0;
+        console.log("[remove_priority_goals] No IDs provided, clearing all priorities");
+      }
+
+      // Create new snapshot with updated priorities
+      await db.insert(myFocusPrioritySnapshots).values({
+        userId,
+        items: updatedItems as any,
+        sourceThreadId: threadId || null,
+      } as any);
+
+      console.log("[remove_priority_goals] ✅ Removed", removedCount, "goals from priority");
+      console.log("[remove_priority_goals] Remaining priorities:", updatedItems.length);
+      console.log("=== [remove_priority_goals] COMPLETE ===\n");
+
+      return JSON.stringify({
+        type: "priority_removal",
+        removedCount,
+        remainingCount: updatedItems.length,
+        cleared: removedCount > 0 && updatedItems.length === 0,
+        message: removedCount > 0 
+          ? `Removed ${removedCount} goal${removedCount !== 1 ? 's' : ''} from My Focus. ${updatedItems.length > 0 ? `${updatedItems.length} priority goal${updatedItems.length !== 1 ? 's' : ''} remaining.` : 'No priorities set.'}`
+          : "No goals were removed from priority."
+      });
+    } catch (error) {
+      console.error("[remove_priority_goals] Error:", error);
       throw error;
     }
   }

@@ -112,15 +112,18 @@ export default function ChatHome() {
     if (threads.length > 0) navigate(`/${threads[0].id}`, { replace: true });
   }, [threadId, threads.length, navigate]);
 
-  // If optimize=1 on blank state, auto-send optimize prompt to agent after mount
+  // If optimize=1 or setfocus=1 on blank state, auto-send prioritization prompt to agent after mount
   useEffect(() => {
     if (threadId) return;
     const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : undefined;
     if (!params) return;
     const optimize = params.get('optimize') === '1';
+    const setFocus = params.get('setfocus') === '1';
     const isNewChat = params.get('new') === '1';
     if (optimize && isNewChat) {
       (window as any).composeAndSend?.('Help me optimize and prioritize my focus.', 'prioritize_optimize');
+    } else if (setFocus && isNewChat) {
+      (window as any).composeAndSend?.('Help me set my focus priorities.', 'prioritize_optimize');
     }
   }, [threadId]);
 

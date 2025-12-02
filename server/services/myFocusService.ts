@@ -1,5 +1,5 @@
 import { db } from "../db";
-import { eq, desc, and, inArray } from "drizzle-orm";
+import { eq, desc, and, inArray, sql } from "drizzle-orm";
 import { 
   goalDefinitions, 
   goalInstances, 
@@ -85,6 +85,7 @@ export interface MyFocusData {
   config?: {
     maxGoals: number;
   };
+  totalGoalCount?: number; // Total active goals (not just priorities)
 }
 
 export class MyFocusService {
@@ -149,11 +150,21 @@ export class MyFocusService {
 
     let priorityGoals: MyFocusData["priorityGoals"]; let priorityMeta: MyFocusData["priorityMeta"]|undefined;
     if (snapshot[0]?.items) {
-      const hydrated = await this.hydrateSnapshotGoals(userId, snapshot[0].items as any[]);
-      priorityGoals = hydrated.goals;
-      priorityMeta = { updatedAt: hydrated.updatedAt, sourceThreadId: (snapshot[0] as any).sourceThreadId || undefined };
+      // Only show priorities if there's an explicit snapshot
+      // Empty array in snapshot means user explicitly cleared priorities
+      const items = snapshot[0].items as any[];
+      if (Array.isArray(items) && items.length > 0) {
+        const hydrated = await this.hydrateSnapshotGoals(userId, items);
+        priorityGoals = hydrated.goals;
+        priorityMeta = { updatedAt: hydrated.updatedAt, sourceThreadId: (snapshot[0] as any).sourceThreadId || undefined };
+      } else {
+        // Empty snapshot means no priorities (user cleared them)
+        priorityGoals = [];
+        priorityMeta = { updatedAt: (snapshot[0] as any).createdAt?.toISOString() || new Date().toISOString(), sourceThreadId: (snapshot[0] as any).sourceThreadId || undefined };
+      }
     } else {
-      priorityGoals = await this.getPriorityGoals(userId, focusGoalLimit);
+      // No snapshot exists - don't auto-prioritize, return empty array
+      priorityGoals = [];
     }
 
     priorityGoals = (priorityGoals || []).slice(0, focusGoalLimit);
@@ -164,6 +175,21 @@ export class MyFocusService {
     const keyInsights = await this.getKeyInsights(userId);
     const pendingOptimization = await this.getPendingOptimization(userId);
 
+    // Count total active goals (not just priorities)
+    const [totalCountRow] = await db
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(goalInstances)
+      .innerJoin(goalDefinitions, eq(goalInstances.goalDefinitionId, goalDefinitions.id))
+      .where(
+        and(
+          eq(goalDefinitions.userId, userId),
+          eq(goalDefinitions.archived, false),
+          eq(goalInstances.archived, false),
+          eq(goalInstances.status, 'active')
+        )
+      );
+    const totalGoalCount = Number(totalCountRow?.count || 0);
+
     const data: MyFocusData = {
       priorityGoals,
       highLeverageHabits,
@@ -171,6 +197,7 @@ export class MyFocusService {
       ...(priorityMeta ? { priorityMeta } : {}),
       ...(pendingOptimization ? { pendingOptimization } : {}),
       config: { maxGoals: focusGoalLimit },
+      totalGoalCount,
     };
     if (this.CACHE_TTL_MS > 0) this.cache.set(userId, { ts: now, data });
     return data;

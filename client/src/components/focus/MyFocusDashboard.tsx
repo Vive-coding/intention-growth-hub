@@ -5,7 +5,7 @@ import { GoalDetailModal } from "@/components/GoalDetailModal";
 import { Button } from "@/components/ui/button";
 import { HabitsSidePanel } from "@/components/chat/HabitsSidePanel";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { Menu, Home, Target } from "lucide-react";
+import { Menu, Home, Target, Sparkles } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/hooks/useAuth";
 import ConversationsList from "@/components/chat/ConversationsList";
@@ -93,10 +93,13 @@ export default function MyFocusDashboard() {
   const activeHabits = Array.isArray(data.highLeverageHabits) ? data.highLeverageHabits : [];
 	const insights = (data.keyInsights || []).slice(0, 3);
 	const optimization = data.pendingOptimization;
+  const totalGoalCount = data.totalGoalCount || 0;
 
   const totalHabits = todayCompletions?.total || 0;
   const completedHabits = todayCompletions?.completed || 0;
 
+  const hasNoGoals = totalGoalCount === 0;
+  const hasGoalsButNoPriorities = totalGoalCount > 0 && priorityGoals.length === 0;
   const isEmpty = priorityGoals.length === 0 && totalHabits === 0 && insights.length === 0;
 
 return (
@@ -188,18 +191,40 @@ return (
         </div>
       </header>
 
-      {/* Empty state for first-time users */}
-      {isEmpty && (
+      {/* Empty state for first-time users - no goals at all */}
+      {hasNoGoals && (
         <section className="mb-8">
-          <div className="rounded-2xl p-6 bg-white border border-gray-200 shadow-sm">
-            <div className="text-base font-semibold text-gray-900 mb-1">Set up your Focus</div>
-            <div className="text-sm text-gray-600 mb-4">Optimize and prioritize to populate your priority goals, active habits, and key insights.</div>
-            <button
-              className="inline-flex items-center px-4 py-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700"
-              onClick={() => (window as any).composeAndSend?.('Help me optimize and prioritize my focus.', 'prioritize_optimize')}
-            >
-              Optimize focus
-            </button>
+          <div className="rounded-2xl p-4 sm:p-5 bg-gradient-to-br from-emerald-500 to-teal-500 shadow-lg">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
+              <div className="text-base sm:text-lg font-semibold text-white">Start a conversation with coach to create your first goal and begin your journey.</div>
+              <button
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-purple-500 to-blue-500 text-white text-base font-semibold hover:from-purple-600 hover:to-blue-600 shadow-md transition-all duration-200 hover:shadow-lg self-center sm:self-auto"
+                onClick={() => window.location.href = '/?new=1'}
+              >
+                Start a chat
+              </button>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* Empty state for users with goals but no priorities */}
+      {hasGoalsButNoPriorities && (
+        <section className="mb-8">
+          <div className="rounded-2xl p-4 sm:p-5 bg-gradient-to-br from-emerald-500 to-teal-500 shadow-lg">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
+              <div className="flex flex-col sm:flex-row sm:items-baseline gap-2">
+                <div className="text-lg sm:text-xl font-semibold text-white">You have {totalGoalCount} goal{totalGoalCount !== 1 ? 's' : ''} created.</div>
+                <div className="text-xs sm:text-sm text-white/90">Set and actively track top priority goals as focus with coach.</div>
+              </div>
+              <button
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-purple-500 to-blue-500 text-white text-base font-semibold hover:from-purple-600 hover:to-blue-600 shadow-md transition-all duration-200 hover:shadow-lg self-center sm:self-auto"
+                onClick={() => window.location.href = '/?new=1&setfocus=1'}
+              >
+                <Sparkles className="w-4 h-4" />
+                Set your focus
+              </button>
+            </div>
           </div>
         </section>
       )}
@@ -210,8 +235,51 @@ return (
         <div className="space-y-3 sm:space-y-4 min-w-0">
           <div className="text-sm sm:text-base font-semibold text-gray-800">Priority Goals</div>
           <div className="grid gap-3 sm:gap-4">
-            {priorityGoals.length === 0 && (
-              <div className="text-xs sm:text-sm text-gray-600">No priorities yet. Start a chat to set your top focus goals.</div>
+            {hasNoGoals && (
+              <div className="space-y-3 opacity-40 pointer-events-none">
+                {/* Placeholder goal cards */}
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="rounded-2xl p-3 sm:p-5 bg-white border border-gray-200 shadow-sm">
+                    <div className="flex items-start gap-2 sm:gap-4">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5 sm:gap-2 mb-2">
+                          <span className="text-[10px] sm:text-[11px] px-1.5 sm:px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">Priority {i}</span>
+                          <span className="text-[10px] sm:text-[11px] px-1.5 sm:px-2 py-0.5 rounded-full bg-gray-100 text-gray-700 border">Category</span>
+                        </div>
+                        <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
+                        <div className="h-3 bg-gray-100 rounded w-1/2"></div>
+                      </div>
+                      <div className="shrink-0 w-16 sm:w-20 text-right">
+                        <div className="h-3 bg-gray-200 rounded mb-1"></div>
+                        <div className="h-2 bg-gray-100 rounded-full"></div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {!hasNoGoals && priorityGoals.length === 0 && (
+              <div className="space-y-3 opacity-40 pointer-events-none">
+                {/* Placeholder goal cards - same as hasNoGoals state */}
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="rounded-2xl p-3 sm:p-5 bg-white border border-gray-200 shadow-sm">
+                    <div className="flex items-start gap-2 sm:gap-4">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5 sm:gap-2 mb-2">
+                          <span className="text-[10px] sm:text-[11px] px-1.5 sm:px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">Priority {i}</span>
+                          <span className="text-[10px] sm:text-[11px] px-1.5 sm:px-2 py-0.5 rounded-full bg-gray-100 text-gray-700 border">Category</span>
+                        </div>
+                        <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
+                        <div className="h-3 bg-gray-100 rounded w-1/2"></div>
+                      </div>
+                      <div className="shrink-0 w-16 sm:w-20 text-right">
+                        <div className="h-3 bg-gray-200 rounded mb-1"></div>
+                        <div className="h-2 bg-gray-100 rounded-full"></div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
             )}
             {priorityGoals.map((g: any) => (
               <button
@@ -259,13 +327,27 @@ return (
             ))}
           </div>
           <div className="flex items-center justify-between pt-2">
-            <button
-              className="inline-flex items-center px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs sm:text-sm hover:bg-emerald-700 transition-colors"
-              title="Start chat to Optimize My Focus"
-              onClick={() => { window.location.href = '/?new=1&optimize=1'; }}
-            >
-              Optimize focus
-            </button>
+            {!hasNoGoals && (
+              <button
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-gray-300 text-gray-700 text-xs sm:text-sm hover:bg-gray-50 transition-colors"
+                title={priorityGoals.length > 0 ? "Optimize My Focus" : "Set your focus"}
+                onClick={() => { window.location.href = '/?new=1&optimize=1'; }}
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                {priorityGoals.length > 0 ? 'Optimize focus' : 'Set your focus'}
+              </button>
+            )}
+            {hasNoGoals && (
+              <div className="opacity-40 pointer-events-none">
+                <button
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-gray-300 text-gray-700 text-xs sm:text-sm"
+                  disabled
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  Set your focus
+                </button>
+              </div>
+            )}
             <a href="/goals" className="text-xs text-emerald-600 hover:text-emerald-700 hover:underline">All Goals →</a>
           </div>
         </div>
@@ -274,8 +356,29 @@ return (
         <div className="space-y-3 sm:space-y-4 min-w-0">
           <div className="text-sm sm:text-base font-semibold text-gray-800">Key Insights</div>
           <div className="grid gap-2">
-            {insights.length === 0 && (
-              <div className="text-xs sm:text-sm text-gray-600">No insights yet. Chat with your coach to generate insights.</div>
+            {hasNoGoals && (
+              <div className="space-y-2 opacity-40 pointer-events-none">
+                {/* Placeholder insight cards */}
+                {[1, 2].map((i) => (
+                  <div key={i} className="rounded-xl p-3 bg-white border border-gray-200 shadow-sm">
+                    <div className="h-4 bg-gray-200 rounded w-2/3 mb-2"></div>
+                    <div className="h-3 bg-gray-100 rounded w-full mb-1"></div>
+                    <div className="h-3 bg-gray-100 rounded w-4/5"></div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {!hasNoGoals && insights.length === 0 && (
+              <div className="space-y-2 opacity-40 pointer-events-none">
+                {/* Placeholder insight cards - same as hasNoGoals state */}
+                {[1, 2].map((i) => (
+                  <div key={i} className="rounded-xl p-3 bg-white border border-gray-200 shadow-sm">
+                    <div className="h-4 bg-gray-200 rounded w-2/3 mb-2"></div>
+                    <div className="h-3 bg-gray-100 rounded w-full mb-1"></div>
+                    <div className="h-3 bg-gray-100 rounded w-4/5"></div>
+                  </div>
+                ))}
+              </div>
             )}
             {insights.map((i: any) => (
               <div key={i.id} className="rounded-xl p-3 bg-white border border-gray-200 shadow-sm min-w-0">

@@ -25,7 +25,7 @@ import {
 } from "./habitTools";
 import { shareInsightTool, voteOnInsightTool } from "./insightTool";
 import { showProgressSummaryTool } from "./progressTool";
-import { prioritizeGoalsTool } from "./prioritizeTools";
+import { prioritizeGoalsTool, removePriorityGoalsTool } from "./prioritizeTools";
 
 /**
  * All tools available to the life coach agent
@@ -54,8 +54,9 @@ export const allTools = [
   // Progress (1 tool)
   showProgressSummaryTool,
   
-  // Prioritization (1 tool)
+  // Prioritization (2 tools)
   prioritizeGoalsTool,
+  removePriorityGoalsTool,
 ];
 
 /**
@@ -98,5 +99,9 @@ export {
   
   // Progress
   showProgressSummaryTool,
+  
+  // Prioritization
+  prioritizeGoalsTool,
+  removePriorityGoalsTool,
 };
 
