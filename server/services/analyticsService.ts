@@ -1,5 +1,7 @@
 // Backend analytics service for Amplitude
-import { track, identify, setUserId, init, Identify } from '@amplitude/analytics-node';
+// Use CommonJS-compatible import since @amplitude/analytics-node is a CommonJS module
+import pkg from '@amplitude/analytics-node';
+const { track, identify, setUserId, init, Identify } = pkg;
 
 // Types for analytics events
 export interface UserProperties {
