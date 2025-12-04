@@ -254,6 +254,62 @@ export async function logHabitCompletion(options: LogHabitCompletionOptions) {
     .set({ globalCompletions: sql`COALESCE(${habitDefinitions.globalCompletions}, 0) + 1`, globalStreak: longestStreak })
     .where(eq(habitDefinitions.id, habitId));
 
+  // Track habit completion with analytics
+  try {
+    const { backendAnalytics } = await import("./analyticsService");
+    
+    // Check if this is user's first habit log
+    const allCompletions = await db
+      .select()
+      .from(habitCompletions)
+      .where(eq(habitCompletions.userId, userId))
+      .then(rows => rows.length);
+    
+    const isFirstHabitLog = allCompletions === 1;
+    
+    // Calculate days since habit creation
+    const habitCreatedAt = habit.createdAt || new Date();
+    const daysSinceCreation = Math.floor((completionDate.getTime() - habitCreatedAt.getTime()) / (1000 * 60 * 60 * 24));
+    
+    backendAnalytics.setUser(userId);
+    backendAnalytics.trackEvent('habit_completed', {
+      habit_id: habitId,
+      user_id: userId,
+      streak_length: currentStreak,
+      longest_streak: longestStreak,
+      days_since_creation: daysSinceCreation,
+      is_first_log: isFirstHabitLog,
+      has_goal: !!goalId,
+      frequency: frequency || 'daily',
+    });
+
+    if (isFirstHabitLog) {
+      backendAnalytics.trackEvent('first_habit_logged', {
+        habit_id: habitId,
+        user_id: userId,
+        frequency: frequency || 'daily',
+      });
+      
+      // Update user properties
+      const { updateUserProperties } = await import("./analyticsHelpers");
+      await updateUserProperties(userId).catch(err => {
+        console.error('[habitCompletionService] Failed to update user properties', err);
+      });
+    }
+
+    // Track streak milestones
+    const milestoneDays = [7, 14, 30, 60, 90];
+    if (milestoneDays.includes(currentStreak)) {
+      backendAnalytics.trackEvent('habit_streak_milestone', {
+        habit_id: habitId,
+        user_id: userId,
+        streak_days: currentStreak,
+      });
+    }
+  } catch (analyticsError) {
+    console.error('[habitCompletionService] Failed to track habit completion analytics', analyticsError);
+  }
+
   // Return completion with streak info for card display
   return {
     ...completion,

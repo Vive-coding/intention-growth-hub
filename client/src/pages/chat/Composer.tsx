@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Send } from "lucide-react";
 import { useLocation } from "wouter";
 import { apiRequest } from "@/lib/queryClient";
+import { analytics } from "@/services/analyticsService";
 
 interface Props {
   threadId?: string;
@@ -15,6 +16,7 @@ export default function Composer({ threadId }: Props) {
   const queryClient = useQueryClient();
   const [, navigate] = useLocation();
   const pendingAgentTypeRef = useRef<string | undefined>(undefined);
+  const turnNumberRef = useRef<number>(0);
 
   useEffect(() => {
     (window as any).chatComposer = {
@@ -104,13 +106,26 @@ export default function Composer({ threadId }: Props) {
 
       // If no thread yet, create one lazily
       let targetThreadId = threadId;
+      let isNewThread = false;
       if (!targetThreadId) {
         const t = await apiRequest("/api/chat/threads", { method: "POST" } as any);
         await queryClient.invalidateQueries({ queryKey: ["/api/chat/threads"] });
         targetThreadId = (t.id || (t as any).threadId) as string;
+        isNewThread = true;
         // Navigate to the new thread view
         navigate(`/${targetThreadId}`, { replace: true });
       }
+
+      // Track message sent
+      turnNumberRef.current += 1;
+      analytics.trackChatMessageSent(
+        targetThreadId as string,
+        messageText.length,
+        turnNumberRef.current,
+        {
+          is_new_thread: isNewThread,
+        }
+      );
 
       // Show user message immediately by adding it to the stream
       console.log('[Composer] Calling addUserMessage with:', messageText);

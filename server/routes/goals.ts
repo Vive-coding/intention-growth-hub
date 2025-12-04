@@ -1897,6 +1897,23 @@ router.post("/:goalId/complete", async (req: Request, res: Response) => {
       return res.status(404).json({ error: "Goal not found" });
     }
 
+    const goalInstance = goal[0];
+    const goalDef = await db
+      .select()
+      .from(goalDefinitions)
+      .where(eq(goalDefinitions.id, goalInstance.goalDefinitionId))
+      .limit(1);
+    
+    const createdAt = goalInstance.createdAt || new Date();
+    const daysToComplete = Math.floor((Date.now() - createdAt.getTime()) / (1000 * 60 * 60 * 24));
+    
+    // Get habit count for this goal
+    const habitCount = await db
+      .select()
+      .from(habitInstances)
+      .where(eq(habitInstances.goalInstanceId, goalId))
+      .then(rows => rows.length);
+
     // Update goal to 100% complete
     await db
       .update(goalInstances)
@@ -1906,6 +1923,49 @@ router.post("/:goalId/complete", async (req: Request, res: Response) => {
         completedAt: new Date(), // Set completion date
       })
       .where(eq(goalInstances.id, goalId));
+
+    // Track goal completion
+    try {
+      const { backendAnalytics } = await import("../services/analyticsService");
+      
+      // Check if this is user's first goal completion
+      const completedGoals = await db
+        .select()
+        .from(goalInstances)
+        .where(and(
+          eq(goalInstances.userId, userId),
+          eq(goalInstances.status, "completed")
+        ))
+        .then(rows => rows.length);
+      
+      const isFirstGoalCompletion = completedGoals === 1;
+      
+      backendAnalytics.setUser(userId);
+      backendAnalytics.trackEvent('goal_completed', {
+        goal_id: goalId,
+        goal_definition_id: goalInstance.goalDefinitionId,
+        user_id: userId,
+        days_to_complete: daysToComplete,
+        habit_count: habitCount,
+        is_first_goal: isFirstGoalCompletion,
+        life_metric: goalDef[0]?.lifeMetricId || null,
+      });
+
+      if (isFirstGoalCompletion) {
+        backendAnalytics.trackEvent('first_goal_completed', {
+          goal_id: goalId,
+          user_id: userId,
+          days_to_complete: daysToComplete,
+          habit_count: habitCount,
+        });
+        
+        // Update user properties
+        const { updateUserProperties } = await import("../services/analyticsHelpers");
+        await updateUserProperties(userId);
+      }
+    } catch (analyticsError) {
+      console.error('[goals] Failed to track goal completion analytics', analyticsError);
+    }
 
     res.json({ message: "Goal completed successfully" });
   } catch (error) {
@@ -2698,6 +2758,7 @@ router.post("/", async (req: Request, res: Response) => {
     }
 
     // Mark onboarding milestone if this is the user's first goal
+    let isFirstGoal = false;
     try {
       const [userRow] = await db
         .select({
@@ -2709,6 +2770,7 @@ router.post("/", async (req: Request, res: Response) => {
         .limit(1);
 
       if (userRow && !userRow.firstGoalCreated) {
+        isFirstGoal = true;
         const updatePayload: Record<string, any> = {
           firstGoalCreated: true,
           updatedAt: new Date(),
@@ -2727,6 +2789,42 @@ router.post("/", async (req: Request, res: Response) => {
       }
     } catch (milestoneError) {
       console.error('[goals] Failed to update onboarding milestone for user', userId, milestoneError);
+    }
+
+    // Track goal creation with analytics
+    try {
+      const { backendAnalytics } = await import("../services/analyticsService");
+      const goalSource = suggestedHabitIds && suggestedHabitIds.length > 0 ? 'ai_suggestion' : 'manual';
+      const hasHabits = (habitIds && habitIds.length > 0) || (suggestedHabitIds && suggestedHabitIds.length > 0);
+      
+      backendAnalytics.setUser(userId);
+      backendAnalytics.trackEvent('goal_created', {
+        goal_id: goalInstance.id,
+        goal_definition_id: goalDefinition.id,
+        user_id: userId,
+        source: goalSource,
+        has_habits: hasHabits,
+        life_metric: resolvedLifeMetric?.name || null,
+        is_first_goal: isFirstGoal,
+        target_date: targetDate,
+        target_value: targetValue || 1,
+      });
+
+      if (isFirstGoal) {
+        backendAnalytics.trackEvent('first_goal_created', {
+          goal_id: goalInstance.id,
+          user_id: userId,
+          source: goalSource,
+          has_habits: hasHabits,
+          life_metric: resolvedLifeMetric?.name || null,
+        });
+        
+        // Update user properties
+        const { updateUserProperties } = await import("../services/analyticsHelpers");
+        await updateUserProperties(userId);
+      }
+    } catch (analyticsError) {
+      console.error('[goals] Failed to track goal creation analytics', analyticsError);
     }
 
     res.status(201).json({ goal: goalInstance, definition: goalDefinition });

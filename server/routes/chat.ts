@@ -167,6 +167,37 @@ router.post("/threads", async (req: any, res) => {
     } as any);
     
     console.log('[chat] Created thread:', { id: thread.id, userId: thread.userId, title: thread.title });
+    
+    // Track thread creation
+    const { backendAnalytics } = await import("../services/analyticsService");
+    const isWelcome = title === null || title === undefined || title === '';
+    
+    // Check if this is user's first thread
+    const existingThreads = await ChatThreadService.listThreads(userId, 1);
+    const isFirstThread = existingThreads.length === 0;
+    
+    if (isFirstThread) {
+      backendAnalytics.trackEvent('first_chat_session_started', {
+        thread_id: thread.id,
+        is_welcome: isWelcome,
+        user_id: userId,
+      });
+      
+      // Update user properties
+      const { updateUserProperties } = await import("../services/analyticsHelpers");
+      await updateUserProperties(userId).catch(err => {
+        console.error('[chat] Failed to update user properties', err);
+      });
+    }
+    
+    backendAnalytics.trackEvent('chat_thread_created', {
+      thread_id: thread.id,
+      is_welcome: isWelcome,
+      is_test: Boolean(isTest),
+      is_first_thread: isFirstThread,
+      user_id: userId,
+    });
+    
     res.status(201).json({ threadId: thread.id, title: thread.title });
   } catch (e) {
     console.error("[chat] create thread failed", e);
@@ -245,6 +276,9 @@ router.post("/respond", async (req: any, res) => {
 
     // Persist user message
     await ChatThreadService.appendMessage({ threadId, role: "user", content, status: "complete" } as any);
+    
+    // Track message received (response start time)
+    const responseStartTime = Date.now();
 
     // Attempt EARLY title generation on the user's first substantive message
     try {
@@ -306,12 +340,17 @@ router.post("/respond", async (req: any, res) => {
           send(JSON.stringify({ type: "structured_data", data }));
           structuredPayload = data;
           // Persist agent outputs into My Focus (best-effort)
-          try {
-            MyFocusService.persistFromAgent(data, { userId, threadId }).catch((e) => {
+          // NOTE: Skip persistence for prioritization - wait for user confirmation via card
+          if (data?.type !== 'prioritization') {
+            try {
+              MyFocusService.persistFromAgent(data, { userId, threadId }).catch((e) => {
+                console.error('[chat] persist-from-agent failed', e);
+              });
+            } catch (e) {
               console.error('[chat] persist-from-agent failed', e);
-            });
-          } catch (e) {
-            console.error('[chat] persist-from-agent failed', e);
+            }
+          } else {
+            console.log('[chat] Skipping persistence for prioritization - awaiting user confirmation');
           }
         },
         requestedAgentType,
@@ -333,6 +372,18 @@ router.post("/respond", async (req: any, res) => {
       send(JSON.stringify({ type: 'error', message: 'Assistant failed to respond' }));
     }
     send(JSON.stringify({ type: "end" }));
+
+    // Track message received
+    const responseTime = Date.now() - responseStartTime;
+    const { backendAnalytics } = await import("../services/analyticsService");
+    const hasToolCalls = structuredPayload && typeof structuredPayload === 'object';
+    
+    backendAnalytics.trackEvent('chat_message_received', {
+      thread_id: threadId,
+      response_time_ms: responseTime,
+      has_tool_calls: hasToolCalls,
+      user_id: userId,
+    });
 
     if (finalText?.trim().length > 0) {
       let saveContent = finalText.trim();

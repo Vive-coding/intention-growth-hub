@@ -9,6 +9,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { useLocation } from "wouter";
 import { StepIndicator } from "@/components/StepIndicator";
 import { onboardingIllustrations } from "@/assets/onboardingIllustrations";
+import { analytics } from "@/services/analyticsService";
 
 interface OnboardingFlowProps {
   onComplete: () => void;
@@ -300,6 +301,7 @@ export const OnboardingFlow = ({ onComplete }: OnboardingFlowProps) => {
   const [error, setError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [prefillApplied, setPrefillApplied] = useState(false);
+  const [hasTrackedStart, setHasTrackedStart] = useState(false);
 
   const shouldSkipStep = useCallback(
     (stepKey: StepKey) => {
@@ -336,6 +338,28 @@ export const OnboardingFlow = ({ onComplete }: OnboardingFlowProps) => {
   const displayStepIndex = Math.max(visibleSteps.findIndex((step) => step.key === currentStep.key), 0);
   const displayTotalSteps = visibleSteps.length;
   const isLastStep = displayStepIndex === displayTotalSteps - 1;
+
+  // Track onboarding started
+  useEffect(() => {
+    if (!hasTrackedStart) {
+      analytics.trackOnboardingStarted();
+      setHasTrackedStart(true);
+    }
+  }, [hasTrackedStart]);
+
+  // Track step viewed
+  useEffect(() => {
+    if (currentStep && !shouldSkipStep(currentStep.key)) {
+      analytics.trackOnboardingStepViewed(
+        currentStep.key,
+        displayStepIndex + 1,
+        {
+          step_title: currentStep.title,
+          total_steps: displayTotalSteps,
+        }
+      );
+    }
+  }, [currentStep?.key, displayStepIndex, displayTotalSteps, shouldSkipStep]);
 
   const { data: existingProfile } = useQuery({
     queryKey: ["/api/users/onboarding-profile"],
@@ -571,6 +595,22 @@ export const OnboardingFlow = ({ onComplete }: OnboardingFlowProps) => {
     },
     onSuccess: async () => {
       setSubmitError(null);
+      
+      // Track profile saved
+      analytics.trackOnboardingProfileSaved({
+        goal_setting_ability: responses.goal_setting_ability,
+        habit_building: responses.habit_building,
+        coaching_style: responses.coach_personality,
+        life_metrics: responses.life_metrics,
+        notification_enabled: responses.notification_opt_in === "opt_in",
+      });
+      
+      // Track onboarding completed
+      analytics.trackOnboardingCompleted({
+        total_steps_completed: displayTotalSteps,
+        has_notifications: responses.notification_opt_in === "opt_in",
+      });
+      
       onComplete();
       try {
         await startWelcomeConversation();
@@ -614,6 +654,20 @@ export const OnboardingFlow = ({ onComplete }: OnboardingFlowProps) => {
     if (!validateStep(currentStep)) {
       return;
     }
+    
+    // Track step completed
+    if (currentStep && !shouldSkipStep(currentStep.key)) {
+      analytics.trackOnboardingStepCompleted(
+        currentStep.key,
+        displayStepIndex + 1,
+        {
+          step_title: currentStep.title,
+          total_steps: displayTotalSteps,
+          response: responses[currentStep.key],
+        }
+      );
+    }
+    
     setCurrentStepIndex((prev) => findNextStepIndex(prev, 1));
   };
 
@@ -624,6 +678,18 @@ export const OnboardingFlow = ({ onComplete }: OnboardingFlowProps) => {
   };
 
   const handleSkip = () => {
+    // Track step abandoned
+    if (currentStep && !shouldSkipStep(currentStep.key)) {
+      analytics.trackOnboardingStepAbandoned(
+        currentStep.key,
+        displayStepIndex + 1,
+        {
+          step_title: currentStep.title,
+          total_steps: displayTotalSteps,
+        }
+      );
+    }
+    
     // Navigate to chat screen when skipping onboarding
     navigate('/?new=1');
     onComplete();
