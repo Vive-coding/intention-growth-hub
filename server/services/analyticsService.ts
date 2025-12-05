@@ -1,7 +1,7 @@
 // Backend analytics service for Amplitude
 // Use namespace import for CommonJS compatibility with ESM/esbuild
 import * as amplitude from '@amplitude/analytics-node';
-const { track, identify, setUserId, init, Identify } = amplitude;
+const { track, identify, init, Identify } = amplitude;
 
 // Types for analytics events
 export interface UserProperties {
@@ -62,8 +62,6 @@ class BackendAnalyticsService {
     if (!this.isInitialized) return;
     
     try {
-      setUserId(userId);
-      
       if (properties) {
         // Use modern identify method with Identify object
         const identifyObj = new Identify();
@@ -75,8 +73,15 @@ class BackendAnalyticsService {
           }
         });
         
-        // Send the identify event
-        identify(identifyObj);
+        // Send the identify event with user ID
+        identify(identifyObj, {
+          user_id: userId,
+        });
+      } else {
+        // Just set user ID without properties
+        identify(new Identify(), {
+          user_id: userId,
+        });
       }
     } catch (error) {
       console.error('Failed to set user in analytics:', error);
@@ -84,18 +89,19 @@ class BackendAnalyticsService {
   }
 
   // Track events
-  trackEvent(eventName: string, properties?: BaseEventProperties) {
+  trackEvent(eventName: string, properties?: BaseEventProperties, userId?: string) {
     if (!this.isInitialized) {
       console.log('Backend analytics not initialized, skipping event:', eventName);
       return;
     }
 
     try {
+      const eventOptions = userId ? { user_id: userId } : undefined;
       track(eventName, {
         ...properties,
         timestamp: new Date().toISOString(),
         source: 'backend',
-      });
+      }, eventOptions);
     } catch (error) {
       console.error('Failed to track backend event:', eventName, error);
     }
@@ -124,7 +130,7 @@ class BackendAnalyticsService {
       goal_id: goalId,
       user_id: userId,
       ...properties,
-    });
+    }, userId);
   }
 
   trackHabitCompleted(habitId: string, userId: string, properties?: BaseEventProperties) {
@@ -133,7 +139,7 @@ class BackendAnalyticsService {
       habit_id: habitId,
       user_id: userId,
       ...properties,
-    });
+    }, userId);
   }
 
   trackJournalEntryCreated(journalId: string, userId: string, properties?: BaseEventProperties) {
@@ -142,7 +148,7 @@ class BackendAnalyticsService {
       journal_id: journalId,
       user_id: userId,
       ...properties,
-    });
+    }, userId);
   }
 
   trackProgressSnapshotCreated(userId: string, metricName: string, properties?: BaseEventProperties) {
@@ -151,7 +157,7 @@ class BackendAnalyticsService {
       metric_name: metricName,
       user_id: userId,
       ...properties,
-    });
+    }, userId);
   }
 
   trackInsightGenerated(insightId: string, userId: string, properties?: BaseEventProperties) {
@@ -160,7 +166,7 @@ class BackendAnalyticsService {
       insight_id: insightId,
       user_id: userId,
       ...properties,
-    });
+    }, userId);
   }
 }
 
