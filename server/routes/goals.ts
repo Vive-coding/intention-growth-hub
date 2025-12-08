@@ -3121,25 +3121,35 @@ router.put("/:id", async (req: Request, res: Response) => {
         for (const habit of associatedHabits) {
           const frequencySettings = habit.habitInst.frequencySettings as any;
           if (frequencySettings?.frequency && frequencySettings?.perPeriodTarget) {
+            const weekdaysOnly = !!frequencySettings.weekdaysOnly;
             const recalculated = calculateFrequencySettings(
               instanceUpdates.targetDate,
               frequencySettings.frequency,
-              frequencySettings.perPeriodTarget
+              frequencySettings.perPeriodTarget,
+              weekdaysOnly,
             );
+
+            // Preserve completed repetitions by adding currentValue to the new remaining target
+            const currentValue = habit.habitInst.currentValue || 0;
+            const remainingTarget = recalculated.perPeriodTarget * recalculated.periodsCount;
+            const newTargetValue = currentValue + remainingTarget;
 
             await db
               .update(habitInstances)
               .set({
-                targetValue: recalculated.targetValue,
+                targetValue: newTargetValue,
                 frequencySettings: {
                   frequency: recalculated.frequency,
                   perPeriodTarget: recalculated.perPeriodTarget,
                   periodsCount: recalculated.periodsCount,
+                  ...(weekdaysOnly ? { weekdaysOnly: true } : {}),
                 },
               })
               .where(eq(habitInstances.id, habit.habitInst.id));
 
-            console.log(`♻️ Recalculated habit ${habit.habitDef?.name}: ${recalculated.targetValue} (${recalculated.periodsCount} periods)`);
+            console.log(
+              `♻️ Recalculated habit ${habit.habitDef?.name}: current=${currentValue}, newTarget=${newTargetValue} (${recalculated.periodsCount} periods, weekdaysOnly=${weekdaysOnly})`,
+            );
           }
         }
       } catch (error) {
