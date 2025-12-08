@@ -136,6 +136,7 @@ export const GoalDetailModal = ({
   const [newHabitFrequency, setNewHabitFrequency] = useState("daily");
   const [newHabitTargetCompletions, setNewHabitTargetCompletions] = useState(1);
   const [newHabitPeriods, setNewHabitPeriods] = useState(1);
+  const [newHabitWeekdaysOnly, setNewHabitWeekdaysOnly] = useState(false);
   const [existingHabitFrequency, setExistingHabitFrequency] = useState("daily");
   const [existingHabitPerPeriod, setExistingHabitPerPeriod] = useState(1);
   const [existingHabitPeriods, setExistingHabitPeriods] = useState(1);
@@ -151,7 +152,7 @@ export const GoalDetailModal = ({
   const [showNewSuggestions, setShowNewSuggestions] = useState(false);
   
   // Calculate periods based on goal target date and frequency
-  const calculatePeriodsFromTargetDate = (frequency: string) => {
+  const calculatePeriodsFromTargetDate = (frequency: string, weekdaysOnly: boolean = false) => {
     if (!goalData.targetDate) return 1;
     const targetDate = new Date(goalData.targetDate);
     const today = new Date();
@@ -160,6 +161,20 @@ export const GoalDetailModal = ({
     
     switch (frequency) {
       case 'daily':
+        if (weekdaysOnly) {
+          // Count only weekdays between today and target date
+          let weekdayCount = 0;
+          const todayMidnight = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+          for (let i = 0; i < diffDays; i++) {
+            const d = new Date(todayMidnight.getTime());
+            d.setDate(todayMidnight.getDate() + i);
+            const day = d.getDay(); // 0 = Sun, 6 = Sat
+            if (day !== 0 && day !== 6) {
+              weekdayCount++;
+            }
+          }
+          return Math.max(1, weekdayCount);
+        }
         return Math.max(1, diffDays);
       case 'weekly':
         return Math.max(1, Math.ceil(diffDays / 7));
@@ -173,10 +188,10 @@ export const GoalDetailModal = ({
   // Auto-set periods when frequency changes (if goal has target date)
   useEffect(() => {
     if (goalData.targetDate) {
-      const calculatedPeriods = calculatePeriodsFromTargetDate(newHabitFrequency);
+      const calculatedPeriods = calculatePeriodsFromTargetDate(newHabitFrequency, newHabitWeekdaysOnly);
       setNewHabitPeriods(calculatedPeriods);
     }
-  }, [newHabitFrequency, goalData.targetDate]);
+  }, [newHabitFrequency, newHabitWeekdaysOnly, goalData.targetDate]);
   
   useEffect(() => {
     if (goalData.targetDate) {
@@ -770,9 +785,10 @@ export const GoalDetailModal = ({
           habitDefinitionId: createResponse.id,
           targetValue: calculatedTargetValue,
           frequencySettings: {
-            frequency: newHabitFrequency,
-            perPeriodTarget: newHabitTargetCompletions,
-            periodsCount: newHabitPeriods,
+          frequency: newHabitFrequency,
+          perPeriodTarget: newHabitTargetCompletions,
+          periodsCount: newHabitPeriods,
+          ...(newHabitFrequency === 'daily' && newHabitWeekdaysOnly ? { weekdaysOnly: true } : {}),
           },
         });
         
@@ -1434,6 +1450,21 @@ export const GoalDetailModal = ({
                       />
                     </div>
                   </div>
+                  
+                  {newHabitFrequency === 'daily' && (
+                    <div className="flex items-center gap-2 mt-3 text-sm">
+                      <input
+                        id="new-habit-weekdays-only"
+                        type="checkbox"
+                        className="h-4 w-4"
+                        checked={newHabitWeekdaysOnly}
+                        onChange={(e) => setNewHabitWeekdaysOnly(e.target.checked)}
+                      />
+                      <Label htmlFor="new-habit-weekdays-only" className="text-sm font-normal">
+                        Only count weekdays (Mon–Fri)
+                      </Label>
+                    </div>
+                  )}
                   
                   <div className="mt-3 p-3 bg-blue-50 rounded border border-blue-200">
                     <div className="text-sm text-blue-800">

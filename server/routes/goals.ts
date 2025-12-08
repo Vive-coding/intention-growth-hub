@@ -1352,7 +1352,8 @@ router.get("/habits", async (req: Request, res: Response) => {
           totalCompletions: row.habit.globalCompletions || 0,
           globalCompletions: row.habit.globalCompletions,
           globalStreak: row.habit.globalStreak,
-          lifeMetrics: []
+          lifeMetrics: [],
+          status: row.habit.isActive ? "active" : "archived",
         });
       }
       
@@ -1488,18 +1489,27 @@ router.get("/habits/today", async (req: Request, res: Response) => {
         return alreadyToday.length === 0;
       }
 
-      const { frequency, perPeriodTarget, periodsCount } = frequencySettings;
+      const { frequency, perPeriodTarget, periodsCount, weekdaysOnly } = frequencySettings;
       const totalTarget = perPeriodTarget * periodsCount;
       
       // Debug: Log the frequency settings being checked
       console.log(`FREQUENCY-SETTINGS-CHECK: habitId=${habitDefinitionId}, hasSettings=${!!frequencySettings}, frequencySettings=${JSON.stringify(frequencySettings)}, frequency=${frequency}, perPeriodTarget=${perPeriodTarget}, periodsCount=${periodsCount}, totalTarget=${totalTarget}`);
+
+      // If this is a weekdays-only daily habit, skip weekends entirely
+      const todayMid = new Date(todayStart.getTime() + (todayEnd.getTime() - todayStart.getTime()) / 2);
+      if (frequency === 'daily' && weekdaysOnly) {
+        const dow = todayMid.getDay(); // 0 = Sun, 6 = Sat
+        if (dow === 0 || dow === 6) {
+          return false;
+        }
+      }
 
       // Calculate the start of the current period based on frequency
       let periodStart: Date;
       let periodEnd: Date;
       
       // Use the timezone-aware today window for all calculations
-      const today = new Date(todayStart.getTime() + (todayEnd.getTime() - todayStart.getTime()) / 2); // Middle of the day
+      const today = todayMid; // Middle of the day
       
       switch (frequency) {
         case 'daily':
@@ -1949,7 +1959,7 @@ router.post("/:goalId/complete", async (req: Request, res: Response) => {
         habit_count: habitCount,
         is_first_goal: isFirstGoalCompletion,
         life_metric: goalDef[0]?.lifeMetricId || null,
-      });
+      }, userId);
 
       if (isFirstGoalCompletion) {
         backendAnalytics.trackEvent('first_goal_completed', {
@@ -1957,7 +1967,7 @@ router.post("/:goalId/complete", async (req: Request, res: Response) => {
           user_id: userId,
           days_to_complete: daysToComplete,
           habit_count: habitCount,
-        });
+        }, userId);
         
         // Update user properties
         const { updateUserProperties } = await import("../services/analyticsHelpers");
@@ -2057,11 +2067,102 @@ router.put("/habits/:id", async (req: Request, res: Response) => {
   }
 });
 
+// Recalculate a habit's targets based on time remaining to goal target date
+router.put("/:goalId/habits/:habitId/recalculate", async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user?.id;
+    if (!userId) {
+      return res.status(401).json({ message: "User not authenticated" });
+    }
+
+    const goalInstanceId = req.params.goalId;
+    const habitDefinitionId = req.params.habitId;
+
+    // Ensure goal exists and belongs to user
+    const [goal] = await db
+      .select()
+      .from(goalInstances)
+      .where(and(eq(goalInstances.id, goalInstanceId), eq(goalInstances.userId, userId)))
+      .limit(1);
+
+    if (!goal) {
+      return res.status(404).json({ error: "Goal not found" });
+    }
+
+    // Load the habit instance for this goal + habit
+    const [habitInstance] = await db
+      .select()
+      .from(habitInstances)
+      .where(
+        and(
+          eq(habitInstances.goalInstanceId, goalInstanceId),
+          eq(habitInstances.habitDefinitionId, habitDefinitionId),
+          eq(habitInstances.userId, userId)
+        )
+      )
+      .limit(1);
+
+    if (!habitInstance) {
+      return res.status(404).json({ error: "Habit association not found for this goal" });
+    }
+
+    const currentValue = habitInstance.currentValue || 0;
+    const existingSettings: any = habitInstance.frequencySettings || {};
+    const frequency: string = existingSettings.frequency || "daily";
+    const perPeriodTarget: number = existingSettings.perPeriodTarget || 1;
+    const weekdaysOnly: boolean = !!existingSettings.weekdaysOnly;
+
+    // Calculate remaining periods from NOW until target date using shared helper
+    const calc = calculateFrequencySettings(
+      goal.targetDate,
+      frequency,
+      perPeriodTarget,
+      weekdaysOnly
+    );
+
+    const periodsCountRemaining = calc.periodsCount;
+    const remainingTarget = perPeriodTarget * periodsCountRemaining;
+    const newTargetValue = currentValue + remainingTarget;
+
+    const updatedSettings = {
+      frequency: calc.frequency,
+      perPeriodTarget: calc.perPeriodTarget,
+      periodsCount: calc.periodsCount,
+      ...(weekdaysOnly ? { weekdaysOnly: true } : {}),
+    };
+
+    const [updated] = await db
+      .update(habitInstances)
+      .set({
+        targetValue: newTargetValue,
+        frequencySettings: updatedSettings as any,
+      })
+      .where(eq(habitInstances.id, habitInstance.id))
+      .returning();
+
+    return res.json({
+      message: "Habit targets recalculated based on remaining time",
+      goalId: goalInstanceId,
+      habitDefinitionId,
+      oldTargetValue: habitInstance.targetValue,
+      newTargetValue,
+      currentValue,
+      oldFrequencySettings: habitInstance.frequencySettings,
+      newFrequencySettings: updatedSettings,
+      habitInstance: updated,
+    });
+  } catch (error) {
+    console.error("Error recalculating habit targets:", error);
+    return res.status(500).json({ error: "Failed to recalculate habit targets" });
+  }
+});
+
 // Helper function to calculate frequency settings based on goal target date
-function calculateFrequencySettings(
+export function calculateFrequencySettings(
   goalTargetDate: Date | null,
   requestedFrequency: string = 'daily',
-  requestedPerPeriodTarget: number = 1
+  requestedPerPeriodTarget: number = 1,
+  weekdaysOnly: boolean = false
 ): { frequency: string; perPeriodTarget: number; periodsCount: number; targetValue: number } {
   const targetDate = goalTargetDate || new Date(Date.now() + 90 * 24 * 60 * 60 * 1000);
   const daysRemaining = Math.max(1, Math.ceil((targetDate.getTime() - Date.now()) / (24 * 60 * 60 * 1000)));
@@ -2070,7 +2171,22 @@ function calculateFrequencySettings(
   const perPeriodTarget = requestedPerPeriodTarget;
   
   if (requestedFrequency === 'daily') {
-    periodsCount = daysRemaining;
+    if (weekdaysOnly) {
+      // Count only weekdays (Mon–Fri) between now and target date
+      let weekdayCount = 0;
+      const today = new Date();
+      for (let i = 0; i < daysRemaining; i++) {
+        const d = new Date(today.getTime());
+        d.setDate(today.getDate() + i);
+        const day = d.getDay(); // 0 = Sun, 6 = Sat
+        if (day !== 0 && day !== 6) {
+          weekdayCount++;
+        }
+      }
+      periodsCount = Math.max(1, weekdayCount);
+    } else {
+      periodsCount = daysRemaining;
+    }
   } else if (requestedFrequency === 'weekly') {
     periodsCount = Math.max(1, Math.ceil(daysRemaining / 7));
   } else if (requestedFrequency === 'monthly') {
@@ -2164,12 +2280,14 @@ router.post("/:goalId/habits", async (req: Request, res: Response) => {
     }
 
     // Calculate proper frequency settings based on goal target date
-    const calculatedSettings = req.body.frequencySettings 
-      ? req.body.frequencySettings 
+    const requestedSettings: any = req.body.frequencySettings;
+    const calculatedSettings = requestedSettings 
+      ? requestedSettings 
       : calculateFrequencySettings(
           goal[0].targetDate,
           frequency || 'daily',
-          perPeriodTarget || 1
+          perPeriodTarget || 1,
+          requestedSettings?.weekdaysOnly ?? false
         );
 
     // Reactivate the habit if it was archived (so it can be linked to this new goal)
@@ -2193,7 +2311,8 @@ router.post("/:goalId/habits", async (req: Request, res: Response) => {
       frequencySettings: {
         frequency: calculatedSettings.frequency,
         perPeriodTarget: calculatedSettings.perPeriodTarget,
-        periodsCount: calculatedSettings.periodsCount
+        periodsCount: calculatedSettings.periodsCount,
+        ...(calculatedSettings.weekdaysOnly ? { weekdaysOnly: true } : {}),
       },
     };
     
@@ -2235,7 +2354,7 @@ router.patch("/:goalId/habits/:habitDefinitionId", async (req: Request, res: Res
     
     const goalInstanceId = req.params.goalId;
     const habitDefinitionId = req.params.habitDefinitionId;
-    const { targetValue, frequency, perPeriodTarget, periodsCount } = req.body;
+    const { targetValue, frequency, perPeriodTarget, periodsCount, weekdaysOnly } = req.body;
 
     // Check if goal exists and belongs to user
     const goal = await db
@@ -2248,26 +2367,53 @@ router.patch("/:goalId/habits/:habitDefinitionId", async (req: Request, res: Res
       return res.status(404).json({ error: "Goal not found" });
     }
 
+    // Find the existing habit instance to preserve existing settings
+    const [existingHabit] = await db
+      .select()
+      .from(habitInstances)
+      .where(
+        and(
+          eq(habitInstances.habitDefinitionId, habitDefinitionId),
+          eq(habitInstances.goalInstanceId, goalInstanceId),
+          eq(habitInstances.userId, userId),
+        ),
+      )
+      .limit(1);
+
+    if (!existingHabit) {
+      return res.status(404).json({ error: "Habit instance not found" });
+    }
+
+    const currentSettings: any = existingHabit.frequencySettings || {};
+
+    const updatedFrequencySettings: any = {
+      frequency: frequency || currentSettings.frequency || "daily",
+      perPeriodTarget: perPeriodTarget ?? currentSettings.perPeriodTarget ?? 1,
+      periodsCount: periodsCount ?? currentSettings.periodsCount ?? 1,
+    };
+
+    if (updatedFrequencySettings.frequency === "daily") {
+      if (typeof weekdaysOnly === "boolean") {
+        updatedFrequencySettings.weekdaysOnly = weekdaysOnly;
+      } else if (currentSettings.weekdaysOnly) {
+        updatedFrequencySettings.weekdaysOnly = true;
+      }
+    }
+
     // Find and update the habit instance
     const [updatedHabit] = await db
       .update(habitInstances)
       .set({
-        targetValue: targetValue || 1,
-        frequencySettings: {
-          frequency: frequency || 'daily',
-          perPeriodTarget: perPeriodTarget || 1,
-          periodsCount: periodsCount || 1
-        }
+        targetValue: targetValue || existingHabit.targetValue || 1,
+        frequencySettings: updatedFrequencySettings as any,
       })
-      .where(and(
-        eq(habitInstances.habitDefinitionId, habitDefinitionId),
-        eq(habitInstances.goalInstanceId, goalInstanceId)
-      ))
+      .where(
+        and(
+          eq(habitInstances.habitDefinitionId, habitDefinitionId),
+          eq(habitInstances.goalInstanceId, goalInstanceId),
+        ),
+      )
       .returning();
-
-    if (!updatedHabit) {
-      return res.status(404).json({ error: "Habit instance not found" });
-    }
 
     res.json(updatedHabit);
   } catch (error) {
@@ -2808,7 +2954,7 @@ router.post("/", async (req: Request, res: Response) => {
         is_first_goal: isFirstGoal,
         target_date: targetDate,
         target_value: targetValue || 1,
-      });
+      }, userId);
 
       if (isFirstGoal) {
         backendAnalytics.trackEvent('first_goal_created', {
@@ -2817,7 +2963,7 @@ router.post("/", async (req: Request, res: Response) => {
           source: goalSource,
           has_habits: hasHabits,
           life_metric: resolvedLifeMetric?.name || null,
-        });
+        }, userId);
         
         // Update user properties
         const { updateUserProperties } = await import("../services/analyticsHelpers");

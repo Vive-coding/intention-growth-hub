@@ -32,8 +32,10 @@ export const EditHabitModal = ({
   const [frequency, setFrequency] = useState<"daily" | "weekly" | "monthly">("daily");
   const [perPeriodTarget, setPerPeriodTarget] = useState<number>(1);
   const [periodsCount, setPeriodsCount] = useState<number>(1);
+  const [weekdaysOnly, setWeekdaysOnly] = useState<boolean>(false);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [goalTargetDate, setGoalTargetDate] = useState<string | null>(null);
 
   // Calculate total target based on current inputs
   const totalTarget = perPeriodTarget * periodsCount;
@@ -51,16 +53,20 @@ export const EditHabitModal = ({
     try {
       console.log('Using current target value:', currentTargetValue);
       
-      // Get the habit data from the parent component
+      // Get the habit data from the goal detail endpoint
       // We need to find the habit in the goal's habits array
       const goalResponse = await apiRequest(`/api/goals/${goalId}`);
       const habit = goalResponse.habits?.find((h: any) => h.habitDefinitionId === habitDefinitionId);
+      // Server nests target date under goalInstance.targetDate
+      const instanceTargetDate = goalResponse.goalInstance?.targetDate;
+      setGoalTargetDate(instanceTargetDate || null);
       
       if (habit && habit.frequencySettings) {
         // Use the stored frequency settings
         setFrequency(habit.frequencySettings.frequency || "daily");
         setPerPeriodTarget(habit.frequencySettings.perPeriodTarget || 1);
         setPeriodsCount(habit.frequencySettings.periodsCount || 1);
+        setWeekdaysOnly(!!habit.frequencySettings.weekdaysOnly);
         
         console.log('🟣 EditHabitModal - Loaded saved frequency settings:', habit.frequencySettings);
       } else {
@@ -90,14 +96,15 @@ export const EditHabitModal = ({
   const handleSave = async () => {
     setSaving(true);
     try {
-      // Update the habit-goal association
+      // First, optionally recalculate based on remaining time using backend helper
       await apiRequest(`/api/goals/${goalId}/habits/${habitDefinitionId}`, {
         method: 'PATCH',
         body: JSON.stringify({
           targetValue: totalTarget,
-          frequency: frequency,
-          perPeriodTarget: perPeriodTarget,
-          periodsCount: periodsCount,
+          frequency,
+          perPeriodTarget,
+          periodsCount,
+          weekdaysOnly: frequency === 'daily' ? weekdaysOnly : undefined,
         }),
       });
       
@@ -120,6 +127,36 @@ export const EditHabitModal = ({
       case 'monthly': return 'months';
       default: return 'periods';
     }
+  };
+
+  const recalcPeriodsFromTargetDate = (newFrequency: "daily" | "weekly" | "monthly", weekdaysFlag: boolean) => {
+    if (!goalTargetDate) return periodsCount;
+    const targetDate = new Date(goalTargetDate);
+    const today = new Date();
+    const diffTime = targetDate.getTime() - today.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    if (diffDays <= 0) return 1;
+
+    if (newFrequency === "daily") {
+      if (weekdaysFlag) {
+        let weekdayCount = 0;
+        const todayMidnight = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+        for (let i = 0; i < diffDays; i++) {
+          const d = new Date(todayMidnight.getTime());
+          d.setDate(todayMidnight.getDate() + i);
+          const day = d.getDay();
+          if (day !== 0 && day !== 6) {
+            weekdayCount++;
+          }
+        }
+        return Math.max(1, weekdayCount);
+      }
+      return Math.max(1, diffDays);
+    }
+    if (newFrequency === "weekly") {
+      return Math.max(1, Math.ceil(diffDays / 7));
+    }
+    return Math.max(1, Math.ceil(diffDays / 30));
   };
 
   if (loading) {
@@ -158,7 +195,8 @@ export const EditHabitModal = ({
 
           <div className="space-y-4">
             <div className="text-sm text-gray-600">
-              Editing targets for this goal
+              Editing how this habit contributes to <span className="font-medium">this goal</span>. 
+              Completed repetitions so far will be preserved even if you recalculate based on time remaining.
             </div>
             
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -166,7 +204,11 @@ export const EditHabitModal = ({
                 <Label>Frequency</Label>
                 <Select 
                   value={frequency} 
-                  onValueChange={(val: "daily" | "weekly" | "monthly") => setFrequency(val)}
+                  onValueChange={(val: "daily" | "weekly" | "monthly") => {
+                    setFrequency(val);
+                    const nextPeriods = recalcPeriodsFromTargetDate(val, weekdaysOnly);
+                    setPeriodsCount(nextPeriods);
+                  }}
                 >
                   <SelectTrigger>
                     <SelectValue />
@@ -199,6 +241,26 @@ export const EditHabitModal = ({
                 />
               </div>
             </div>
+            
+            {frequency === 'daily' && (
+              <div className="flex items-center gap-2 mt-1 text-sm">
+                <input
+                  id="weekdays-only-toggle"
+                  type="checkbox"
+                  className="h-4 w-4"
+                  checked={weekdaysOnly}
+                  onChange={(e) => {
+                    const checked = e.target.checked;
+                    setWeekdaysOnly(checked);
+                    const nextPeriods = recalcPeriodsFromTargetDate("daily", checked);
+                    setPeriodsCount(nextPeriods);
+                  }}
+                />
+                <Label htmlFor="weekdays-only-toggle" className="text-sm font-normal">
+                  Only count weekdays (Mon–Fri)
+                </Label>
+              </div>
+            )}
             
             <div className="text-sm text-gray-600 bg-gray-50 rounded p-3">
               {perPeriodTarget} per {frequency} × {periodsCount} {getPeriodLabel()} = <span className="font-medium">{totalTarget}</span> total

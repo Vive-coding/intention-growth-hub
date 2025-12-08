@@ -10,6 +10,7 @@ import {
   myFocusPrioritySnapshots,
   userOnboardingProfiles,
 } from "../../shared/schema";
+import { calculateFrequencySettings } from "./goals";
 
 const router = Router();
 
@@ -243,11 +244,38 @@ router.post("/priorities/apply", async (req: any, res) => {
       return res.status(400).json({ message: "No valid goalInstanceId in items" });
     }
 
+    // Load previous snapshot to detect newly prioritized goals
+    const [previousSnapshot] = await db
+      .select()
+      .from(myFocusPrioritySnapshots)
+      .where(eq(myFocusPrioritySnapshots.userId, userId))
+      .orderBy(myFocusPrioritySnapshots.createdAt.desc())
+      .limit(1);
+
+    const previousIds = new Set<string>(
+      Array.isArray(previousSnapshot?.items)
+        ? (previousSnapshot.items as any[]).map((it: any) => it.goalInstanceId).filter(Boolean)
+        : [],
+    );
+
+    const newPriorityIds = normalized
+      .map((it: any) => it.goalInstanceId)
+      .filter((id: string) => !previousIds.has(id));
+
     await db.insert(myFocusPrioritySnapshots).values({
       userId,
       items: normalized as any,
       sourceThreadId: sourceThreadId || null,
     } as any);
+
+    // Recalculate habit targets for any newly prioritized goals
+    for (const goalId of newPriorityIds) {
+      try {
+        await recalculateHabitTargetsForGoal(userId, goalId);
+      } catch (err) {
+        console.warn("[my-focus] Failed to recalculate targets for prioritized goal", goalId, err);
+      }
+    }
 
     res.json({ success: true });
   } catch (e) {
@@ -340,5 +368,59 @@ async function computeHabitProgressTx(tx: any, userId: string, goalInstanceId: s
     return Math.min(avg, 90);
   } catch {
     return 0;
+  }
+}
+
+// Helper: recalculate all habit targets for a goal based on remaining time to target date
+async function recalculateHabitTargetsForGoal(userId: string, goalInstanceId: string): Promise<void> {
+  // Load goal to get target date and ensure it belongs to user
+  const [goal] = await db
+    .select()
+    .from(goalInstances)
+    .where(and(eq(goalInstances.id, goalInstanceId), eq(goalInstances.userId, userId)))
+    .limit(1);
+
+  if (!goal || !goal.targetDate) {
+    return;
+  }
+
+  // Load all habit instances for this goal
+  const habitRows = await db
+    .select()
+    .from(habitInstances)
+    .where(and(eq(habitInstances.goalInstanceId, goalInstanceId), eq(habitInstances.userId, userId)));
+
+  for (const hi of habitRows as any[]) {
+    const currentValue = hi.currentValue || 0;
+    const settings: any = hi.frequencySettings || {};
+    const frequency: string = settings.frequency || "daily";
+    const perPeriodTarget: number = settings.perPeriodTarget || 1;
+    const weekdaysOnly: boolean = !!settings.weekdaysOnly;
+
+    const calc = calculateFrequencySettings(
+      goal.targetDate,
+      frequency,
+      perPeriodTarget,
+      weekdaysOnly,
+    );
+
+    const periodsRemaining = calc.periodsCount;
+    const remainingTarget = perPeriodTarget * periodsRemaining;
+    const newTargetValue = currentValue + remainingTarget;
+
+    const newSettings: any = {
+      frequency: calc.frequency,
+      perPeriodTarget: calc.perPeriodTarget,
+      periodsCount: calc.periodsCount,
+      ...(weekdaysOnly ? { weekdaysOnly: true } : {}),
+    };
+
+    await db
+      .update(habitInstances)
+      .set({
+        targetValue: newTargetValue,
+        frequencySettings: newSettings as any,
+      })
+      .where(eq(habitInstances.id, hi.id));
   }
 }

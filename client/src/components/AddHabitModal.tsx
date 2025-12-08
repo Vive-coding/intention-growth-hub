@@ -58,7 +58,7 @@ export const AddHabitModal = ({ isOpen, onClose, goalId, onHabitAdded, onHabitAs
   const totalSteps = 3;
   
   type Frequency = "daily" | "weekly" | "monthly";
-  const [rows, setRows] = useState<Array<{ goalId: string; goalTitle: string; goalTargetDate?: string; frequency: Frequency; perPeriodTarget: number; periodsCount: number | "" }>>([]);
+  const [rows, setRows] = useState<Array<{ goalId: string; goalTitle: string; goalTargetDate?: string; frequency: Frequency; perPeriodTarget: number; periodsCount: number | ""; weekdaysOnly?: boolean }>>([]);
   const [savingTargets, setSavingTargets] = useState(false);
 
   // Step titles for the wizard
@@ -68,14 +68,30 @@ export const AddHabitModal = ({ isOpen, onClose, goalId, onHabitAdded, onHabitAs
     "Set Targets"
   ];
 
-  function computePeriodsCount(frequency: Frequency, targetDate?: string): number | "" {
+  function computePeriodsCount(frequency: Frequency, targetDate?: string, weekdaysOnly?: boolean): number | "" {
     if (!targetDate) return "";
     const now = new Date();
     const end = new Date(targetDate);
     const msPerDay = 24 * 60 * 60 * 1000;
     const diffDays = Math.max(0, Math.ceil((end.getTime() - now.getTime()) / msPerDay));
     if (diffDays <= 0) return 1;
-    if (frequency === "daily") return Math.max(1, diffDays);
+    if (frequency === "daily") {
+      if (weekdaysOnly) {
+        // Count only weekdays between now and target date
+        let weekdayCount = 0;
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        for (let i = 0; i < diffDays; i++) {
+          const d = new Date(today.getTime());
+          d.setDate(today.getDate() + i);
+          const day = d.getDay();
+          if (day !== 0 && day !== 6) {
+            weekdayCount++;
+          }
+        }
+        return Math.max(1, weekdayCount);
+      }
+      return Math.max(1, diffDays);
+    }
     if (frequency === "weekly") return Math.max(1, Math.ceil(diffDays / 7));
     return Math.max(1, Math.ceil(diffDays / 30)); // monthly (approx)
   }
@@ -383,6 +399,7 @@ export const AddHabitModal = ({ isOpen, onClose, goalId, onHabitAdded, onHabitAs
           const frequency = rowData?.frequency || 'daily';
           const perPeriodTarget = rowData?.perPeriodTarget || 1;
           const periodsCount = rowData?.periodsCount || 1;
+          const weekdaysOnly = !!rowData?.weekdaysOnly;
           
           await apiRequest(`/api/goals/${finalGoalId}/habits`, {
             method: 'POST',
@@ -392,7 +409,8 @@ export const AddHabitModal = ({ isOpen, onClose, goalId, onHabitAdded, onHabitAs
               frequencySettings: {
                 frequency,
                 perPeriodTarget,
-                periodsCount
+                periodsCount,
+                ...(frequency === 'daily' && weekdaysOnly ? { weekdaysOnly: true } : {}),
               }
             }),
           });
@@ -638,7 +656,7 @@ export const AddHabitModal = ({ isOpen, onClose, goalId, onHabitAdded, onHabitAs
                                value={r.frequency} 
                                onValueChange={(val: Frequency) => setRows((prev) => prev.map((row, i) => {
                                  if (i !== idx) return row;
-                                 const nextCount = computePeriodsCount(val, row.goalTargetDate);
+                                 const nextCount = computePeriodsCount(val, row.goalTargetDate, row.weekdaysOnly);
                                  return { ...row, frequency: val, periodsCount: nextCount };
                                }))}
                              >
@@ -673,6 +691,28 @@ export const AddHabitModal = ({ isOpen, onClose, goalId, onHabitAdded, onHabitAs
                              />
                            </div>
                          </div>
+                        
+                        {r.frequency === 'daily' && (
+                          <div className="flex items-center gap-2 mt-1 text-sm">
+                            <input
+                              id={`weekdays-only-${idx}`}
+                              type="checkbox"
+                              className="h-4 w-4"
+                              checked={!!r.weekdaysOnly}
+                              onChange={(e) => {
+                                const checked = e.target.checked;
+                                setRows((prev) => prev.map((row, i) => {
+                                  if (i !== idx) return row;
+                                  const nextCount = computePeriodsCount(row.frequency, row.goalTargetDate, checked);
+                                  return { ...row, weekdaysOnly: checked, periodsCount: nextCount };
+                                }));
+                              }}
+                            />
+                            <Label htmlFor={`weekdays-only-${idx}`} className="text-xs sm:text-sm font-normal">
+                              Only count weekdays (Mon–Fri)
+                            </Label>
+                          </div>
+                        )}
                         
                         <div className="text-sm text-gray-600 bg-gray-50 rounded p-3">
                           {r.goalTargetDate ? (

@@ -10,6 +10,7 @@ import {
   insights,
 } from "../../../shared/schema";
 import { eq, and, desc, inArray } from "drizzle-orm";
+import { calculateFrequencySettings } from "../../routes/goals";
 
 /**
  * Helper: Generate habit suggestions for a goal
@@ -766,6 +767,40 @@ IMPORTANT:
 
       const goalTitle = goalRow.def.title;
 
+      // Helper: compute habit-based progress (avg of habit instance progress, capped at 90)
+      const computeHabitProgressForGoal = async (goalInstanceId: string) => {
+        const habits = await tx
+          .select({ hi: habitInstances })
+          .from(habitInstances)
+          .where(
+            and(
+              eq(habitInstances.userId, userId),
+              eq(habitInstances.goalInstanceId, goalInstanceId),
+            ),
+          );
+
+        if (habits.length === 0) return 0;
+
+        let total = 0;
+        for (const row of habits) {
+          const target = (row as any).hi?.targetValue || 0;
+          const current = (row as any).hi?.currentValue || 0;
+          const p = target > 0 ? Math.min((current / target) * 100, 100) : 0;
+          total += p;
+        }
+
+        const avg = total / habits.length;
+        return Math.min(avg, 90);
+      };
+
+      // Snapshot combined progress before any changes so we can preserve it
+      const beforeHabitProgress = await computeHabitProgressForGoal(goal_id);
+      const beforeOffset = goalRow.inst.currentValue || 0;
+      const beforeCombined = Math.max(
+        0,
+        Math.min(100, beforeHabitProgress + beforeOffset),
+      );
+
       // Optionally remove existing habit links for this goal
       if (remove_habit_ids && remove_habit_ids.length > 0) {
         await tx
@@ -819,19 +854,6 @@ IMPORTANT:
         title: string;
       }> = [];
 
-      // Simple default frequency settings similar to goal creation
-      const computeDefaults = () => {
-        const perPeriodTarget = 1;
-        const periodsCount = 30; // ~1 month
-        const targetValue = perPeriodTarget * periodsCount;
-        return {
-          frequency: "daily",
-          perPeriodTarget,
-          periodsCount,
-          targetValue,
-        };
-      };
-
       for (const h of new_habits) {
         // Try to reuse an existing habit definition with the same title
         const [existingDef] = await tx
@@ -866,11 +888,15 @@ IMPORTANT:
           habitDefId = createdDef.id as string;
         }
 
-        const freqDefaults = computeDefaults();
         const frequency = h.frequency || "daily";
-        const perPeriodTarget = h.perPeriodTarget ?? freqDefaults.perPeriodTarget;
-        const periodsCount = freqDefaults.periodsCount;
-        const targetValue = perPeriodTarget * periodsCount;
+        const perPeriodTarget = h.perPeriodTarget ?? 1;
+
+        // Use shared helper to calculate periods and total target based on goal target date
+        const settings = calculateFrequencySettings(
+          goalRow.inst.targetDate,
+          frequency,
+          perPeriodTarget,
+        );
 
         const [instance] = await tx
           .insert(habitInstances)
@@ -878,13 +904,13 @@ IMPORTANT:
             userId,
             goalInstanceId: goal_id,
             habitDefinitionId: habitDefId,
-            targetValue,
+            targetValue: settings.targetValue,
             currentValue: 0,
             goalSpecificStreak: 0,
             frequencySettings: {
-              frequency,
-              perPeriodTarget,
-              periodsCount,
+              frequency: settings.frequency,
+              perPeriodTarget: settings.perPeriodTarget,
+              periodsCount: settings.periodsCount,
             },
           } as any)
           .returning({ id: habitInstances.id });
@@ -895,6 +921,22 @@ IMPORTANT:
           title: h.title,
         });
       }
+
+      // Recompute habit-based progress after changes and adjust manual offset
+      const afterHabitProgress = await computeHabitProgressForGoal(goal_id);
+      const neededOffset = Math.round(
+        Math.max(0, Math.min(100, beforeCombined - afterHabitProgress)),
+      );
+
+      await tx
+        .update(goalInstances)
+        .set({ currentValue: neededOffset as any })
+        .where(
+          and(
+            eq(goalInstances.id, goal_id),
+            eq(goalInstances.userId, userId),
+          ),
+        );
 
       return {
         type: "goal_habit_swap",
