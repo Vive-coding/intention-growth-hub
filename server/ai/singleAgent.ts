@@ -941,12 +941,18 @@ ${myFocus.keyInsights.map((insight: any) => {
     
     // Invoke agent with tools
     // Pass userId and threadId via config for tools to access
+    // Prepare messages for tracing/evaluators (LangSmith expects top-level `messages`)
+    const messagesForTrace = Array.isArray(chatHistory)
+      ? [...chatHistory, { role: "user", content: userMessage }]
+      : [{ role: "user", content: userMessage }];
+
     let result;
     try {
       result = await agentExecutor.invoke(
       {
         input: userMessage,
         chat_history: chatHistory,
+        messages: messagesForTrace,
         steps: [], // Initialize steps for the agent
       }, 
       {
