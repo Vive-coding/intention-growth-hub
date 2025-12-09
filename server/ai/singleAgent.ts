@@ -942,9 +942,26 @@ ${myFocus.keyInsights.map((insight: any) => {
     // Invoke agent with tools
     // Pass userId and threadId via config for tools to access
     // Prepare messages for tracing/evaluators (LangSmith expects top-level `messages`)
-    const messagesForTrace = Array.isArray(chatHistory)
-      ? [...chatHistory, { role: "user", content: userMessage }]
-      : [{ role: "user", content: userMessage }];
+    const messagesForTrace = Array.isArray(chatHistory) ? [...chatHistory] : [];
+    const lastMsg = messagesForTrace[messagesForTrace.length - 1];
+    const lastRole =
+      (lastMsg as any)?.role ??
+      (lastMsg as any)?._getType?.() ??
+      (lastMsg as any)?.kwargs?.role;
+    const lastContent =
+      (lastMsg as any)?.content ??
+      (lastMsg as any)?.kwargs?.content ??
+      "";
+
+    // Avoid double-adding the current user message if it's already in chat_history
+    if (
+      !(
+        (lastRole === "human" || lastRole === "user") &&
+        String(lastContent).trim() === String(userMessage).trim()
+      )
+    ) {
+      messagesForTrace.push({ role: "user", content: userMessage });
+    }
 
     let result;
     try {
