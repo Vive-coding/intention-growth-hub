@@ -377,6 +377,15 @@ export const GoalsScreen = () => {
       const goalResponse = await apiRequest(`/api/goals/${goal.id}`, { credentials: 'include' });
       setSelectedGoalDetails(goalResponse);
       setShowGoalModal(true);
+      // Debug: Log goal ID comparison
+      const goalInstanceId = goalResponse.goalInstance?.id || goalResponse.id || goal.id;
+      console.log('Goal click - checking focus status:', {
+        goalId: goal.id,
+        goalResponseId: goalResponse.id,
+        goalInstanceId: goalResponse.goalInstance?.id,
+        focusGoalIds,
+        isInFocus: focusGoalIds.includes(goalInstanceId)
+      });
     } catch (error) {
       console.error('Error fetching goal details:', error);
     }
@@ -821,22 +830,33 @@ export const GoalsScreen = () => {
         )}
 
         {/* Modals */}
-        {selectedGoalDetails && (
-          <GoalDetailModal
-            isOpen={showGoalModal}
-            onClose={() => {
-              setShowGoalModal(false);
-              setSelectedGoalDetails(null);
-              // Refresh goals so any edits (like start timeline) are reflected immediately
-              fetchGoals();
-            }}
-            goal={selectedGoalDetails}
-            onUpdateProgress={handleProgressUpdate}
-            onAddHabit={handleAddHabitToGoal}
-            onRemoveHabit={handleRemoveHabitFromGoal}
-            onCompleteHabit={handleHabitComplete}
-          />
-        )}
+        {selectedGoalDetails && (() => {
+          // Extract the goal instance ID - this is what focusGoalIds contains
+          const goalInstanceId = selectedGoalDetails.goalInstance?.id || selectedGoalDetails.id;
+          const isInFocus = goalInstanceId ? focusGoalIds.includes(goalInstanceId) : false;
+          console.log('Rendering GoalDetailModal with isInFocus:', {
+            goalInstanceId,
+            focusGoalIds,
+            isInFocus
+          });
+          return (
+            <GoalDetailModal
+              isOpen={showGoalModal}
+              onClose={() => {
+                setShowGoalModal(false);
+                setSelectedGoalDetails(null);
+                // Refresh goals so any edits (like start timeline) are reflected immediately
+                fetchGoals();
+              }}
+              goal={selectedGoalDetails}
+              onUpdateProgress={handleProgressUpdate}
+              onAddHabit={handleAddHabitToGoal}
+              onRemoveHabit={handleRemoveHabitFromGoal}
+              onCompleteHabit={handleHabitComplete}
+              isInFocus={isInFocus}
+            />
+          );
+        })()}
 
         <CreateGoalModal
           isOpen={showCreateGoalModal}

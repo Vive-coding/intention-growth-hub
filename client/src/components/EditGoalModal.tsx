@@ -24,6 +24,7 @@ interface EditGoalModalProps {
     progress: number;
   };
   onSave: (goalId: string, updates: any) => void;
+  isInFocus?: boolean;
 }
 
 export const EditGoalModal = ({
@@ -31,6 +32,7 @@ export const EditGoalModal = ({
   onClose,
   goal,
   onSave,
+  isInFocus = false,
 }: EditGoalModalProps) => {
   const [title, setTitle] = useState(goal.title || "");
   const [description, setDescription] = useState(goal.description || "");
@@ -39,6 +41,7 @@ export const EditGoalModal = ({
   const [term, setTerm] = useState<'short' | 'mid' | 'long' | 'backlog'>(
     goal.term ?? 'backlog'
   );
+  const [showTermDropdown, setShowTermDropdown] = useState(false);
 
   // Fetch life metrics for selection
   const { data: lifeMetrics = [] } = useQuery({
@@ -94,6 +97,8 @@ export const EditGoalModal = ({
         console.log('No target date found, setting to empty');
       }
       setTerm(goal.term ?? 'backlog');
+      // Reset showTermDropdown when modal opens
+      setShowTermDropdown(false);
     }
   }, [isOpen, lifeMetrics, goal]);
 
@@ -143,6 +148,7 @@ export const EditGoalModal = ({
     }
 
     setTerm(goal.term ?? 'backlog');
+    setShowTermDropdown(false);
     
     onClose();
   };
@@ -207,24 +213,39 @@ export const EditGoalModal = ({
 
           <div>
             <Label htmlFor="term">Start timeline</Label>
-            <Select
-              value={term}
-              onValueChange={(value: 'short' | 'mid' | 'long' | 'backlog') =>
-                setTerm(value)
-              }
-            >
-              <SelectTrigger id="term">
-                <SelectValue
-                  placeholder="Choose when you’d like to start"
-                />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="backlog">Backlog (not scheduled yet)</SelectItem>
-                <SelectItem value="short">Short term (next few weeks)</SelectItem>
-                <SelectItem value="mid">Mid term (next 1–3 months)</SelectItem>
-                <SelectItem value="long">Long term (3+ months)</SelectItem>
-              </SelectContent>
-            </Select>
+            {isInFocus && !showTermDropdown ? (
+              <div className="space-y-2">
+                <div className="px-3 py-2 bg-emerald-50 text-emerald-700 rounded-md text-sm font-medium">
+                  Currently in focus
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowTermDropdown(true)}
+                  className="text-sm text-emerald-600 hover:text-emerald-700 underline"
+                >
+                  change this
+                </button>
+              </div>
+            ) : (
+              <Select
+                value={term}
+                onValueChange={(value: 'short' | 'mid' | 'long' | 'backlog') =>
+                  setTerm(value)
+                }
+              >
+                <SelectTrigger id="term">
+                  <SelectValue
+                    placeholder="Choose when you'd like to start"
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="backlog">Backlog (not scheduled yet)</SelectItem>
+                  <SelectItem value="short">Short term (next few weeks)</SelectItem>
+                  <SelectItem value="mid">Mid term (next 1–3 months)</SelectItem>
+                  <SelectItem value="long">Long term (3+ months)</SelectItem>
+                </SelectContent>
+              </Select>
+            )}
           </div>
 
           <div className="flex justify-end space-x-2 pt-4">

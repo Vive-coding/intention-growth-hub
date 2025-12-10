@@ -54,6 +54,7 @@ interface GoalDetailModalProps {
   onCompleteHabit: (habitId: string) => void;
   onRemoveHabit: (goalId: string, habitId: string) => void;
   onAddHabit: (goalId: string, habit: any) => void;
+  isInFocus?: boolean;
 }
 
 export const GoalDetailModal = ({
@@ -64,6 +65,7 @@ export const GoalDetailModal = ({
   onCompleteHabit,
   onRemoveHabit,
   onAddHabit,
+  isInFocus = false,
 }: GoalDetailModalProps) => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -216,6 +218,7 @@ export const GoalDetailModal = ({
   const [editTerm, setEditTerm] = useState<'short' | 'mid' | 'long' | 'backlog'>(
     (goalData as any).term ?? 'backlog'
   );
+  const [showTermDropdown, setShowTermDropdown] = useState(false);
   
   // Update progress when goal data changes
   useEffect(() => {
@@ -336,6 +339,8 @@ export const GoalDetailModal = ({
         console.log('No target date, setting to empty');
       }
       setEditTerm((goalData as any).term ?? 'backlog');
+      // Reset showTermDropdown when panel opens
+      setShowTermDropdown(false);
       
       // Set life metric only if we find an exact name match.
       if (lifeMetrics.length > 0 && goalData.lifeMetric?.name) {
@@ -1730,30 +1735,45 @@ export const GoalDetailModal = ({
 
                 <div>
                   <Label htmlFor="editTerm">Start timeline</Label>
-                  <Select
-                    value={editTerm}
-                    onValueChange={(value: 'short' | 'mid' | 'long' | 'backlog') =>
-                      setEditTerm(value)
-                    }
-                  >
-                    <SelectTrigger id="editTerm">
-                      <SelectValue placeholder="Choose when you’d like to start" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="backlog">
-                        Backlog (not scheduled yet)
-                      </SelectItem>
-                      <SelectItem value="short">
-                        Short term (next few weeks)
-                      </SelectItem>
-                      <SelectItem value="mid">
-                        Mid term (next 1–3 months)
-                      </SelectItem>
-                      <SelectItem value="long">
-                        Long term (3+ months)
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
+                  {isInFocus && !showTermDropdown ? (
+                    <div className="space-y-2">
+                      <div className="px-3 py-2 bg-emerald-50 text-emerald-700 rounded-md text-sm font-medium">
+                        Currently in focus
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setShowTermDropdown(true)}
+                        className="text-sm text-emerald-600 hover:text-emerald-700 underline"
+                      >
+                        change this
+                      </button>
+                    </div>
+                  ) : (
+                    <Select
+                      value={editTerm}
+                      onValueChange={(value: 'short' | 'mid' | 'long' | 'backlog') =>
+                        setEditTerm(value)
+                      }
+                    >
+                      <SelectTrigger id="editTerm">
+                        <SelectValue placeholder="Choose when you'd like to start" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="backlog">
+                          Backlog (not scheduled yet)
+                        </SelectItem>
+                        <SelectItem value="short">
+                          Short term (next few weeks)
+                        </SelectItem>
+                        <SelectItem value="mid">
+                          Mid term (next 1–3 months)
+                        </SelectItem>
+                        <SelectItem value="long">
+                          Long term (3+ months)
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )}
                 </div>
               </div>
             </div>

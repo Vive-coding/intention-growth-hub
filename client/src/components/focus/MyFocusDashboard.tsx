@@ -429,6 +429,7 @@ return (
                                                 // Refresh My Focus data after habit addition                                                                   
                                                 window.location.reload();
                                         }}
+                                        isInFocus={true}
                                 />
                         )}
 
