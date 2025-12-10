@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -31,6 +31,7 @@ import { AddHabitModal } from "./AddHabitModal";
 import { EditGoalModal } from "./EditGoalModal";
 import { CreateGoalModal } from "./CreateGoalModal";
 import { apiRequest } from "@/lib/queryClient";
+import { HabitsScreen } from "./HabitsScreen";
 
 // Custom pill color mapping for unique, meaningful colors
 const getPillBackgroundColor = (metricName: string) => {
@@ -126,6 +127,22 @@ export const GoalsScreen = () => {
   const [searchTerm, setSearchTerm] = useState("");
   // Use a single dropdown filter; remove extra toggles
   const [statusFilter, setStatusFilter] = useState<string>("all"); // all, active, completed, archived
+  const initialTab = useMemo(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get("tab") === "habits" ? "habits" : "goals";
+  }, []);
+  const [activeTab, setActiveTab] = useState<"goals" | "habits">(initialTab);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (activeTab === "habits") {
+      params.set("tab", "habits");
+    } else {
+      params.delete("tab");
+    }
+    const newUrl = `${window.location.pathname}${params.toString() ? `?${params.toString()}` : ""}${window.location.hash || ""}`;
+    window.history.replaceState({}, "", newUrl);
+  }, [activeTab]);
 
   // Fetch data on component mount
   useEffect(() => {
@@ -455,157 +472,184 @@ export const GoalsScreen = () => {
     );
   }
 
+  const Tabs = (
+    <div className="flex items-center gap-2 rounded-full bg-white/60 backdrop-blur px-1 py-1 border border-emerald-100 shadow-sm">
+      {([
+        { id: "goals", label: "Goals" },
+        { id: "habits", label: "Habits" },
+      ] as const).map((tab) => (
+        <button
+          key={tab.id}
+          onClick={() => setActiveTab(tab.id)}
+          className={`px-4 py-2 text-sm font-medium rounded-full transition-colors ${
+            activeTab === tab.id
+              ? "bg-emerald-600 text-white shadow"
+              : "text-gray-600 hover:text-gray-900"
+          }`}
+        >
+          {tab.label}
+        </button>
+      ))}
+    </div>
+  );
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-blue-50 p-4 lg:p-8 pb-24 lg:pb-8">
       <div className="max-w-7xl mx-auto space-y-6">
-        <div>
+        <div className="flex items-center justify-between gap-3 flex-wrap">
           <a href="/focus" className="inline-flex items-center text-sm text-emerald-700 hover:text-emerald-900">← Back to My Focus</a>
+          {Tabs}
         </div>
-        {/* Header */}
-        <PageHeader
-          title="Your Goals"
-          description="Track your progress and stay motivated"
-          icon={<Target className="w-5 h-5 sm:w-6 sm:h-6 text-purple-600" />}
-          showAddButton={true}
-          addButtonText="Add Goal"
-          addButtonIcon={<Plus className="w-4 h-4" />}
-          onAddClick={() => setShowCreateGoalModal(true)}
-          filters={[
-            {
-              label: "Life Metric",
-              value: filterMetric || "all",
-              options: [
-                { value: "all", label: "All metrics" },
-                ...lifeMetrics.map((metric) => ({
-                  value: metric.name,
-                  label: metric.name
-                }))
-              ],
-              onChange: setFilterMetric
-            },
-            {
-              label: "Status",
-              value: statusFilter,
-              options: [
-                { value: "all", label: "All Status" },
-                { value: "active", label: "Active" },
-                { value: "completed", label: "Completed" },
-                { value: "archived", label: "Archived" }
-              ],
-              onChange: setStatusFilter
-            }
-          ]}
-        />
 
-        {/* Search Bar */}
-        <Card className="shadow-md border-0 bg-white/80 backdrop-blur-sm">
-          <CardContent className="p-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-              <Input
-                placeholder="Search goals..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-              />
-            </div>
-          </CardContent>
-        </Card>
+        {activeTab === "goals" && (
+          <>
+            <PageHeader
+              title="Your Goals"
+              description="Track your progress and stay motivated"
+              icon={<Target className="w-5 h-5 sm:w-6 sm:h-6 text-purple-600" />}
+              showAddButton={true}
+              addButtonText="Add Goal"
+              addButtonIcon={<Plus className="w-4 h-4" />}
+              onAddClick={() => setShowCreateGoalModal(true)}
+              filters={[
+                {
+                  label: "Life Metric",
+                  value: filterMetric || "all",
+                  options: [
+                    { value: "all", label: "All metrics" },
+                    ...lifeMetrics.map((metric) => ({
+                      value: metric.name,
+                      label: metric.name
+                    }))
+                  ],
+                  onChange: setFilterMetric
+                },
+                {
+                  label: "Status",
+                  value: statusFilter,
+                  options: [
+                    { value: "all", label: "All Status" },
+                    { value: "active", label: "Active" },
+                    { value: "completed", label: "Completed" },
+                    { value: "archived", label: "Archived" }
+                  ],
+                  onChange: setStatusFilter
+                }
+              ]}
+            />
 
-        {/* Goals Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredGoals.map((goal) => (
-            <Card
-              key={goal.id}
-              className="shadow-md border-0 bg-white/80 backdrop-blur-sm hover:shadow-lg transition-shadow cursor-pointer"
-              onClick={() => handleGoalClick(goal)}
-            >
-              <CardContent className="p-6">
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex-1">
-                    <h3 className="font-semibold text-gray-800 mb-2">{goal.title}</h3>
-                    {goal.description && (
-                      <p className="text-sm text-gray-600 mb-3">{goal.description}</p>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {goal.status === 'completed' && (
-                      <CheckCircle className="w-5 h-5 text-green-500" />
-                    )}
-                    <Badge
-                      variant={goal.status === 'completed' ? 'default' : 'secondary'}
-                      className={goal.status === 'overdue' ? 'bg-red-100 text-red-800' : ''}
-                    >
-                      {goal.status}
-                    </Badge>
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-600">Progress</span>
-                    <span className="font-medium">{goal.progress}%</span>
-                  </div>
-                  <Progress value={goal.progress} className="h-2" />
-                  
-                  <div className="flex items-center justify-between text-sm text-gray-600">
-                    <div className="flex items-center gap-1">
-                      <Target className="w-4 h-4" />
-                      <span>{goal.habits.length} habits</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <Calendar className="w-4 h-4" />
-                      <span>{new Date(goal.targetDate).toLocaleDateString()}</span>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <div 
-                      className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium"
-                      style={{ 
-                        backgroundColor: getPillBackgroundColor(goal.lifeMetric.name),
-                        color: getPillTextColor(goal.lifeMetric.name)
-                      }}
-                    >
-                      {goal.lifeMetric.name}
-                    </div>
-                    {goal.term && (
-                      <div className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                        goal.term === 'short' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
-                        goal.term === 'mid' ? 'bg-blue-50 text-blue-700 border border-blue-200' :
-                        'bg-purple-50 text-purple-700 border border-purple-200'
-                      }`}>
-                        {goal.term === 'short' ? 'Short term' : goal.term === 'mid' ? 'Mid term' : 'Long term'}
-                      </div>
-                    )}
-                  </div>
+            <Card className="shadow-md border-0 bg-white/80 backdrop-blur-sm">
+              <CardContent className="p-4">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                  <Input
+                    placeholder="Search goals..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-10"
+                  />
                 </div>
               </CardContent>
             </Card>
-          ))}
-        </div>
 
-        {/* Empty State */}
-        {filteredGoals.length === 0 && !loading && (
-          <Card className="shadow-md border-0 bg-white/80 backdrop-blur-sm">
-            <CardContent className="p-8 text-center">
-              <Target className="mx-auto h-12 w-12 text-gray-300 mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No goals found</h3>
-              <p className="text-gray-500 mb-4">
-                {searchTerm || filterMetric 
-                  ? "Try adjusting your search or filter criteria"
-                  : "Create your first goal to start tracking your progress"
-                }
-              </p>
-              <Button
-                onClick={() => setShowCreateGoalModal(true)}
-                className="bg-purple-600 text-white hover:bg-purple-700"
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Add Your First Goal
-              </Button>
-            </CardContent>
-          </Card>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {filteredGoals.map((goal) => (
+                <Card
+                  key={goal.id}
+                  className="shadow-md border-0 bg-white/80 backdrop-blur-sm hover:shadow-lg transition-shadow cursor-pointer"
+                  onClick={() => handleGoalClick(goal)}
+                >
+                  <CardContent className="p-6">
+                    <div className="flex items-start justify-between mb-4">
+                      <div className="flex-1">
+                        <h3 className="font-semibold text-gray-800 mb-2">{goal.title}</h3>
+                        {goal.description && (
+                          <p className="text-sm text-gray-600 mb-3">{goal.description}</p>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {goal.status === 'completed' && (
+                          <CheckCircle className="w-5 h-5 text-green-500" />
+                        )}
+                        <Badge
+                          variant={goal.status === 'completed' ? 'default' : 'secondary'}
+                          className={goal.status === 'overdue' ? 'bg-red-100 text-red-800' : ''}
+                        >
+                          {goal.status}
+                        </Badge>
+                      </div>
+                    </div>
+
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-gray-600">Progress</span>
+                        <span className="font-medium">{goal.progress}%</span>
+                      </div>
+                      <Progress value={goal.progress} className="h-2" />
+                      
+                      <div className="flex items-center justify-between text-sm text-gray-600">
+                        <div className="flex items-center gap-1">
+                          <Target className="w-4 h-4" />
+                          <span>{goal.habits.length} habits</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Calendar className="w-4 h-4" />
+                          <span>{new Date(goal.targetDate).toLocaleDateString()}</span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <div 
+                          className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium"
+                          style={{ 
+                            backgroundColor: getPillBackgroundColor(goal.lifeMetric.name),
+                            color: getPillTextColor(goal.lifeMetric.name)
+                          }}
+                        >
+                          {goal.lifeMetric.name}
+                        </div>
+                        {goal.term && (
+                          <div className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                            goal.term === 'short' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
+                            goal.term === 'mid' ? 'bg-blue-50 text-blue-700 border border-blue-200' :
+                            'bg-purple-50 text-purple-700 border border-purple-200'
+                          }`}>
+                            {goal.term === 'short' ? 'Short term' : goal.term === 'mid' ? 'Mid term' : 'Long term'}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+
+            {filteredGoals.length === 0 && !loading && (
+              <Card className="shadow-md border-0 bg-white/80 backdrop-blur-sm">
+                <CardContent className="p-8 text-center">
+                  <Target className="mx-auto h-12 w-12 text-gray-300 mb-4" />
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">No goals found</h3>
+                  <p className="text-gray-500 mb-4">
+                    {searchTerm || filterMetric 
+                      ? "Try adjusting your search or filter criteria"
+                      : "Create your first goal to start tracking your progress"
+                    }
+                  </p>
+                  <Button
+                    onClick={() => setShowCreateGoalModal(true)}
+                    className="bg-purple-600 text-white hover:bg-purple-700"
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    Add Your First Goal
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+          </>
+        )}
+
+        {activeTab === "habits" && (
+          <HabitsScreen embedded showBackLink={false} />
         )}
 
         {/* Modals */}

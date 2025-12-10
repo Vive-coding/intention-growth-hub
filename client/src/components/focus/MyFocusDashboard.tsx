@@ -348,7 +348,7 @@ return (
                 </button>
               </div>
             )}
-            <a href="/goals" className="text-xs text-emerald-600 hover:text-emerald-700 hover:underline">All Goals →</a>
+            <a href="/goals" className="text-xs text-emerald-600 hover:text-emerald-700 hover:underline">All goals and habits →</a>
           </div>
         </div>
 
