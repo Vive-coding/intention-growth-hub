@@ -89,20 +89,27 @@ export const GoalDetailModal = ({
   }, [goal]);
   
     // Handle the actual API response structure
-  const goalData = currentGoalData.goalInstance ? {
-    id: currentGoalData.goalInstance.id,
-    title: currentGoalData.goalDefinition?.title || "Untitled Goal",
-    description: currentGoalData.goalDefinition?.description || "",
-    progress: currentGoalData.goalInstance.currentValue || 0, // currentValue is now stored as percentage                                                       
-    currentValue: currentGoalData.goalInstance.currentValue,
-    targetValue: currentGoalData.goalInstance.targetValue,
-    targetDate: currentGoalData.goalInstance.targetDate, // Include target date
-    lifeMetric: currentGoalData.lifeMetric || { name: currentGoalData.goalDefinition?.category || "General", color: "#6B7280" },                                
-    habits: currentGoalData.habits || [],
-  } : {
-    ...currentGoalData,
-    habits: currentGoalData.habits || [],
-  };
+  const goalData = currentGoalData.goalInstance
+    ? {
+        id: currentGoalData.goalInstance.id,
+        title: currentGoalData.goalDefinition?.title || "Untitled Goal",
+        description: currentGoalData.goalDefinition?.description || "",
+        progress: currentGoalData.goalInstance.currentValue || 0, // currentValue is now stored as percentage
+        currentValue: currentGoalData.goalInstance.currentValue,
+        targetValue: currentGoalData.goalInstance.targetValue,
+        targetDate: currentGoalData.goalInstance.targetDate, // Include target date
+        term: (currentGoalData as any).term ?? null,
+        lifeMetric:
+          currentGoalData.lifeMetric || {
+            name: currentGoalData.goalDefinition?.category || "General",
+            color: "#6B7280",
+          },
+        habits: currentGoalData.habits || [],
+      }
+    : {
+        ...currentGoalData,
+        habits: currentGoalData.habits || [],
+      };
 
   console.log('Goal data:', goalData);
   console.log('Associated habits:', goalData.habits);
@@ -206,6 +213,9 @@ export const GoalDetailModal = ({
   // Initialize with empty string - will be set once lifeMetrics loads
   const [editLifeMetricId, setEditLifeMetricId] = useState("");
   const [editTargetDate, setEditTargetDate] = useState("");
+  const [editTerm, setEditTerm] = useState<'short' | 'mid' | 'long' | 'backlog'>(
+    (goalData as any).term ?? 'backlog'
+  );
   
   // Update progress when goal data changes
   useEffect(() => {
@@ -273,17 +283,25 @@ export const GoalDetailModal = ({
     retry: 1, // Always fetch life metrics, not just when edit panel is open
   });
   
-  // Initialize life metric ID whenever lifeMetrics loads or modal opens
-  // This ensures the correct life metric is selected even if lifeMetrics loads after the modal opens
   useEffect(() => {
     if (isOpen && lifeMetrics.length > 0 && goalData.lifeMetric?.name) {
-      const currentLifeMetric = lifeMetrics.find((metric: any) => 
-        metric.name === goalData.lifeMetric.name
+      const currentLifeMetric = lifeMetrics.find(
+        (metric: any) => metric.name === goalData.lifeMetric.name
       );
       if (currentLifeMetric && editLifeMetricId !== currentLifeMetric.id) {
         setEditLifeMetricId(currentLifeMetric.id);
-        console.log('✅ Initialized life metric ID:', currentLifeMetric.id, 'for', goalData.lifeMetric.name);
+        console.log(
+          "✅ Initialized life metric ID:",
+          currentLifeMetric.id,
+          "for",
+          goalData.lifeMetric.name
+        );
       }
+      // If we couldn't find an exact match, don't change lifeMetricId.
+      // This avoids accidentally resetting the life metric to a fallback value.
+    } else if (isOpen) {
+      // Ensure we don't reuse any stale ID when we can't confidently resolve it
+      setEditLifeMetricId("");
     }
   }, [isOpen, lifeMetrics, goalData.lifeMetric?.name, editLifeMetricId]);
   
@@ -317,35 +335,37 @@ export const GoalDetailModal = ({
         setEditTargetDate("");
         console.log('No target date, setting to empty');
       }
+      setEditTerm((goalData as any).term ?? 'backlog');
       
-      // Set life metric
-      if (lifeMetrics.length > 0) {
-        console.log('Searching for life metric:', goalData.lifeMetric.name);
-        console.log('Available life metrics:', lifeMetrics.map((m: any) => ({id: m.id, name: m.name})));
-        
-        const currentLifeMetric = lifeMetrics.find((metric: any) => 
-          metric.name === goalData.lifeMetric.name
+      // Set life metric only if we find an exact name match.
+      if (lifeMetrics.length > 0 && goalData.lifeMetric?.name) {
+        console.log("Searching for life metric:", goalData.lifeMetric.name);
+        console.log(
+          "Available life metrics:",
+          lifeMetrics.map((m: any) => ({ id: m.id, name: m.name }))
         );
+
+        const currentLifeMetric = lifeMetrics.find(
+          (metric: any) => metric.name === goalData.lifeMetric.name
+        );
+
         if (currentLifeMetric) {
           setEditLifeMetricId(currentLifeMetric.id);
-          console.log('✅ Set life metric to:', currentLifeMetric.id, currentLifeMetric.name);
+          console.log(
+            "✅ Set life metric to:",
+            currentLifeMetric.id,
+            currentLifeMetric.name
+          );
         } else {
-          console.warn('❌ Could not find life metric for:', goalData.lifeMetric.name);
-          console.log('Full goalData.lifeMetric:', goalData.lifeMetric);
-          
-          // Try to find by partial match or similar name
-          const fallbackMetric = lifeMetrics.find((metric: any) => 
-            metric.name.toLowerCase().includes(goalData.lifeMetric.name.toLowerCase()) ||
-            goalData.lifeMetric.name.toLowerCase().includes(metric.name.toLowerCase())
-          ) || lifeMetrics[0]; // Use first available metric as final fallback
-          
-          if (fallbackMetric) {
-            setEditLifeMetricId(fallbackMetric.id);
-            console.log('🔄 Using fallback life metric:', fallbackMetric.id, fallbackMetric.name);
-          }
+          console.warn(
+            "❌ Could not find life metric for:",
+            goalData.lifeMetric.name
+          );
+          console.log("Full goalData.lifeMetric:", goalData.lifeMetric);
+          // Leave editLifeMetricId as-is so we don't change the life metric on save.
         }
       } else {
-        console.warn('No life metrics available yet');
+        console.warn("No life metrics available yet or missing goalData.lifeMetric.name");
       }
     }
   }, [showEditPanel, lifeMetrics]); // Trigger when panel opens OR when life metrics are loaded
@@ -489,12 +509,13 @@ export const GoalDetailModal = ({
     }
     
     try {
-      const updates = {
+      const updates: any = {
         title: editTitle.trim(),
         description: editDescription.trim(),
         // Only include lifeMetricId if we have a valid value, otherwise omit to keep existing
         ...(editLifeMetricId ? { lifeMetricId: editLifeMetricId } : {}),
         targetDate: editTargetDate || null,
+        term: editTerm === 'backlog' ? null : editTerm,
       };
       
       console.log('Saving goal updates:', updates);
@@ -1680,8 +1701,11 @@ export const GoalDetailModal = ({
 
                 <div>
                   <Label htmlFor="editLifeMetric">Life Metric</Label>
-                  <Select value={editLifeMetricId} onValueChange={setEditLifeMetricId}>
-                    <SelectTrigger>
+                  <Select
+                    value={editLifeMetricId || undefined}
+                    onValueChange={setEditLifeMetricId}
+                  >
+                    <SelectTrigger id="editLifeMetric">
                       <SelectValue placeholder={goalData.lifeMetric.name} />
                     </SelectTrigger>
                     <SelectContent>
@@ -1702,6 +1726,34 @@ export const GoalDetailModal = ({
                     value={editTargetDate}
                     onChange={(e) => setEditTargetDate(e.target.value)}
                   />
+                </div>
+
+                <div>
+                  <Label htmlFor="editTerm">Start timeline</Label>
+                  <Select
+                    value={editTerm}
+                    onValueChange={(value: 'short' | 'mid' | 'long' | 'backlog') =>
+                      setEditTerm(value)
+                    }
+                  >
+                    <SelectTrigger id="editTerm">
+                      <SelectValue placeholder="Choose when you’d like to start" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="backlog">
+                        Backlog (not scheduled yet)
+                      </SelectItem>
+                      <SelectItem value="short">
+                        Short term (next few weeks)
+                      </SelectItem>
+                      <SelectItem value="mid">
+                        Mid term (next 1–3 months)
+                      </SelectItem>
+                      <SelectItem value="long">
+                        Long term (3+ months)
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
             </div>

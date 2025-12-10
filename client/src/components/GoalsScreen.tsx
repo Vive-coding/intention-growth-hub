@@ -115,6 +115,8 @@ export const GoalsScreen = () => {
   const [suggestedGoals, setSuggestedGoals] = useState<any[]>([]);
   const [habits, setHabits] = useState<Habit[]>([]);
   const [lifeMetrics, setLifeMetrics] = useState<LifeMetric[]>([]);
+  const [focusGoalIds, setFocusGoalIds] = useState<string[]>([]);
+  const [focusGoalRanks, setFocusGoalRanks] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [selectedGoalDetails, setSelectedGoalDetails] = useState<Goal | null>(null);
   const [showGoalModal, setShowGoalModal] = useState(false);
@@ -126,7 +128,7 @@ export const GoalsScreen = () => {
   const [filterMetric, setFilterMetric] = useState<string>("");
   const [searchTerm, setSearchTerm] = useState("");
   // Use a single dropdown filter; remove extra toggles
-  const [statusFilter, setStatusFilter] = useState<string>("all"); // all, active, completed, archived
+  const [statusFilter, setStatusFilter] = useState<string>("active"); // all, active, completed, archived
   const initialTab = useMemo(() => {
     const params = new URLSearchParams(window.location.search);
     return params.get("tab") === "habits" ? "habits" : "goals";
@@ -150,6 +152,7 @@ export const GoalsScreen = () => {
     fetchSuggestedGoals();
     fetchHabits();
     fetchLifeMetrics();
+    fetchFocusGoals();
   }, []);
 
   // Refetch goals when filters change
@@ -207,6 +210,32 @@ export const GoalsScreen = () => {
       console.error('Error fetching life metrics:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchFocusGoals = async () => {
+    try {
+      const response = await apiRequest('/api/my-focus');
+      const priorityGoals = Array.isArray(response?.priorityGoals) ? response.priorityGoals : [];
+      const ids: string[] = [];
+      const ranks: Record<string, number> = {};
+
+      priorityGoals.forEach((g: any, index: number) => {
+        const id = g?.id;
+        if (typeof id === "string") {
+          ids.push(id);
+          const rank =
+            typeof g?.rank === "number" && g.rank > 0
+              ? g.rank
+              : index + 1;
+          ranks[id] = rank;
+        }
+      });
+
+      setFocusGoalIds(ids);
+      setFocusGoalRanks(ranks);
+    } catch (error) {
+      console.error('Error fetching focus goals:', error);
     }
   };
 
@@ -450,14 +479,49 @@ export const GoalsScreen = () => {
   };
 
   // Filter goals based on search criteria (client-side filtering for search only)
-  const filteredGoals = goals
-    .filter(goal => {
-      const matchesSearch = goal.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           goal.description?.toLowerCase().includes(searchTerm.toLowerCase());
-      return matchesSearch;
-    })
-    .slice()
-    .sort((a, b) => (b.progress || 0) - (a.progress || 0));
+  const filteredGoals = goals.filter(goal => {
+    const matchesSearch =
+      goal.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      goal.description?.toLowerCase().includes(searchTerm.toLowerCase());
+    return matchesSearch;
+  });
+
+  const sortGoalsForSection = (list: Goal[]) => {
+    return list
+      .slice()
+      .sort((a, b) => {
+        const aDate = a.targetDate ? new Date(a.targetDate).getTime() : Number.POSITIVE_INFINITY;
+        const bDate = b.targetDate ? new Date(b.targetDate).getTime() : Number.POSITIVE_INFINITY;
+        if (aDate !== bDate) return aDate - bDate;
+        return (b.progress || 0) - (a.progress || 0);
+      });
+  };
+
+  const focusSet = new Set(focusGoalIds);
+
+  const focusGoals = focusGoalIds
+    .map((id) => filteredGoals.find((g) => g.id === id))
+    .filter((g): g is Goal => Boolean(g));
+  const shortTermGoals = sortGoalsForSection(
+    filteredGoals.filter((g) => !focusSet.has(g.id) && g.term === "short")
+  );
+  const midTermGoals = sortGoalsForSection(
+    filteredGoals.filter((g) => !focusSet.has(g.id) && g.term === "mid")
+  );
+  const longTermGoals = sortGoalsForSection(
+    filteredGoals.filter((g) => !focusSet.has(g.id) && g.term === "long")
+  );
+  const backlogGoals = sortGoalsForSection(
+    filteredGoals.filter((g) => !focusSet.has(g.id) && !g.term)
+  );
+
+  const hasAnyGoals =
+    focusGoals.length +
+      shortTermGoals.length +
+      midTermGoals.length +
+      longTermGoals.length +
+      backlogGoals.length >
+    0;
 
   if (loading) {
     return (
@@ -471,6 +535,147 @@ export const GoalsScreen = () => {
       </div>
     );
   }
+
+  const renderGoalCard = (
+    goal: Goal,
+    priorityRank?: number,
+    options?: { isInFocus?: boolean }
+  ) => {
+    const isInFocus = options?.isInFocus ?? false;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const targetTime = goal.targetDate
+      ? new Date(goal.targetDate).setHours(0, 0, 0, 0)
+      : null;
+
+    const isExpired =
+      !isInFocus &&
+      goal.status === "active" &&
+      targetTime !== null &&
+      targetTime < today.getTime();
+
+    const badgeLabel = isExpired ? "Expired" : goal.status;
+    const badgeClass = isExpired
+      ? "bg-red-50 text-red-700 border border-red-200"
+      : goal.status === "overdue"
+      ? "bg-red-100 text-red-800"
+      : "";
+
+    return (
+    <Card
+      key={goal.id}
+      className="shadow-md border-0 bg-white/80 backdrop-blur-sm hover:shadow-lg transition-shadow cursor-pointer"
+      onClick={() => handleGoalClick(goal)}
+    >
+      <CardContent className="p-6">
+        <div className="flex items-start justify-between mb-4">
+          <div className="flex-1">
+            <h3 className="font-semibold text-gray-800 mb-2">{goal.title}</h3>
+            {goal.description && (
+              <p className="text-sm text-gray-600 mb-3">{goal.description}</p>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            {goal.status === "completed" && (
+              <CheckCircle className="w-5 h-5 text-green-500" />
+            )}
+            <Badge
+              variant={goal.status === "completed" ? "default" : "secondary"}
+              className={badgeClass}
+            >
+              {badgeLabel}
+            </Badge>
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-gray-600">Progress</span>
+            <span className="font-medium">{goal.progress}%</span>
+          </div>
+          <Progress value={goal.progress} className="h-2" />
+
+          <div className="flex items-center justify-between text-sm text-gray-600">
+            <div className="flex items-center gap-1">
+              <Target className="w-4 h-4" />
+              <span>{goal.habits.length} habits</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <Calendar className="w-4 h-4" />
+              <span>{new Date(goal.targetDate).toLocaleDateString()}</span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap">
+            {typeof priorityRank === "number" && (
+              <div className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+                Priority {priorityRank}
+              </div>
+            )}
+            <div
+              className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium"
+              style={{
+                backgroundColor: getPillBackgroundColor(goal.lifeMetric.name),
+                color: getPillTextColor(goal.lifeMetric.name),
+              }}
+            >
+              {goal.lifeMetric.name}
+            </div>
+            {goal.term && (
+              <div
+                className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                  goal.term === "short"
+                    ? "bg-amber-50 text-amber-700 border border-amber-200"
+                    : goal.term === "mid"
+                    ? "bg-blue-50 text-blue-700 border border-blue-200"
+                    : "bg-purple-50 text-purple-700 border border-purple-200"
+                }`}
+              >
+                {goal.term === "short"
+                  ? "Short term"
+                  : goal.term === "mid"
+                  ? "Mid term"
+                  : "Long term"}
+              </div>
+            )}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+    );
+  };
+
+  const renderSection = (
+    title: string,
+    subtitle: string | null,
+    items: Goal[],
+    options?: {
+      getPriorityRank?: (goal: Goal) => number | undefined;
+      isInFocus?: boolean;
+    }
+  ) => {
+    if (!items.length) return null;
+    return (
+      <section key={title} className="space-y-3">
+        <div className="flex items-baseline justify-between gap-2">
+          <h2 className="text-sm font-semibold text-gray-900">{title}</h2>
+          {subtitle && (
+            <p className="text-xs text-gray-500 max-w-md">{subtitle}</p>
+          )}
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {items.map((goal) =>
+            renderGoalCard(
+              goal,
+              options?.getPriorityRank?.(goal),
+              { isInFocus: options?.isInFocus }
+            )
+          )}
+        </div>
+      </section>
+    );
+  };
 
   const Tabs = (
     <div className="flex items-center gap-2 rounded-full bg-white/60 backdrop-blur px-1 py-1 border border-emerald-100 shadow-sm">
@@ -552,88 +757,51 @@ export const GoalsScreen = () => {
               </CardContent>
             </Card>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredGoals.map((goal) => (
-                <Card
-                  key={goal.id}
-                  className="shadow-md border-0 bg-white/80 backdrop-blur-sm hover:shadow-lg transition-shadow cursor-pointer"
-                  onClick={() => handleGoalClick(goal)}
-                >
-                  <CardContent className="p-6">
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="flex-1">
-                        <h3 className="font-semibold text-gray-800 mb-2">{goal.title}</h3>
-                        {goal.description && (
-                          <p className="text-sm text-gray-600 mb-3">{goal.description}</p>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {goal.status === 'completed' && (
-                          <CheckCircle className="w-5 h-5 text-green-500" />
-                        )}
-                        <Badge
-                          variant={goal.status === 'completed' ? 'default' : 'secondary'}
-                          className={goal.status === 'overdue' ? 'bg-red-100 text-red-800' : ''}
-                        >
-                          {goal.status}
-                        </Badge>
-                      </div>
-                    </div>
+            {hasAnyGoals && (
+              <div className="space-y-8">
+                {renderSection(
+                  "In focus",
+                  "Goals currently prioritized in My Focus.",
+                  focusGoals,
+                  {
+                    getPriorityRank: (goal) => focusGoalRanks[goal.id],
+                    isInFocus: true,
+                  }
+                )}
+                {renderSection(
+                  "Short term",
+                  "Goals you could start in the next few weeks.",
+                  shortTermGoals
+                )}
+                {renderSection(
+                  "Mid term",
+                  "Goals that are a good fit for the next 1–3 months.",
+                  midTermGoals
+                )}
+                {renderSection(
+                  "Long term",
+                  "Longer horizon goals to work toward over time.",
+                  longTermGoals
+                )}
+                {renderSection(
+                  "Backlog",
+                  "Goals without a start timeline yet.",
+                  backlogGoals
+                )}
+              </div>
+            )}
 
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-gray-600">Progress</span>
-                        <span className="font-medium">{goal.progress}%</span>
-                      </div>
-                      <Progress value={goal.progress} className="h-2" />
-                      
-                      <div className="flex items-center justify-between text-sm text-gray-600">
-                        <div className="flex items-center gap-1">
-                          <Target className="w-4 h-4" />
-                          <span>{goal.habits.length} habits</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Calendar className="w-4 h-4" />
-                          <span>{new Date(goal.targetDate).toLocaleDateString()}</span>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <div 
-                          className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium"
-                          style={{ 
-                            backgroundColor: getPillBackgroundColor(goal.lifeMetric.name),
-                            color: getPillTextColor(goal.lifeMetric.name)
-                          }}
-                        >
-                          {goal.lifeMetric.name}
-                        </div>
-                        {goal.term && (
-                          <div className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                            goal.term === 'short' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
-                            goal.term === 'mid' ? 'bg-blue-50 text-blue-700 border border-blue-200' :
-                            'bg-purple-50 text-purple-700 border border-purple-200'
-                          }`}>
-                            {goal.term === 'short' ? 'Short term' : goal.term === 'mid' ? 'Mid term' : 'Long term'}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-
-            {filteredGoals.length === 0 && !loading && (
+            {!hasAnyGoals && !loading && (
               <Card className="shadow-md border-0 bg-white/80 backdrop-blur-sm">
                 <CardContent className="p-8 text-center">
                   <Target className="mx-auto h-12 w-12 text-gray-300 mb-4" />
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">No goals found</h3>
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">
+                    No goals found
+                  </h3>
                   <p className="text-gray-500 mb-4">
-                    {searchTerm || filterMetric 
+                    {searchTerm || filterMetric
                       ? "Try adjusting your search or filter criteria"
-                      : "Create your first goal to start tracking your progress"
-                    }
+                      : "Create your first goal to start tracking your progress"}
                   </p>
                   <Button
                     onClick={() => setShowCreateGoalModal(true)}
@@ -659,6 +827,8 @@ export const GoalsScreen = () => {
             onClose={() => {
               setShowGoalModal(false);
               setSelectedGoalDetails(null);
+              // Refresh goals so any edits (like start timeline) are reflected immediately
+              fetchGoals();
             }}
             goal={selectedGoalDetails}
             onUpdateProgress={handleProgressUpdate}

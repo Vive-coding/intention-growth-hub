@@ -16,6 +16,7 @@ interface EditGoalModalProps {
     title: string;
     description?: string;
     targetDate?: string;
+    term?: 'short' | 'mid' | 'long' | null;
     lifeMetric: {
       name: string;
       color: string;
@@ -35,6 +36,9 @@ export const EditGoalModal = ({
   const [description, setDescription] = useState(goal.description || "");
   const [lifeMetricId, setLifeMetricId] = useState("");
   const [targetDate, setTargetDate] = useState("");
+  const [term, setTerm] = useState<'short' | 'mid' | 'long' | 'backlog'>(
+    goal.term ?? 'backlog'
+  );
 
   // Fetch life metrics for selection
   const { data: lifeMetrics = [] } = useQuery({
@@ -45,7 +49,6 @@ export const EditGoalModal = ({
     retry: 1,
   });
 
-  // Initialize form with current goal data when modal opens
   useEffect(() => {
     if (isOpen) {
       console.log('EditGoalModal opened with goal data:', goal);
@@ -55,17 +58,29 @@ export const EditGoalModal = ({
       setTitle(goal.title);
       setDescription(goal.description || "");
       
-      // Find and set life metric ID
-      if (lifeMetrics.length > 0) {
-        const currentLifeMetric = lifeMetrics.find((metric: any) => 
-          metric.name === goal.lifeMetric.name
+      // Find and set life metric ID only if we have an exact match
+      if (lifeMetrics.length > 0 && goal.lifeMetric?.name) {
+        const currentLifeMetric = lifeMetrics.find(
+          (metric: any) => metric.name === goal.lifeMetric.name
         );
         if (currentLifeMetric) {
           setLifeMetricId(currentLifeMetric.id);
-          console.log('Set life metric ID:', currentLifeMetric.id, 'for metric:', goal.lifeMetric.name);
+          console.log(
+            "Set life metric ID:",
+            currentLifeMetric.id,
+            "for metric:",
+            goal.lifeMetric.name
+          );
         } else {
-          console.warn('Could not find life metric ID for:', goal.lifeMetric.name);
+          console.warn(
+            "Could not find life metric ID for:",
+            goal.lifeMetric.name
+          );
+          // Leave lifeMetricId empty so we don't accidentally change it on save
+          setLifeMetricId("");
         }
+      } else {
+        setLifeMetricId("");
       }
       
       // Set target date if it exists
@@ -78,6 +93,7 @@ export const EditGoalModal = ({
         setTargetDate("");
         console.log('No target date found, setting to empty');
       }
+      setTerm(goal.term ?? 'backlog');
     }
   }, [isOpen, lifeMetrics, goal]);
 
@@ -87,9 +103,15 @@ export const EditGoalModal = ({
     const updates: any = {
       title: title.trim(),
       description: description.trim(),
-      lifeMetricId: lifeMetricId, // Always include life metric ID
       targetDate: targetDate || null, // Include target date (null if empty)
+      term: term === 'backlog' ? null : term,
     };
+
+    // Only include lifeMetricId if we have a resolved value;
+    // otherwise keep the existing life metric unchanged.
+    if (lifeMetricId) {
+      updates.lifeMetricId = lifeMetricId;
+    }
 
     console.log('Saving goal updates:', updates);
     onSave(goal.id, updates);
@@ -119,6 +141,8 @@ export const EditGoalModal = ({
     } else {
       setTargetDate("");
     }
+
+    setTerm(goal.term ?? 'backlog');
     
     onClose();
   };
@@ -154,7 +178,10 @@ export const EditGoalModal = ({
 
           <div>
             <Label htmlFor="lifeMetric">Life Metric</Label>
-            <Select value={lifeMetricId} onValueChange={setLifeMetricId}>
+            <Select
+              value={lifeMetricId || undefined}
+              onValueChange={setLifeMetricId}
+            >
               <SelectTrigger>
                 <SelectValue placeholder={goal.lifeMetric.name} />
               </SelectTrigger>
@@ -176,6 +203,28 @@ export const EditGoalModal = ({
               value={targetDate}
               onChange={(e) => setTargetDate(e.target.value)}
             />
+          </div>
+
+          <div>
+            <Label htmlFor="term">Start timeline</Label>
+            <Select
+              value={term}
+              onValueChange={(value: 'short' | 'mid' | 'long' | 'backlog') =>
+                setTerm(value)
+              }
+            >
+              <SelectTrigger id="term">
+                <SelectValue
+                  placeholder="Choose when you’d like to start"
+                />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="backlog">Backlog (not scheduled yet)</SelectItem>
+                <SelectItem value="short">Short term (next few weeks)</SelectItem>
+                <SelectItem value="mid">Mid term (next 1–3 months)</SelectItem>
+                <SelectItem value="long">Long term (3+ months)</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="flex justify-end space-x-2 pt-4">

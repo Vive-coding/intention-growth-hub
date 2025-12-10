@@ -2507,10 +2507,20 @@ router.get("/:id", async (req: Request, res: Response) => {
       .select({
         goalInstance: goalInstances,
         goalDefinition: goalDefinitions,
+        lifeMetric: lifeMetricDefinitions,
       })
       .from(goalInstances)
-      .innerJoin(goalDefinitions, eq(goalInstances.goalDefinitionId, goalDefinitions.id))
-      .where(and(eq(goalInstances.id, goalId), eq(goalInstances.userId, userId)))
+      .innerJoin(
+        goalDefinitions,
+        eq(goalInstances.goalDefinitionId, goalDefinitions.id),
+      )
+      .leftJoin(
+        lifeMetricDefinitions,
+        eq(goalDefinitions.lifeMetricId, lifeMetricDefinitions.id),
+      )
+      .where(
+        and(eq(goalInstances.id, goalId), eq(goalInstances.userId, userId)),
+      )
       .limit(1);
     
     const goal = goalWithDefinition[0];
@@ -2598,17 +2608,6 @@ router.get("/:id", async (req: Request, res: Response) => {
     // Only mark as completed if it was manually completed, not from habit progress
     // Goals can reach 90% from habits but need manual completion to reach 100%
 
-    // Get life metric
-    let lifeMetric = null;
-    if (goal.goalDefinition.category) {
-      const lifeMetricResults = await db
-        .select()
-        .from(lifeMetricDefinitions)
-        .where(eq(lifeMetricDefinitions.name, goal.goalDefinition.category))
-        .limit(1);
-      lifeMetric = lifeMetricResults.length > 0 ? lifeMetricResults[0] : null;
-    }
-
     const mappedHabits = associatedHabits.map(hi => ({
       id: hi.habitDefinition.id,
       title: hi.habitDefinition.name,
@@ -2633,7 +2632,8 @@ router.get("/:id", async (req: Request, res: Response) => {
 
     const goalWithHabits = {
       ...goal,
-      lifeMetric,
+      // Prefer the FK-joined life metric; fall back to null if unavailable.
+      lifeMetric: goal.lifeMetric || null,
       goalInstance: {
         ...goal.goalInstance,
         currentValue: finalProgress,
@@ -2997,6 +2997,7 @@ router.put("/:id", async (req: Request, res: Response) => {
       status,
       lifeMetricId,
       lifeMetricName,
+      term,
     } = req.body;
 
     // First, get the goal instance to find its definition
@@ -3016,6 +3017,21 @@ router.put("/:id", async (req: Request, res: Response) => {
     }
     if (typeof description === "string") {
       definitionUpdates.description = description;
+    }
+
+    if (term !== undefined) {
+      if (term === null || term === "") {
+        definitionUpdates.term = null;
+      } else if (typeof term === "string") {
+        const normalized = term.trim().toLowerCase();
+        if (normalized === "short" || normalized === "mid" || normalized === "long") {
+          definitionUpdates.term = normalized;
+        } else {
+          return res.status(400).json({
+            message: "term must be one of 'short', 'mid', 'long', or null.",
+          });
+        }
+      }
     }
 
     if (lifeMetricId !== undefined || lifeMetricName !== undefined) {
