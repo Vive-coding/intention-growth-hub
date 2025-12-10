@@ -232,8 +232,8 @@ const Index = () => {
                         </button>
                       </SheetTrigger>
                       <SheetContent side="left" className="p-0 w-80">
-                        <div className="flex flex-col h-full">
-                          <div className="px-4 py-4 border-b shrink-0">
+                        <div className="flex flex-col h-full bg-gradient-to-br from-green-50 via-white to-blue-50">
+                          <div className="px-4 py-4 border-b shrink-0 flex justify-center">
                             <img src="/goodhabit.ai(200 x 40 px).png" alt="GoodHabit" className="h-6" />
                           </div>
                           <nav className="px-2 py-2 space-y-1 flex-1 overflow-y-auto min-h-0">
