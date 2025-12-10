@@ -306,7 +306,7 @@ export const GoalDetailModal = ({
       // Ensure we don't reuse any stale ID when we can't confidently resolve it
       setEditLifeMetricId("");
     }
-  }, [isOpen, lifeMetrics, goalData.lifeMetric?.name, editLifeMetricId]);
+  }, [isOpen, lifeMetrics, goalData.lifeMetric?.name]);
   
   // Initialize edit form when edit panel opens for the first time
   useEffect(() => {
