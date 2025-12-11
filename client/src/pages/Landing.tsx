@@ -12,53 +12,6 @@ export const Landing = () => {
   const { user, isAuthenticated, isLoading } = useAuth();
   const [, navigate] = useLocation();
 
-  // Carousel picker frameworks list
-  const frameworks = [
-    "GROW",
-    "SMART",
-    "Ikigai",
-    "Kaizen",
-    "Habit stacking",
-    "Hansei",
-    "The Five Whys",
-    "Wheel of life"
-  ];
-  const [frameworkIndex, setFrameworkIndex] = useState(0);
-  const [isWheelVisible, setIsWheelVisible] = useState(false);
-
-  // Intersection observer to detect when wheel picker is visible
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          setIsWheelVisible(entry.isIntersecting);
-        });
-      },
-      { threshold: 0.3 } // Trigger when 30% of the element is visible
-    );
-
-    const wheelElement = document.getElementById('frameworks-wheel');
-    if (wheelElement) {
-      observer.observe(wheelElement);
-    }
-
-    return () => {
-      if (wheelElement) {
-        observer.unobserve(wheelElement);
-      }
-    };
-  }, []);
-
-  // Only animate when wheel is visible
-  useEffect(() => {
-    if (!isWheelVisible) return;
-
-    const id = setInterval(() => {
-      // Infinite scroll: keep incrementing forever, never reset
-      setFrameworkIndex((prev) => prev + 1);
-    }, 2200);
-    return () => clearInterval(id);
-  }, [isWheelVisible]);
 
   const handleAuthClick = (mode: 'signup' | 'signin') => {
     setAuthMode(mode);
@@ -192,91 +145,73 @@ export const Landing = () => {
             </div>
             </Card>
 
-          {/* Frameworks row - THIRD */}
-          <Card className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-white via-purple-50/30 to-white border border-purple-100/50 shadow-xl p-6 sm:p-8">
+          {/* Conversational goal design and habit tracking - THIRD */}
+          <Card className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-white via-blue-50/30 to-white border border-blue-100/50 shadow-xl p-6 sm:p-8">
             <div className="grid gap-6 md:grid-cols-[minmax(0,1fr)_1.2fr] md:items-center">
-              {/* Visual on the left */}
-              <div id="frameworks-wheel" className="relative flex flex-row items-center justify-center gap-3 order-2 md:order-1">
-                {/* Wheel picker - rotating wheel with center selection indicator */}
-                <div className="relative w-52 h-60 flex items-center justify-center">
-                  {/* Overflow container to clip items outside visible area */}
-                  <div className="absolute inset-0 overflow-hidden flex items-center justify-center">
-                    {/* Wheel container that rotates infinitely downward */}
-                    <div 
-                      className="absolute flex flex-col items-center transition-transform duration-700 ease-out"
-                      style={{
-                        // Move downward infinitely with 54px spacing
-                        // Offset by half to center the first item
-                        transform: `translateY(calc(50% - 27px - ${frameworkIndex * 54}px))`,
-                      }}
-                    >
-                      {/* Render frameworks 50 times for truly infinite scroll */}
-                      {Array.from({ length: 50 }).flatMap(() => frameworks).map((fw, idx) => {
-                        // Calculate which item should be styled as "center" (the one in the viewport center)
-                        const currentCenterIndex = frameworkIndex % frameworks.length;
-                        const itemFrameworkIndex = idx % frameworks.length;
-                        const isCenter = itemFrameworkIndex === currentCenterIndex && 
-                                       Math.floor(idx / frameworks.length) === Math.floor(frameworkIndex / frameworks.length);
-                        
-                        return (
-                          <div
-                            key={`${fw}-${idx}`}
-                            className="flex-shrink-0 flex items-center justify-center"
-                            style={{ height: '54px' }} // Fixed 54px spacing between all items
-                          >
-                            {/* Pill card - center item gets special styling */}
-                            {isCenter ? (
-                              <div className="relative">
-                                {/* Stacked depth effect behind center item */}
-                                <div className="absolute inset-0 rounded-full bg-red-800/40 -translate-y-1 translate-x-0.5 blur-sm z-0"></div>
-                                <div className="absolute inset-0 rounded-full bg-red-700/50 -translate-y-0.5 translate-x-0.5 blur-sm z-0"></div>
-                                <div className="absolute inset-0 rounded-full bg-red-600/60 z-0"></div>
-                                
-                                {/* Center selection box - dark red pill */}
-                                <div className="relative rounded-full bg-red-900 border-2 border-white/30 shadow-2xl h-10 w-40 flex items-center justify-center z-10 px-4">
-                                  <span className="text-red-100 font-bold text-sm tracking-wide whitespace-nowrap overflow-hidden text-ellipsis">
-                                    {fw}
-                                  </span>
-                                </div>
-                              </div>
-                            ) : (
-                              <div className="rounded-full bg-orange-300/50 border border-orange-200/60 shadow-sm h-8 w-36 flex items-center justify-center px-4">
-                                <span className="text-orange-900/60 font-medium text-xs whitespace-nowrap overflow-hidden text-ellipsis">
-                                  {fw}
-                                </span>
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
+              {/* Visual mockups on the left */}
+              <div className="relative order-2 md:order-1 space-y-4">
+                {/* Goal card mockup */}
+                <div className="rounded-2xl bg-gradient-to-br from-gray-50 to-blue-50/40 border border-blue-100 shadow-lg p-5">
+                  <div className="flex items-start gap-3 mb-3">
+                    <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-gradient-to-br from-amber-400 to-amber-500 flex items-center justify-center shadow-md">
+                      <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                      </svg>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[10px] font-semibold text-blue-600 tracking-wider mb-1">FOCUS GOAL</div>
+                      <h4 className="text-base font-semibold text-gray-900 leading-tight mb-2">
+                        Step into a leadership role
+                      </h4>
+                      <p className="text-xs text-gray-700 leading-relaxed mb-3">
+                        Build the skills and visibility to transition from individual contributor to leading a team by identifying high-impact projects and developing mentorship relationships.
+                      </p>
+                      <div className="space-y-2">
+                        <div className="text-[10px] font-semibold text-gray-500 tracking-wider mb-1.5">SUPPORTING HABITS</div>
+                        <div className="flex items-start gap-2 text-xs">
+                          <svg className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                          </svg>
+                          <span className="text-gray-700"><span className="font-medium">Weekly mentorship session</span> — connect with senior leaders</span>
+                        </div>
+                        <div className="flex items-start gap-2 text-xs">
+                          <div className="w-3.5 h-3.5 rounded-full border-2 border-gray-300 flex-shrink-0 mt-0.5"></div>
+                          <span className="text-gray-600"><span className="font-medium">Document wins</span> — capture impact for visibility</span>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                  
-                  {/* Top fade gradient to blend wheel items */}
-                  <div className="absolute top-0 left-0 right-0 h-24 bg-gradient-to-b from-white/95 via-white/60 to-transparent z-30 pointer-events-none"></div>
-                  {/* Bottom fade gradient */}
-                  <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-white/95 via-white/60 to-transparent z-30 pointer-events-none"></div>
                 </div>
-                
-                {/* Chevron icon pointing left at the center selection box */}
-                <svg 
-                  className="w-6 h-6 text-red-800/70 flex-shrink-0" 
-                  fill="none" 
-                  viewBox="0 0 24 24" 
-                  stroke="currentColor"
-                  strokeWidth={2.5}
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
-                </svg>
+
+                {/* Habit completion notification mockup */}
+                <div className="rounded-xl bg-gradient-to-br from-emerald-50 to-teal-50 border-2 border-emerald-200/80 shadow-md p-4">
+                  <div className="flex items-start gap-3">
+                    <div className="flex-shrink-0">
+                      <svg className="w-5 h-5 text-emerald-600" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h5 className="text-sm font-semibold text-emerald-900 mb-0.5">Habit Logged!</h5>
+                      <p className="text-sm text-gray-800 font-medium mb-1">Weekly mentorship session</p>
+                      <p className="text-xs text-gray-600">
+                        <span className="font-medium">Current streak:</span> 4 weeks • <span className="text-emerald-700">Completed today at 2:30 PM</span>
+                      </p>
+                    </div>
+                  </div>
+                </div>
               </div>
+
               {/* Text content on the right */}
               <div className="order-1 md:order-2">
                 <h3 className="text-xl sm:text-2xl font-semibold text-gray-900 mb-3">
-                  Informed by time-tested frameworks
+                  Conversational goal design and habit tracking
                 </h3>
+                <p className="text-sm sm:text-base text-gray-700 max-w-xl mb-3">
+                  Share where you want to grow in your career, and your coach helps shape it into a clear goal with specific habits to get there.
+                </p>
                 <p className="text-sm sm:text-base text-gray-700 max-w-xl">
-                  Under the hood, GoodHabit blends classic coaching frameworks so the questions feel grounded and practical,
-                  not generic self-help quotes.
+                  Track progress naturally through check-ins and conversations — no manual logging required. Your coach remembers what you're working on and celebrates progress with you.
                 </p>
               </div>
             </div>
