@@ -49,7 +49,7 @@ export default function QuickActions({ onReviewHabits, onViewSuggestions, onOpti
           </Popover>
         </div>
       ) : (
-        <div className="flex flex-wrap gap-2 justify-center sm:justify-start">
+        <div className="flex flex-wrap gap-2 justify-center">
           <button onClick={onViewSuggestions} className="text-sm px-3 py-1.5 rounded-xl bg-white border text-gray-700 hover:bg-gray-50 flex items-center gap-1.5">
             <img src="/santa-hat.png" alt="" className="w-4 h-4" /> Plan ahead
           </button>

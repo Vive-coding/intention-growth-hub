@@ -147,7 +147,7 @@ return (
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="start" className="w-56">
                         <DropdownMenuItem onClick={() => window.location.assign('/profile')}>Your account</DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => { localStorage.setItem('onboardingCompleted', 'false'); localStorage.setItem('bypassOnboarding', 'false'); localStorage.setItem('forceShowOnboarding', 'true'); window.location.href = '/journal'; }}>Return to Onboarding</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => { localStorage.setItem('onboardingCompleted', 'false'); localStorage.setItem('bypassOnboarding', 'false'); localStorage.setItem('onboardingStartStep', 'goal_setting_ability'); localStorage.setItem('forceShowOnboarding', 'true'); window.location.href = '/journal'; }}>Preferences</DropdownMenuItem>
                         <DropdownMenuItem onClick={() => { localStorage.removeItem('user'); localStorage.removeItem('token'); window.location.reload(); }}>Log Out</DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>

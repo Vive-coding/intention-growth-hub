@@ -55,6 +55,7 @@ export default function ChatHome() {
     // Force onboarding to show by clearing flags and setting force flag
     localStorage.setItem("onboardingCompleted", "false");
     localStorage.setItem("bypassOnboarding", "false");
+  localStorage.setItem("onboardingStartStep", "goal_setting_ability");
     localStorage.setItem("forceShowOnboarding", "true"); // Prevent useAuth from overwriting
     queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
     // Navigate to journal route where Index component will show onboarding
@@ -434,7 +435,7 @@ export default function ChatHome() {
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="start" className="w-56">
                             <DropdownMenuItem onClick={() => window.location.assign('/profile')}>Your account</DropdownMenuItem>
-                            <DropdownMenuItem onClick={handleReturnToOnboarding}>Return to Onboarding</DropdownMenuItem>
+                            <DropdownMenuItem onClick={handleReturnToOnboarding}>Preferences</DropdownMenuItem>
                             <DropdownMenuItem onClick={handleLogout}>Log Out</DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>

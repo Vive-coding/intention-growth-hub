@@ -57,7 +57,7 @@ export const UniformHeader: React.FC<UniformHeaderProps> = ({
                 <div className="text-xs text-gray-500">{user?.email}</div>
               </div>
               <DropdownMenuItem onClick={() => onNavigate("profile")}>Your account</DropdownMenuItem>
-              <DropdownMenuItem onClick={onReturnToOnboarding}>Return to Onboarding</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => { localStorage.setItem('onboardingStartStep','goal_setting_ability'); onReturnToOnboarding(); }}>Preferences</DropdownMenuItem>
               <DropdownMenuItem onClick={onLogout}>Log Out</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

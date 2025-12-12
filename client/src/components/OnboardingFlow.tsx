@@ -13,6 +13,7 @@ import { analytics } from "@/services/analyticsService";
 
 interface OnboardingFlowProps {
   onComplete: () => void;
+  startStepKey?: StepKey;
 }
 
 type StepType = "info" | "choice" | "multi_choice" | "action";
@@ -294,9 +295,13 @@ const mapLegacyHabitConfidence = (value: string): string => {
   }
 };
 
-export const OnboardingFlow = ({ onComplete }: OnboardingFlowProps) => {
+export const OnboardingFlow = ({ onComplete, startStepKey }: OnboardingFlowProps) => {
   const [, navigate] = useLocation();
-  const [currentStepIndex, setCurrentStepIndex] = useState(0);
+  const [currentStepIndex, setCurrentStepIndex] = useState(() => {
+    if (!startStepKey) return 0;
+    const idx = steps.findIndex((s) => s.key === startStepKey);
+    return idx >= 0 ? idx : 0;
+  });
   const [responses, setResponses] = useState<OnboardingResponses>({});
   const [error, setError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
