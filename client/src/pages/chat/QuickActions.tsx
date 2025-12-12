@@ -24,11 +24,11 @@ export default function QuickActions({ onReviewHabits, onViewSuggestions, onOpti
             </PopoverTrigger>
             <PopoverContent align="start" className="w-56 p-0 overflow-hidden">
               <div className="py-1">
+                <button onClick={onViewSuggestions} className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center gap-2">
+                  <img src="/santa-hat.png" alt="" className="w-4 h-4" /> Plan ahead
+                </button>
                 <button onClick={onReviewHabits} className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center gap-2">
                   <CheckSquare className="w-4 h-4" /> Review progress
-                </button>
-                <button onClick={onViewSuggestions} className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center gap-2">
-                  <Lightbulb className="w-4 h-4" /> Plan ahead
                 </button>
                 <button onClick={onOptimize} className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center gap-2">
                   <Sparkles className="w-4 h-4" /> Optimize focus
@@ -50,11 +50,11 @@ export default function QuickActions({ onReviewHabits, onViewSuggestions, onOpti
         </div>
       ) : (
         <div className="flex flex-wrap gap-2 justify-center sm:justify-start">
+          <button onClick={onViewSuggestions} className="text-sm px-3 py-1.5 rounded-xl bg-white border text-gray-700 hover:bg-gray-50 flex items-center gap-1.5">
+            <img src="/santa-hat.png" alt="" className="w-4 h-4" /> Plan ahead
+          </button>
           <button onClick={onReviewHabits} className="text-sm px-3 py-1.5 rounded-xl bg-white border text-gray-700 hover:bg-gray-50 flex items-center gap-1.5">
             <CheckSquare className="w-4 h-4" /> Review progress
-          </button>
-          <button onClick={onViewSuggestions} className="text-sm px-3 py-1.5 rounded-xl bg-white border text-gray-700 hover:bg-gray-50 flex items-center gap-1.5">
-            <Lightbulb className="w-4 h-4" /> Plan ahead
           </button>
           <button onClick={onOptimize} className="text-sm px-3 py-1.5 rounded-xl bg-white border text-gray-700 hover:bg-gray-50 flex items-center gap-1.5">
             <Sparkles className="w-4 h-4" /> Optimize focus

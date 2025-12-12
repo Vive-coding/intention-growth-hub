@@ -75,6 +75,7 @@ export function useAuth() {
     // Sync onboarding flag to the current user to avoid stale state from a previous account
     const completed = (userData as any)?.onboardingCompleted ?? false;
     localStorage.setItem("onboardingCompleted", completed ? "true" : "false");
+    // Clear bypass flag on fresh login to ensure new users see onboarding
     localStorage.removeItem("bypassOnboarding");
     
     // Track login event
@@ -139,7 +140,8 @@ export function useAuth() {
     if (lastUserIdRef.current !== currentId) {
       const completed = (serverUser as any)?.onboardingCompleted ?? false;
       localStorage.setItem("onboardingCompleted", completed ? "true" : "false");
-      localStorage.removeItem("bypassOnboarding");
+      // Don't clear bypassOnboarding here - let users keep their bypass preference
+      // It will only be cleared on logout or when explicitly returning to onboarding
       lastUserIdRef.current = currentId;
     }
   }, [serverUser]);

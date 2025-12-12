@@ -10,7 +10,7 @@ import SuggestionsPanel from "@/pages/chat/SuggestionsPanel";
 import { OptimizeHabitsModal } from "@/components/OptimizeHabitsModal";
 import CompleteHabitsModal from "@/pages/chat/CompleteHabitsModal";
 import { ConfirmationModal } from "@/components/ui/confirmation-modal";
-import { MessageSquare, Trash2, MoreVertical } from "lucide-react";
+import { Trash2 } from "lucide-react";
 import ConversationsList from "@/components/chat/ConversationsList";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Menu, Home, Target } from "lucide-react";
@@ -112,18 +112,46 @@ export default function ChatHome() {
     if (threads.length > 0) navigate(`/${threads[0].id}`, { replace: true });
   }, [threadId, threads.length, navigate]);
 
-  // If optimize=1 or setfocus=1 on blank state, auto-send prioritization prompt to agent after mount
+  // If optimize=1, setfocus=1, or planAhead=1 on blank state, pre-populate the chat input
   useEffect(() => {
     if (threadId) return;
     const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : undefined;
     if (!params) return;
     const optimize = params.get('optimize') === '1';
     const setFocus = params.get('setfocus') === '1';
+    const planAhead = params.get('planAhead') === '1';
     const isNewChat = params.get('new') === '1';
-    if (optimize && isNewChat) {
-      (window as any).composeAndSend?.('Help me optimize and prioritize my focus.', 'prioritize_optimize');
+    
+    if (planAhead && isNewChat) {
+      // Natural conversation starters for planning ahead
+      const starters = [
+        "I've been thinking about working on something new",
+        "I want some help setting some goals for next year",
+        "I want help setting my new year resolutions"
+      ];
+      const starter = starters[Math.floor(Math.random() * starters.length)];
+      // Use a small delay to ensure Composer is mounted
+      setTimeout(() => {
+        (window as any).prePopulateText?.(starter, 'suggest_goals');
+      }, 100);
+    } else if (optimize && isNewChat) {
+      const starters = [
+        "I'd like to optimize and prioritize my current goals",
+        "Help me figure out what to focus on right now"
+      ];
+      const starter = starters[Math.floor(Math.random() * starters.length)];
+      setTimeout(() => {
+        (window as any).prePopulateText?.(starter, 'prioritize_optimize');
+      }, 100);
     } else if (setFocus && isNewChat) {
-      (window as any).composeAndSend?.('Help me set my focus priorities.', 'prioritize_optimize');
+      const starters = [
+        "I have some goals but need help deciding what to prioritize",
+        "Can you help me figure out which goals should be my top focus?"
+      ];
+      const starter = starters[Math.floor(Math.random() * starters.length)];
+      setTimeout(() => {
+        (window as any).prePopulateText?.(starter, 'prioritize_optimize');
+      }, 100);
     }
   }, [threadId]);
 
@@ -136,8 +164,27 @@ export default function ChatHome() {
   const sendAction = async (text: string, agent: 'review_progress' | 'suggest_goals' | 'prioritize_optimize' | 'surprise_me') => {
     if (actionPendingRef.current) return;
     if (!threadId) {
-      // Blank state: let the composer lazily create the thread and send
-      (window as any).composeAndSend?.(text, agent);
+      // Blank state: pre-populate the text for user to review and edit
+      const naturalStarters = {
+        'suggest_goals': [
+          "I've been thinking about working on something new",
+          "I want some help setting some goals for next year",
+          "I want help setting my new year resolutions"
+        ],
+        'prioritize_optimize': [
+          "I'd like to optimize and prioritize my current goals",
+          "Help me figure out what to focus on right now"
+        ],
+        'review_progress': [
+          "I'd like to review my progress on my goals"
+        ],
+        'surprise_me': [
+          "Surprise me with insights about my progress"
+        ]
+      };
+      const starters = naturalStarters[agent] || [text];
+      const starter = starters[Math.floor(Math.random() * starters.length)];
+      (window as any).prePopulateText?.(starter, agent);
       return;
     }
     actionPendingRef.current = true;
@@ -409,26 +456,6 @@ export default function ChatHome() {
                 >
                   {todayCompletions.completed}/{todayCompletions.total} ✓
                 </button>
-              )}
-              {/* Mobile: More menu with new conversation and delete */}
-              {threadId && activeThread && (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <button
-                      type="button"
-                      className="lg:hidden p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors shrink-0"
-                      aria-label="More options"
-                    >
-                      <MoreVertical className="w-4 h-4" />
-                    </button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-48">
-                    <DropdownMenuItem onClick={() => { navigate('/?new=1'); setShowMobileNav(false); }}>
-                      <MessageSquare className="w-4 h-4 mr-2" />
-                      New conversation
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
               )}
               {/* Desktop: Simple delete button */}
               {threadId && activeThread && (

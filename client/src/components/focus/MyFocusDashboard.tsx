@@ -199,7 +199,7 @@ return (
               <div className="text-base sm:text-lg font-semibold text-white">Start a conversation with coach to create your first goal and begin your journey.</div>
               <button
                 className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-purple-500 to-blue-500 text-white text-base font-semibold hover:from-purple-600 hover:to-blue-600 shadow-md transition-all duration-200 hover:shadow-lg self-center sm:self-auto"
-                onClick={() => window.location.href = '/?new=1'}
+                onClick={() => window.location.href = '/?new=1&planAhead=1'}
               >
                 Start a chat
               </button>

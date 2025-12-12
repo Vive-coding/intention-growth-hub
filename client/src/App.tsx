@@ -31,6 +31,7 @@ function Router() {
       <Route path="/journal" component={Index} />
 
       {/* Other explicit routes */}
+      <Route path="/profile" component={Index} />
       <Route path="/insights" component={InsightsScreen} />
       <Route path="/goals" component={GoalsScreen} />
       <Route path="/focus" component={FocusPage} />

@@ -182,6 +182,16 @@ export default function Composer({ threadId }: Props) {
     await send();
   };
 
+  // Expose a helper to pre-populate text without auto-sending
+  (window as any).prePopulateText = (preset: string, agentType?: string) => {
+    setText(preset);
+    pendingAgentTypeRef.current = agentType;
+    // Focus the textarea
+    if (textareaRef.current) {
+      textareaRef.current.focus();
+    }
+  };
+
   return (
     <div className="max-w-3xl mx-auto w-full flex items-start gap-2 min-w-0 overflow-x-hidden px-2 sm:px-0">
       <textarea

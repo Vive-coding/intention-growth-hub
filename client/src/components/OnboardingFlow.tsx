@@ -690,6 +690,9 @@ export const OnboardingFlow = ({ onComplete }: OnboardingFlowProps) => {
       );
     }
     
+    // Set bypass flag so user can access all screens without being forced back into onboarding
+    localStorage.setItem('bypassOnboarding', 'true');
+    
     // Navigate to chat screen when skipping onboarding
     navigate('/?new=1');
     onComplete();
