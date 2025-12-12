@@ -241,17 +241,43 @@ Returns: Interactive card with goal + habit suggestions`,
       
       // Return structured data for frontend card rendering
       // This matches your existing GoalSuggestionCard format!
+      const safeParseDate = (value?: string) => {
+        if (!value || typeof value !== "string") return null;
+        const d = new Date(value);
+        return Number.isNaN(d.getTime()) ? null : d;
+      };
+
+      const computeTermFromTargetDate = (target?: Date | null) => {
+        if (!target) return null;
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const end = new Date(target);
+        end.setHours(23, 59, 59, 999);
+        const daysUntilTarget = Math.ceil((end.getTime() - today.getTime()) / (24 * 60 * 60 * 1000));
+        if (daysUntilTarget <= 30) return "short" as const;
+        if (daysUntilTarget <= 90) return "mid" as const;
+        return "long" as const;
+      };
+
+      const termLabelFromTerm = (t: "short" | "mid" | "long") =>
+        t === "short" ? "Short term" : t === "mid" ? "Mid term" : "Long term";
+
+      const targetDt = safeParseDate(goal_data.target_date);
+      const computedTerm = computeTermFromTargetDate(targetDt);
+      const isInFocus = goal_data.start_timeline === "now"; // Only "now" goals go into Focus
+
       const result = {
         type: "goal_suggestion",
         goal: {
           title: goal_data.title,
           description: goal_data.importance,
           category: normalizedLifeMetric,
-          priority: goal_data.urgency === "urgent" ? "Priority 1" : 
-                    goal_data.urgency === "moderate" ? "Priority 2" : "Priority 3",
           targetDate: goal_data.target_date,
           startTimeline: goal_data.start_timeline,
-          isInFocus: goal_data.start_timeline === "now" // Only "now" goals go into Focus
+          isInFocus,
+          // Term is stored on goalDefinition as 'short'|'mid'|'long' (Focus is a separate concept via My Focus)
+          term: computedTerm,
+          termLabel: isInFocus ? "Focus" : (computedTerm ? termLabelFromTerm(computedTerm) : undefined),
         },
         habits: habits.map(h => ({
           title: h.title,

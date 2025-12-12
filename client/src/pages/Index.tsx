@@ -81,6 +81,7 @@ const Index = () => {
     // Set localStorage to mark onboarding as completed
     localStorage.setItem('onboardingCompleted', 'true');
     localStorage.removeItem('forceShowOnboarding'); // Clear the force flag
+    localStorage.removeItem('onboardingStartStep'); // Clear the start step to prevent restarting
     
     // Invalidate user query to refetch updated data
     queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });

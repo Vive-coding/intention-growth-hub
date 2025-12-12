@@ -975,8 +975,12 @@ export const OnboardingFlow = ({ onComplete, startStepKey }: OnboardingFlowProps
                           method: "POST",
                           body: JSON.stringify(payload),
                         }).then(() => {
+                          // Clear onboarding start step to prevent restarting at step 2
+                          localStorage.removeItem('onboardingStartStep');
+                          // Complete onboarding
                           onComplete();
-                          navigate("/journal");
+                          // Navigate to chat home (empty state, not a specific thread)
+                          navigate("/?new=1");
                         }).catch((err: any) => {
                           setSubmitError(err?.message ?? "Failed to save preferences");
                         });

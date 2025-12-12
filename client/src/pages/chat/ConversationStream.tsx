@@ -7,6 +7,7 @@ import GoalSuggestionCard from "@/pages/chat/components/GoalSuggestionCard";
 import HabitCard from "@/pages/chat/components/HabitCard";
 import PrioritizationCard from "@/pages/chat/components/PrioritizationCard";
 import OptimizationCard from "@/pages/chat/components/OptimizationCard";
+import { useAuth } from "@/hooks/useAuth";
 
 interface Props {
   threadId?: string;
@@ -14,6 +15,7 @@ interface Props {
 
 export default function ConversationStream({ threadId }: Props) {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const [streamingText, setStreamingText] = useState<string>("");
   const [isStreaming, setIsStreaming] = useState(false);
@@ -184,7 +186,9 @@ export default function ConversationStream({ threadId }: Props) {
                   <div className="text-xs opacity-70 mb-1">
                     {m.role === 'user' ? 'You' : 'Coach'} • {(() => {
                       try {
-                        const tz = (localStorage.getItem('timezone') || 'America/New_York');
+                        // Use user's timezone from profile, fallback to browser timezone, then UTC
+                        const userTz = (user as any)?.timezone;
+                        const tz = userTz || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
                         return new Intl.DateTimeFormat(undefined, { dateStyle: 'short', timeStyle: 'short', timeZone: tz }).format(new Date(m.createdAt));
                       } catch {
                         return new Date(m.createdAt).toLocaleString();
