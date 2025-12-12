@@ -281,14 +281,14 @@ export async function logHabitCompletion(options: LogHabitCompletionOptions) {
       is_first_log: isFirstHabitLog,
       has_goal: !!goalId,
       frequency: frequency || 'daily',
-    });
+    }, userId);
 
     if (isFirstHabitLog) {
       backendAnalytics.trackEvent('first_habit_logged', {
         habit_id: habitId,
         user_id: userId,
         frequency: frequency || 'daily',
-      });
+      }, userId);
       
       // Update user properties
       const { updateUserProperties } = await import("./analyticsHelpers");
@@ -304,7 +304,7 @@ export async function logHabitCompletion(options: LogHabitCompletionOptions) {
         habit_id: habitId,
         user_id: userId,
         streak_days: currentStreak,
-      });
+      }, userId);
     }
   } catch (analyticsError) {
     console.error('[habitCompletionService] Failed to track habit completion analytics', analyticsError);

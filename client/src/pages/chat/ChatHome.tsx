@@ -12,7 +12,7 @@ import CompleteHabitsModal from "@/pages/chat/CompleteHabitsModal";
 import { ConfirmationModal } from "@/components/ui/confirmation-modal";
 import { Trash2 } from "lucide-react";
 import ConversationsList from "@/components/chat/ConversationsList";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Menu, Home, Target } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -52,10 +52,13 @@ export default function ChatHome() {
   }, []);
 
   const handleReturnToOnboarding = () => {
+    // Force onboarding to show by clearing flags and setting force flag
     localStorage.setItem("onboardingCompleted", "false");
-    localStorage.removeItem("bypassOnboarding");
+    localStorage.setItem("bypassOnboarding", "false");
+    localStorage.setItem("forceShowOnboarding", "true"); // Prevent useAuth from overwriting
     queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
-    window.location.assign("/journal");
+    // Navigate to journal route where Index component will show onboarding
+    window.location.href = "/journal";
   };
 
   const handleLogout = () => {
@@ -397,7 +400,8 @@ export default function ChatHome() {
                       <Menu className="w-5 h-5" />
                     </button>
                   </SheetTrigger>
-                  <SheetContent side="left" className="p-0 w-80">
+                  <SheetContent side="left" className="p-0 w-80" aria-describedby={undefined}>
+                    <SheetTitle className="sr-only">Navigation Menu</SheetTitle>
                     <div className="flex flex-col h-full bg-gradient-to-br from-green-50 via-white to-blue-50">
                       <div className="px-4 py-4 border-b flex justify-center">
                         <img src="/goodhabit.ai(200 x 40 px).png" alt="GoodHabit" className="h-6" />

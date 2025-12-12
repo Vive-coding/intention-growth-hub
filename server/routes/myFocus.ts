@@ -1,8 +1,9 @@
 import { Router } from "express";
 import { MyFocusService } from "../services/myFocusService";
 import { db } from "../db";
-import { and, eq } from "drizzle-orm";
+import { and, eq, desc } from "drizzle-orm";
 import {
+  goalDefinitions,
   goalInstances,
   habitDefinitions,
   habitInstances,
@@ -232,13 +233,51 @@ router.post("/priorities/apply", async (req: any, res) => {
       return res.json({ success: true });
     }
 
-    const normalized = items
+    // Normalize incoming ids. Some clients/agents accidentally send goalDefinitionId instead of goalInstanceId.
+    // We resolve those to the most recent active goal instance for that definition.
+    const rawNormalized = items
       .map((it: any, idx: number) => ({
-        goalInstanceId: it.goalInstanceId || it.id, // support either field from client
+        rawId: it.goalInstanceId || it.id,
         rank: it.rank || idx + 1,
         reason: it.reason || null,
       }))
-      .filter((it: any) => !!it.goalInstanceId);
+      .filter((it: any) => !!it.rawId);
+
+    const normalized: Array<{ goalInstanceId: string; rank: number; reason: string | null }> = [];
+    for (const it of rawNormalized) {
+      const rawId = String(it.rawId);
+      // 1) If it's already a goal instance id for this user, keep it.
+      const [instanceRow] = await db
+        .select({ id: goalInstances.id, goalDefinitionId: goalInstances.goalDefinitionId })
+        .from(goalInstances)
+        .where(and(eq(goalInstances.id, rawId), eq(goalInstances.userId, userId)))
+        .limit(1);
+      if (instanceRow?.id) {
+        normalized.push({ goalInstanceId: instanceRow.id as any, rank: it.rank, reason: it.reason });
+        continue;
+      }
+
+      // 2) Otherwise, treat it as a goal definition id and resolve to most recent active instance.
+      const [byDef] = await db
+        .select({ id: goalInstances.id })
+        .from(goalInstances)
+        .innerJoin(goalDefinitions, eq(goalInstances.goalDefinitionId, goalDefinitions.id))
+        .where(
+          and(
+            eq(goalDefinitions.id, rawId as any),
+            eq(goalDefinitions.userId, userId),
+            eq(goalDefinitions.archived, false),
+            eq(goalInstances.userId, userId),
+            eq(goalInstances.archived, false),
+            eq(goalInstances.status, "active"),
+          ),
+        )
+        .orderBy(desc(goalInstances.createdAt))
+        .limit(1);
+      if (byDef?.id) {
+        normalized.push({ goalInstanceId: byDef.id as any, rank: it.rank, reason: it.reason });
+      }
+    }
 
     if (normalized.length === 0) {
       return res.status(400).json({ message: "No valid goalInstanceId in items" });
@@ -249,7 +288,7 @@ router.post("/priorities/apply", async (req: any, res) => {
       .select()
       .from(myFocusPrioritySnapshots)
       .where(eq(myFocusPrioritySnapshots.userId, userId))
-      .orderBy(myFocusPrioritySnapshots.createdAt.desc())
+      .orderBy(desc(myFocusPrioritySnapshots.createdAt))
       .limit(1);
 
     const previousIds = new Set<string>(
@@ -274,6 +313,26 @@ router.post("/priorities/apply", async (req: any, res) => {
         await recalculateHabitTargetsForGoal(userId, goalId);
       } catch (err) {
         console.warn("[my-focus] Failed to recalculate targets for prioritized goal", goalId, err);
+      }
+    }
+
+    // Any goal in My Focus should be treated as "in focus" on the Goals page.
+    // We set term="short" for newly prioritized goals so they render as "In focus".
+    for (const goalId of newPriorityIds) {
+      try {
+        const [row] = await db
+          .select({ gdId: goalInstances.goalDefinitionId })
+          .from(goalInstances)
+          .where(and(eq(goalInstances.id, goalId), eq(goalInstances.userId, userId)))
+          .limit(1);
+        if (row?.gdId) {
+          await db
+            .update(goalDefinitions)
+            .set({ term: "short" as any })
+            .where(and(eq(goalDefinitions.id, row.gdId as any), eq(goalDefinitions.userId, userId)));
+        }
+      } catch (err) {
+        console.warn("[my-focus] Failed to set term=short for focus goal", goalId, err);
       }
     }
 

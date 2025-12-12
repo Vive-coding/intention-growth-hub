@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Trophy, Target, Check, Zap, Loader2 } from "lucide-react";
 
 interface Props {
+  threadId?: string;
   goal: { 
     id?: string; 
     title: string; 
@@ -15,6 +16,8 @@ interface Props {
     lifeMetricId?: string;
     lifeMetricName?: string;
     targetDate?: string;
+    startTimeline?: 'now' | 'soon' | 'later';
+    isInFocus?: boolean;
   };
   habits?: Array<{ 
     id?: string; 
@@ -53,7 +56,7 @@ const NOTIFICATION_TIME_OPTIONS = [
 ] as const;
 
 
-export default function GoalSuggestionCard({ goal, habits = [], onAccept, onView }: Props) {
+export default function GoalSuggestionCard({ threadId, goal, habits = [], onAccept, onView }: Props) {
   const queryClient = useQueryClient();
   const [selected, setSelected] = useState<Record<string, boolean>>(() => {
     const init: Record<string, boolean> = {};
@@ -63,6 +66,9 @@ export default function GoalSuggestionCard({ goal, habits = [], onAccept, onView
   const [accepting, setAccepting] = useState(false);
   const [accepted, setAccepted] = useState(false);
   const [acceptedThisSession, setAcceptedThisSession] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
+  const [createdGoalInstanceId, setCreatedGoalInstanceId] = useState<string | null>(null);
+  const [addedToFocus, setAddedToFocus] = useState(false);
   const [needsPrioritization, setNeedsPrioritization] = useState(false);
   const [shouldOfferPrioritization, setShouldOfferPrioritization] = useState(false);
   const [autoPrioritizationRequested, setAutoPrioritizationRequested] = useState(false);
@@ -90,17 +96,73 @@ export default function GoalSuggestionCard({ goal, habits = [], onAccept, onView
   const normalizedDefaultLimit = Math.min(Math.max(defaultLimit, 3), 5);
   const [focusGoalLimit, setFocusGoalLimit] = useState(normalizedDefaultLimit);
   
-  // Persist accepted state
-  useEffect(() => {
-    const saved = localStorage.getItem(`goal_accepted_${goal.id || goal.title}`);
-    if (saved === 'true') setAccepted(true);
-  }, [goal.id, goal.title]);
-  
-  useEffect(() => {
-    if (accepted) {
-      localStorage.setItem(`goal_accepted_${goal.id || goal.title}`, 'true');
+  // Persist per-card state (dismissed/accepted/created goal id/my-focus status) so threads can be reopened safely.
+  // Use a simple hash instead of btoa to handle Unicode characters (emojis, etc.)
+  const simpleHash = (str: string) => {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      const char = str.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash; // Convert to 32bit integer
     }
-  }, [accepted, goal.id, goal.title]);
+    return Math.abs(hash).toString(36);
+  };
+
+  const cardStateKey = useMemo(() => {
+    const basis = [
+      threadId || "global",
+      goal.id || "",
+      goal.title || "",
+      goal.description || "",
+      goal.category || "",
+      goal.lifeMetricId || "",
+      goal.lifeMetricName || "",
+      goal.targetDate || "",
+    ].join("|");
+    return `goal_card_state_${simpleHash(basis)}`;
+  }, [
+    threadId,
+    goal.id,
+    goal.title,
+    goal.description,
+    goal.category,
+    goal.lifeMetricId,
+    goal.lifeMetricName,
+    goal.targetDate,
+  ]);
+
+  const readCardState = () => {
+    if (typeof window === "undefined") return null;
+    try {
+      const raw = window.localStorage.getItem(cardStateKey);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== "object") return null;
+      return parsed as any;
+    } catch {
+      return null;
+    }
+  };
+
+  const writeCardState = (patch: Record<string, any>) => {
+    if (typeof window === "undefined") return;
+    const prev = readCardState() || {};
+    const next = { ...prev, ...patch, updatedAt: Date.now() };
+    try {
+      window.localStorage.setItem(cardStateKey, JSON.stringify(next));
+    } catch {}
+  };
+
+  useEffect(() => {
+    const s = readCardState();
+    if (!s) return;
+    if (typeof s.dismissed === "boolean") setDismissed(!!s.dismissed);
+    if (typeof s.accepted === "boolean") setAccepted(!!s.accepted);
+    if (typeof s.createdGoalInstanceId === "string") setCreatedGoalInstanceId(s.createdGoalInstanceId);
+    if (typeof s.addedToFocus === "boolean") setAddedToFocus(!!s.addedToFocus);
+    if (s.accepted) setAcceptedThisSession(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cardStateKey]);
 
   useEffect(() => {
     if (!onboardingProfile) return;
@@ -220,18 +282,36 @@ export default function GoalSuggestionCard({ goal, habits = [], onAccept, onView
         payload.lifeMetricName = inferredLifeMetric;
       }
 
+      // When user accepts from the chat card, treat it as "start now" by default.
+      // This ensures the goal lands in Focus and shows up as "In focus" immediately.
+      payload.startTimeline = 'now';
+
       if (typeof goal.targetDate === "string" && goal.targetDate.trim().length > 0) {
         payload.targetDate = goal.targetDate;
       }
 
+      console.log('[GoalSuggestionCard] Creating goal with payload:', payload);
       const createGoalResp = await fetch(`${apiBaseUrl}/api/goals`, {
         method: 'POST',
         headers,
         body: JSON.stringify(payload)
       });
+      
+      if (!createGoalResp.ok) {
+        const errorText = await createGoalResp.text();
+        console.error('[GoalSuggestionCard] Goal creation failed:', createGoalResp.status, errorText);
+        throw new Error(`Goal creation failed: ${createGoalResp.status}`);
+      }
+      
       const created = await createGoalResp.json();
+      console.log('[GoalSuggestionCard] Goal created:', created);
       const goalInstanceId = created?.goal?.id || created?.goal?.goalInstance?.id || created?.id;
-      if (!goalInstanceId) throw new Error('Goal creation failed');
+      if (!goalInstanceId) {
+        console.error('[GoalSuggestionCard] No goal ID in response:', created);
+        throw new Error('Goal creation failed - no ID returned');
+      }
+      setCreatedGoalInstanceId(goalInstanceId);
+      writeCardState({ createdGoalInstanceId: goalInstanceId });
 
       // 3) For each selected habit → create habit definition then associate to goal
       const selectedHabits = habits.filter((h, i) => selected[h.id || String(i)]);
@@ -261,6 +341,40 @@ export default function GoalSuggestionCard({ goal, habits = [], onAccept, onView
 
       setAccepted(true);
       setAcceptedThisSession(true);
+      writeCardState({ accepted: true });
+
+      // If starting now, automatically add to My Focus (priority snapshot) so "View in My Focus" is real.
+      if (payload.startTimeline === 'now') {
+        try {
+          const focusResp = await fetch(`${apiBaseUrl}/api/my-focus`, { headers });
+          let existingIds: string[] = [];
+          if (focusResp.ok) {
+            const focusData = await focusResp.json();
+            if (Array.isArray(focusData?.priorityGoals)) {
+              existingIds = focusData.priorityGoals.map((g: any) => g?.id).filter(Boolean);
+            }
+          }
+
+          const nextIds = [...existingIds.filter((id) => id !== goalInstanceId), goalInstanceId];
+          const items = nextIds.map((id, idx) => ({ goalInstanceId: id, rank: idx + 1 }));
+
+          const applyResp = await fetch(`${apiBaseUrl}/api/my-focus/priorities/apply`, {
+            method: "POST",
+            headers,
+            body: JSON.stringify({ items, sourceThreadId: threadId || null }),
+          });
+
+          if (applyResp.ok) {
+            setAddedToFocus(true);
+            writeCardState({ addedToFocus: true });
+            queryClient.invalidateQueries({ queryKey: ['/api/my-focus'] });
+          } else {
+            console.warn('[GoalSuggestionCard] Failed to add to My Focus:', applyResp.status);
+          }
+        } catch (e) {
+          console.warn('[GoalSuggestionCard] Failed to add to My Focus:', e);
+        }
+      }
 
       const newGoalCount = activeGoalCount + 1;
       setGoalCountAfterAdd(newGoalCount);
@@ -280,9 +394,9 @@ export default function GoalSuggestionCard({ goal, habits = [], onAccept, onView
       queryClient.invalidateQueries({ queryKey: ['/api/chat/threads'] });
       
       onAccept?.();
-    } catch (e) {
-      console.error('Failed to accept goal suggestion', e);
-      alert('Failed to add goal. Please try again.');
+    } catch (e: any) {
+      console.error('[GoalSuggestionCard] Failed to accept goal suggestion:', e);
+      alert(`Failed to add goal: ${e?.message || 'Unknown error'}. Please try again.`);
     } finally {
       setAccepting(false);
     }
@@ -342,6 +456,15 @@ export default function GoalSuggestionCard({ goal, habits = [], onAccept, onView
     setAutoPrioritizationRequested(true);
     sendPrioritizeRequest("Let's prioritize my focus goals.");
   };
+
+  // Show dismissed state
+  if (dismissed) {
+    return (
+      <div className="bg-gray-50 border border-gray-200 rounded-2xl p-4 text-center text-gray-500">
+        <p className="text-sm">Goal suggestion dismissed</p>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-2xl p-3 sm:p-4 md:p-6 shadow-lg min-w-0 overflow-hidden">
@@ -476,7 +599,10 @@ export default function GoalSuggestionCard({ goal, habits = [], onAccept, onView
             <Button 
               variant="outline" 
               className="px-4 sm:px-6 py-3 rounded-xl border-gray-300 w-full sm:w-auto"
-              onClick={onView}
+              onClick={() => {
+                setDismissed(true);
+                writeCardState({ dismissed: true });
+              }}
             >
               Dismiss
             </Button>
@@ -488,9 +614,22 @@ export default function GoalSuggestionCard({ goal, habits = [], onAccept, onView
               ? "I asked your coach to reprioritize them so you can stay focused."
               : "Let’s prioritize to decide which ones stay in \"My Focus\"."}
           </div>
+        ) : accepted && addedToFocus ? (
+          <div className="flex-1 space-y-2">
+            <div className="bg-teal-50 border border-teal-200 rounded-xl p-3 text-sm text-teal-800">
+              Goal added to My Focus. I’ll keep this thread open so we can plan next steps whenever you’re ready.
+            </div>
+            <Button
+              variant="outline"
+              className="w-full border-emerald-500 text-emerald-700 hover:bg-emerald-50"
+              onClick={() => window.location.href = '/focus'}
+            >
+              View in My Focus
+            </Button>
+          </div>
         ) : (
           <div className="flex-1 bg-teal-50 border border-teal-200 rounded-xl p-3 text-sm text-teal-800">
-            Goal added to My Focus. I’ll keep this thread open so we can plan next steps whenever you’re ready.
+            Goal created. I’ll keep this thread open so we can plan next steps whenever you’re ready.
           </div>
         )}
       </div>

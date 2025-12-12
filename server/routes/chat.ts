@@ -181,7 +181,7 @@ router.post("/threads", async (req: any, res) => {
         thread_id: thread.id,
         is_welcome: isWelcome,
         user_id: userId,
-      });
+      }, userId);
       
       // Update user properties
       const { updateUserProperties } = await import("../services/analyticsHelpers");
@@ -196,7 +196,7 @@ router.post("/threads", async (req: any, res) => {
       is_test: Boolean(isTest),
       is_first_thread: isFirstThread,
       user_id: userId,
-    });
+    }, userId);
     
     res.status(201).json({ threadId: thread.id, title: thread.title });
   } catch (e) {
@@ -383,7 +383,7 @@ router.post("/respond", async (req: any, res) => {
       response_time_ms: responseTime,
       has_tool_calls: hasToolCalls,
       user_id: userId,
-    });
+    }, userId);
 
     if (finalText?.trim().length > 0) {
       let saveContent = finalText.trim();

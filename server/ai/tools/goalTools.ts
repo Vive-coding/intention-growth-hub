@@ -151,10 +151,11 @@ Returns: Interactive card with goal + habit suggestions`,
   schema: z.object({
     goal_data: z.object({
       title: z.string().describe("Clear, specific goal statement"),
-      life_metric: z.string().describe("Life area category"),
+      life_metric: z.string().describe("MUST be one of: 'Health & Fitness 🏃‍♀️', 'Career Growth 🚀', 'Relationships ❤️', 'Personal Development 🧠', 'Finance 💰', 'Mental Health 🧘‍♂️'. Use the EXACT name with emoji. CRITICAL: Always call get_context('life_metrics') first to see the user's exact metrics, then use one from that list."),
       importance: z.string().describe("Why this matters to them personally"),
       target_date: z.string().describe("Target date YYYY-MM-DD"),
-      urgency: z.enum(["urgent", "moderate", "flexible"])
+      urgency: z.enum(["urgent", "moderate", "flexible"]),
+      start_timeline: z.enum(["now", "soon", "later"]).describe("When to start: 'now' (within 2 weeks, goes in Focus), 'soon' (2-8 weeks), 'later' (2+ months, long-term)")
     }),
     habit_suggestions: z.array(z.object({
       title: z.string(),
@@ -205,6 +206,39 @@ Returns: Interactive card with goal + habit suggestions`,
         userId
       );
       
+      // Map the life_metric to standard format with emoji
+      const STANDARD_METRICS_KEYWORDS: Record<string, string[]> = {
+        'Career Growth 🚀': ['career', 'business', 'job', 'work', 'professional', 'promotion'],
+        'Health & Fitness 🏃‍♀️': ['health', 'fitness', 'exercise', 'workout', 'wellness', 'physical'],
+        'Personal Development 🧠': ['personal', 'development', 'growth', 'learning', 'skill', 'self'],
+        'Finance 💰': ['finance', 'money', 'financial', 'savings', 'investment', 'budget'],
+        'Relationships ❤️': ['relationship', 'family', 'friends', 'social', 'love', 'connection'],
+        'Mental Health 🧘‍♂️': ['mental', 'mindfulness', 'stress', 'anxiety', 'meditation', 'peace'],
+      };
+      
+      let normalizedLifeMetric = goal_data.life_metric;
+      const inputLower = goal_data.life_metric.toLowerCase();
+      
+      // Check if it's already a standard metric (has emoji)
+      const isStandard = Object.keys(STANDARD_METRICS_KEYWORDS).some(k => 
+        goal_data.life_metric.includes(k) || k.includes(goal_data.life_metric)
+      );
+      
+      if (!isStandard) {
+        // Find best match based on keywords
+        let bestMatch = { metric: 'Personal Development 🧠', score: 0 };
+        for (const [standardMetric, keywords] of Object.entries(STANDARD_METRICS_KEYWORDS)) {
+          const score = keywords.filter(kw => inputLower.includes(kw)).length;
+          if (score > bestMatch.score) {
+            bestMatch = { metric: standardMetric, score };
+          }
+        }
+        if (bestMatch.score > 0) {
+          normalizedLifeMetric = bestMatch.metric;
+          console.log(`[createGoalWithHabitsTool] Mapped "${goal_data.life_metric}" to "${normalizedLifeMetric}"`);
+        }
+      }
+      
       // Return structured data for frontend card rendering
       // This matches your existing GoalSuggestionCard format!
       const result = {
@@ -212,10 +246,12 @@ Returns: Interactive card with goal + habit suggestions`,
         goal: {
           title: goal_data.title,
           description: goal_data.importance,
-          category: goal_data.life_metric,
+          category: normalizedLifeMetric,
           priority: goal_data.urgency === "urgent" ? "Priority 1" : 
                     goal_data.urgency === "moderate" ? "Priority 2" : "Priority 3",
-          targetDate: goal_data.target_date
+          targetDate: goal_data.target_date,
+          startTimeline: goal_data.start_timeline,
+          isInFocus: goal_data.start_timeline === "now" // Only "now" goals go into Focus
         },
         habits: habits.map(h => ({
           title: h.title,

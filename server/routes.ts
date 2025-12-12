@@ -734,8 +734,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/life-metrics', authMiddleware, async (req: any, res) => {
     try {
       const userId = req.user.id || req.user.claims.sub;
+      // Normalize legacy metric names so UI stays consistent (e.g., "Career & Business" -> "Career Growth 🚀")
+      const legacyToCanonical: Array<{ legacy: string[]; canonical: string }> = [
+        { legacy: ["Career & Business", "Career and Business"], canonical: "Career Growth 🚀" },
+        { legacy: ["Health & Wellness", "Health and Wellness"], canonical: "Health & Fitness 🏃‍♀️" },
+      ];
+
       const metrics = await storage.getUserLifeMetrics(userId);
-      res.json(metrics);
+      for (const m of legacyToCanonical) {
+        const legacyMetric = metrics.find((x: any) => m.legacy.includes(String(x.name || "")));
+        if (!legacyMetric) continue;
+
+        const canonicalMetric = metrics.find((x: any) => String(x.name || "") === m.canonical);
+        if (canonicalMetric) {
+          // Migrate goals to canonical metric and remove legacy
+          await db
+            .update(goalDefinitions)
+            .set({ lifeMetricId: canonicalMetric.id, category: canonicalMetric.name })
+            .where(and(eq(goalDefinitions.userId, userId), eq(goalDefinitions.lifeMetricId, legacyMetric.id)));
+          await db
+            .delete(lifeMetricDefinitions)
+            .where(and(eq(lifeMetricDefinitions.userId, userId), eq(lifeMetricDefinitions.id, legacyMetric.id)));
+        } else {
+          // Rename legacy metric in place
+          await db
+            .update(lifeMetricDefinitions)
+            .set({ name: m.canonical })
+            .where(and(eq(lifeMetricDefinitions.userId, userId), eq(lifeMetricDefinitions.id, legacyMetric.id)));
+          await db
+            .update(goalDefinitions)
+            .set({ category: m.canonical })
+            .where(and(eq(goalDefinitions.userId, userId), eq(goalDefinitions.lifeMetricId, legacyMetric.id)));
+        }
+      }
+
+      const refreshed = await storage.getUserLifeMetrics(userId);
+      res.json(refreshed);
     } catch (error) {
       console.error("Error fetching life metrics:", error);
       res.status(500).json({ message: "Failed to fetch life metrics" });

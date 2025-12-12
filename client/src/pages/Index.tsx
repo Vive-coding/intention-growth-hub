@@ -21,7 +21,7 @@ import { UniformHeader } from "@/components/ui/UniformHeader";
 import { RecentJournalsNav } from "@/components/journal/RecentJournalsNav";
 import { ModeToggle } from "@/components/ui/ModeToggle";
 import { Menu, Home, Target } from "lucide-react";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useLocation } from "wouter";
 
@@ -80,6 +80,7 @@ const Index = () => {
     
     // Set localStorage to mark onboarding as completed
     localStorage.setItem('onboardingCompleted', 'true');
+    localStorage.removeItem('forceShowOnboarding'); // Clear the force flag
     
     // Invalidate user query to refetch updated data
     queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
@@ -138,7 +139,15 @@ const Index = () => {
 
   const renderScreen = () => {
     // Check for bypass flag (important for local development)
-    const bypassOnboarding = localStorage.getItem("bypassOnboarding") === "true";
+    const bypassValue = localStorage.getItem("bypassOnboarding");
+    const bypassOnboarding = bypassValue === "true";
+    
+    console.log('🔍 renderScreen check:', {
+      hasCompletedOnboarding,
+      bypassValue,
+      bypassOnboarding,
+      shouldShowOnboarding: !hasCompletedOnboarding && !bypassOnboarding
+    });
     
     // Show onboarding if user hasn't completed it and no bypass flag
     if (!hasCompletedOnboarding && !bypassOnboarding) {
@@ -202,10 +211,13 @@ const Index = () => {
   };
 
   const handleReturnToOnboarding = () => {
+    // Force onboarding to show by clearing flags and setting force flag
     localStorage.setItem('onboardingCompleted', 'false');
-    localStorage.removeItem('bypassOnboarding');
+    localStorage.setItem('bypassOnboarding', 'false');
+    localStorage.setItem('forceShowOnboarding', 'true'); // Prevent useAuth from overwriting
     queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
-    window.location.assign('/journal');
+    // Navigate to journal route where Index component will show onboarding
+    window.location.href = '/journal';
   };
 
   const handleLogout = () => {
@@ -241,7 +253,8 @@ const Index = () => {
                         <Menu className="w-5 h-5" />
                       </button>
                     </SheetTrigger>
-                    <SheetContent side="left" className="p-0 w-80">
+                    <SheetContent side="left" className="p-0 w-80" aria-describedby={undefined}>
+                      <SheetTitle className="sr-only">Navigation Menu</SheetTitle>
                       <div className="flex flex-col h-full bg-gradient-to-br from-green-50 via-white to-blue-50">
                         <div className="px-4 py-4 border-b shrink-0 flex justify-center">
                           <img src="/goodhabit.ai(200 x 40 px).png" alt="GoodHabit" className="h-6" />

@@ -181,8 +181,10 @@ export class SuggestGoalsAgent {
       goal = {
         title: "Increase daily energy levels",
         description: "Energy impacts your ability to pursue all other goals effectively. Research shows that consistent energy levels improve decision-making, productivity, and overall well-being.",
-        category: "Health & Wellness",
-        priority: "Priority 1"
+        category: "Health & Fitness 🏃‍♀️",
+        priority: "Priority 1",
+        startTimeline: "now",
+        isInFocus: true
       };
       habits = [
         {
@@ -211,8 +213,10 @@ export class SuggestGoalsAgent {
       goal = {
         title: "Master AI Development Skills",
         description: "Build expertise in AI development and conversational interfaces to advance your career and complete your app project. This will help you stay competitive in the tech industry and deliver high-quality solutions.",
-        category: "Career Growth",
-        priority: "Priority 1"
+        category: "Career Growth 🚀",
+        priority: "Priority 1",
+        startTimeline: "now",
+        isInFocus: true
       };
       habits = [
         {
@@ -235,8 +239,10 @@ export class SuggestGoalsAgent {
       secondaryGoal = {
         title: "Ship GoodHabit MVP and Publish Announcement",
         description: "Finalize core features, run basic evaluations, and publish a launch note to your audience.",
-        category: "Career Growth",
-        priority: "Priority 2"
+        category: "Career Growth 🚀",
+        priority: "Priority 2",
+        startTimeline: "soon",
+        isInFocus: false
       };
       // Shared high-leverage habit across both: Daily Planning Snapshot
       const sharedHabit = {
@@ -261,8 +267,10 @@ export class SuggestGoalsAgent {
       goal = {
         title: "Build sustainable daily routines",
         description: "Establishing consistent daily routines creates the foundation for achieving larger goals. Small, consistent actions compound over time to create significant change.",
-        category: "Personal Development",
-        priority: "Priority 1"
+        category: "Personal Development 🧠",
+        priority: "Priority 1",
+        startTimeline: "now",
+        isInFocus: true
       };
       habits = [
         {

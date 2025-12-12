@@ -394,7 +394,42 @@ export class MyFocusService {
       .where(inArray(goalInstances.id, ids));
     const byId = new Map<string, any>(); rows.forEach(r => byId.set(r.goalInst.id, r));
     const ordered = await Promise.all(items.map(async (it, idx) => {
-      const g = byId.get(it.goalInstanceId); if (!g) return null;
+      let g = byId.get(it.goalInstanceId);
+      // Back-compat: some older snapshots stored goalDefinitionId instead of goalInstanceId.
+      if (!g) {
+        try {
+          const [resolved] = await db
+            .select({ goalDef: goalDefinitions, goalInst: goalInstances, lifeMetric: lifeMetricDefinitions })
+            .from(goalDefinitions)
+            .innerJoin(goalInstances, eq(goalInstances.goalDefinitionId, goalDefinitions.id))
+            .leftJoin(lifeMetricDefinitions, eq(goalDefinitions.lifeMetricId, lifeMetricDefinitions.id))
+            .where(
+              and(
+                eq(goalDefinitions.id, it.goalInstanceId as any),
+                eq(goalDefinitions.userId, userId),
+                eq(goalDefinitions.archived, false),
+                eq(goalInstances.userId, userId),
+                eq(goalInstances.archived, false),
+                eq(goalInstances.status, 'active'),
+              ),
+            )
+            .orderBy(desc(goalInstances.createdAt))
+            .limit(1);
+          if (resolved?.goalInst?.id) {
+            g = resolved;
+            // Treat anything in a focus snapshot as "in focus"
+            if (resolved.goalDef?.id) {
+              try {
+                await db
+                  .update(goalDefinitions)
+                  .set({ term: "short" as any })
+                  .where(and(eq(goalDefinitions.userId, userId), eq(goalDefinitions.id, resolved.goalDef.id as any)));
+              } catch {}
+            }
+          }
+        } catch {}
+      }
+      if (!g) return null;
         // Compute progress same as Goals page: habit avg (cap 90) + manual offset
         let habitBasedProgress = 0;
         try {

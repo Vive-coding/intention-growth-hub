@@ -204,9 +204,9 @@ export default function ConversationStream({ threadId }: Props) {
                     if (type === 'goal_suggestion') {
                       return (
                         <GoalSuggestionCard
+                          threadId={threadId}
                           goal={payload.goal}
                           habits={payload.habits}
-                          onView={() => (window.location.href = '/goals')}
                         />
                       );
                     }
@@ -216,9 +216,9 @@ export default function ConversationStream({ threadId }: Props) {
                           {(payload.items || []).map((item: any, idx: number) => (
                             <GoalSuggestionCard
                               key={idx}
+                              threadId={threadId}
                               goal={item.goal}
                               habits={item.habits}
-                              onView={() => (window.location.href = '/goals')}
                             />
                           ))}
                         </div>
@@ -508,9 +508,10 @@ export default function ConversationStream({ threadId }: Props) {
             {streamingStructuredData && (
               <div className="mt-3">
                 {streamingStructuredData.type === 'goal_suggestion' && (
-                  <GoalSuggestionCard goal={streamingStructuredData.goal} habits={streamingStructuredData.habits}
-                    onAccept={() => (window.location.href = '/goals')}
-                    onView={() => (window.location.href = '/goals')}
+                  <GoalSuggestionCard
+                    threadId={threadId}
+                    goal={streamingStructuredData.goal}
+                    habits={streamingStructuredData.habits}
                   />
                 )}
                 {streamingStructuredData.type === 'habit_suggestion' && (

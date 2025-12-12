@@ -26,9 +26,11 @@ export default function SharedLeftNav({ navItems, children, onReturnToOnboarding
     if (onReturnToOnboarding) {
       onReturnToOnboarding();
     } else {
+      // Force onboarding to show by clearing flags and setting force flag
       localStorage.setItem("onboardingCompleted", "false");
-      localStorage.removeItem("bypassOnboarding");
-      window.location.assign("/journal");
+      localStorage.setItem("bypassOnboarding", "false");
+      localStorage.setItem("forceShowOnboarding", "true"); // Prevent useAuth from overwriting
+      window.location.href = "/journal";
     }
   };
 

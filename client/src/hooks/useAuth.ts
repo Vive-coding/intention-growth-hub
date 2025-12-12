@@ -138,8 +138,12 @@ export function useAuth() {
     const currentId = (serverUser as any)?.id;
     if (!currentId) return;
     if (lastUserIdRef.current !== currentId) {
-      const completed = (serverUser as any)?.onboardingCompleted ?? false;
-      localStorage.setItem("onboardingCompleted", completed ? "true" : "false");
+      // Don't sync if user explicitly requested to return to onboarding
+      const forceOnboarding = localStorage.getItem("forceShowOnboarding") === "true";
+      if (!forceOnboarding) {
+        const completed = (serverUser as any)?.onboardingCompleted ?? false;
+        localStorage.setItem("onboardingCompleted", completed ? "true" : "false");
+      }
       // Don't clear bypassOnboarding here - let users keep their bypass preference
       // It will only be cleared on logout or when explicitly returning to onboarding
       lastUserIdRef.current = currentId;

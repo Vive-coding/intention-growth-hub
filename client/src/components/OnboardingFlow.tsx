@@ -174,12 +174,12 @@ const onboardingSteps: OnboardingStep[] = [
     question: "Pick the areas you want support with right now.",
     helperText: "We’ll prioritize goals and habits that move these areas forward.",
     options: [
-      { value: "Health & Fitness", label: "Health & Fitness", description: "Energy, movement, and feeling strong.", icon: "🏃‍♀️" },
-      { value: "Career Growth", label: "Career Growth", description: "Momentum in work, learning, and impact.", icon: "🚀" },
-      { value: "Personal Development", label: "Personal Development", description: "Skills, confidence, and creative growth.", icon: "🧠" },
-      { value: "Relationships", label: "Relationships", description: "Connection, communication, and empathy.", icon: "❤️" },
-      { value: "Finance", label: "Finance", description: "Stability, investing, and mindful spending.", icon: "💰" },
-      { value: "Mental Health", label: "Mental Health", description: "Calm, resilience, and emotional clarity.", icon: "🧘‍♂️" },
+      { value: "Health & Fitness 🏃‍♀️", label: "Health & Fitness", description: "Energy, movement, and feeling strong.", icon: "🏃‍♀️" },
+      { value: "Career Growth 🚀", label: "Career Growth", description: "Momentum in work, learning, and impact.", icon: "🚀" },
+      { value: "Personal Development 🧠", label: "Personal Development", description: "Skills, confidence, and creative growth.", icon: "🧠" },
+      { value: "Relationships ❤️", label: "Relationships", description: "Connection, communication, and empathy.", icon: "❤️" },
+      { value: "Finance 💰", label: "Finance", description: "Stability, investing, and mindful spending.", icon: "💰" },
+      { value: "Mental Health 🧘‍♂️", label: "Mental Health", description: "Calm, resilience, and emotional clarity.", icon: "🧘‍♂️" },
     ],
   },
   {
@@ -692,6 +692,7 @@ export const OnboardingFlow = ({ onComplete }: OnboardingFlowProps) => {
     
     // Set bypass flag so user can access all screens without being forced back into onboarding
     localStorage.setItem('bypassOnboarding', 'true');
+    localStorage.removeItem('forceShowOnboarding'); // Clear the force flag
     
     // Navigate to chat screen when skipping onboarding
     navigate('/?new=1');

@@ -202,6 +202,54 @@ router.get("/", async (req: Request, res: Response) => {
     console.log('metricFilter length:', metricFilter?.length);
     console.log('===========================');
 
+    // Ensure we don't keep legacy, non-standard metric names around (e.g., "Career & Business")
+    // This keeps Goals page + filters aligned with the canonical defaults.
+    try {
+      const legacyToCanonical: Array<{ legacy: string[]; canonical: string }> = [
+        { legacy: ["Career & Business", "Career and Business"], canonical: "Career Growth 🚀" },
+        { legacy: ["Health & Wellness", "Health and Wellness"], canonical: "Health & Fitness 🏃‍♀️" },
+        { legacy: ["Personal Growth", "Personal Development"], canonical: "Personal Development 🧠" },
+      ];
+
+      const metrics = await db
+        .select()
+        .from(lifeMetricDefinitions)
+        .where(eq(lifeMetricDefinitions.userId, userId));
+
+      for (const m of legacyToCanonical) {
+        const legacyMetric = metrics.find((x: any) => m.legacy.includes(String(x.name || "")));
+        if (!legacyMetric) continue;
+
+        const canonicalMetric = metrics.find((x: any) => String(x.name || "") === m.canonical);
+        if (canonicalMetric) {
+          // Migrate any goals pointing at legacy metric to canonical metric
+          await db
+            .update(goalDefinitions)
+            .set({ lifeMetricId: canonicalMetric.id, category: canonicalMetric.name })
+            .where(and(eq(goalDefinitions.userId, userId), eq(goalDefinitions.lifeMetricId, legacyMetric.id)));
+
+          // Remove legacy metric to prevent future mismatches
+          await db
+            .delete(lifeMetricDefinitions)
+            .where(and(eq(lifeMetricDefinitions.userId, userId), eq(lifeMetricDefinitions.id, legacyMetric.id)));
+        } else {
+          // Rename legacy metric in place (keeps ids stable)
+          await db
+            .update(lifeMetricDefinitions)
+            .set({ name: m.canonical })
+            .where(and(eq(lifeMetricDefinitions.userId, userId), eq(lifeMetricDefinitions.id, legacyMetric.id)));
+
+          // Align category field on goals for consistency
+          await db
+            .update(goalDefinitions)
+            .set({ category: m.canonical })
+            .where(and(eq(goalDefinitions.userId, userId), eq(goalDefinitions.lifeMetricId, legacyMetric.id)));
+        }
+      }
+    } catch (e) {
+      console.warn("[goals] failed to normalize legacy life metrics (non-fatal)", e);
+    }
+
     // Build where conditions for filtering
     const whereConditions = [eq(goalDefinitions.userId, userId)];
     
@@ -2669,12 +2717,40 @@ router.post("/", async (req: Request, res: Response) => {
       suggestedHabitIds, // Suggested habit IDs to promote
       habitTargets, // Frequency/target settings per habit
       lifeMetricName,
+      startTimeline, // When user wants to start: 'now', 'soon', 'later'
     } = req.body;
 
-    const lifeMetricsForUser = await db
+    let lifeMetricsForUser = await db
       .select()
       .from(lifeMetricDefinitions)
       .where(eq(lifeMetricDefinitions.userId, userId));
+
+    // Create default life metrics for new users who have none
+    if (lifeMetricsForUser.length === 0) {
+      console.log(`[createGoal] Creating default life metrics for new user ${userId}`);
+      const defaultMetrics = [
+        { name: "Career Growth 🚀", color: "#6366F1" },
+        { name: "Health & Fitness 🏃‍♀️", color: "#10B981" },
+        { name: "Personal Development 🧠", color: "#8B5CF6" },
+        { name: "Finance 💰", color: "#F59E0B" },
+        { name: "Relationships ❤️", color: "#EC4899" },
+        { name: "Mental Health 🧘‍♂️", color: "#0EA5E9" },
+      ];
+      
+      for (const metric of defaultMetrics) {
+        const [created] = await db
+          .insert(lifeMetricDefinitions)
+          .values({
+            userId,
+            name: metric.name,
+            description: null,
+            color: metric.color,
+          })
+          .returning();
+        lifeMetricsForUser.push(created);
+      }
+      console.log(`[createGoal] Created ${defaultMetrics.length} default life metrics`);
+    }
 
     const palette = [
       "#10B981", // emerald
@@ -2702,7 +2778,10 @@ router.post("/", async (req: Request, res: Response) => {
       // Remove emojis and special chars for comparison
       const normalizeForComparison = (str: string) => {
         return str.toLowerCase()
-          .replace(/[🚀🏃💪✨🎯🔥💡📈🎓💰❤️🧠]/g, '') // Remove common emojis
+          .replace(/[🚀🏃💪✨🎯🔥💡📈🎓💰❤️🧠🧘‍♀️‍♂️]/g, '') // Remove common emojis
+          .replace(/[^\x00-\x7F]/g, '') // Strip remaining non-ASCII (emoji, symbols)
+          .replace(/&/g, 'and') // Normalize ampersands
+          .replace(/\s+/g, ' ') // Normalize whitespace
           .trim();
       };
       
@@ -2739,8 +2818,65 @@ router.post("/", async (req: Request, res: Response) => {
         : undefined;
 
     if (!resolvedLifeMetric && typeof lifeMetricName === "string" && lifeMetricName.trim().length > 0) {
-      const created = await createLifeMetric(lifeMetricName);
-      if (created) resolvedLifeMetric = created;
+      // Smart matching with keyword-based approach
+      const STANDARD_METRICS_KEYWORDS: Record<string, string[]> = {
+        'Career Growth 🚀': ['career', 'business', 'job', 'work', 'professional', 'promotion'],
+        'Health & Fitness 🏃‍♀️': ['health', 'fitness', 'exercise', 'workout', 'wellness', 'physical'],
+        'Personal Development 🧠': ['personal', 'development', 'growth', 'learning', 'skill', 'self'],
+        'Finance 💰': ['finance', 'money', 'financial', 'savings', 'investment', 'budget'],
+        'Relationships ❤️': ['relationship', 'family', 'friends', 'social', 'love', 'connection'],
+        'Mental Health 🧘‍♂️': ['mental', 'mindfulness', 'stress', 'anxiety', 'meditation', 'peace'],
+      };
+      
+      const inputLower = lifeMetricName.toLowerCase();
+      
+      // First try exact match (with emoji variations)
+      const exactMatch = lifeMetricsForUser.find(lm => 
+        (lm.name || '').toLowerCase().replace(/[^\x00-\x7F]/g, '').trim() === 
+        inputLower.replace(/[^\x00-\x7F]/g, '').replace(/&/g, 'and').trim()
+      );
+      
+      if (exactMatch) {
+        console.log(`[createGoal] Exact match "${lifeMetricName}" to "${exactMatch.name}"`);
+        resolvedLifeMetric = exactMatch;
+      } else {
+        // Try keyword-based matching against standard metrics
+        let bestMatch: { metric: typeof lifeMetricsForUser[0] | null; score: number } = { metric: null, score: 0 };
+        
+        for (const [standardName, keywords] of Object.entries(STANDARD_METRICS_KEYWORDS)) {
+          const score = keywords.filter(kw => inputLower.includes(kw)).length;
+          if (score > bestMatch.score) {
+            // Find this standard metric in user's metrics
+            const userMetric = lifeMetricsForUser.find(lm => 
+              (lm.name || '').toLowerCase().includes(standardName.toLowerCase().split(' ')[0]) ||
+              keywords.some(kw => (lm.name || '').toLowerCase().includes(kw))
+            );
+            if (userMetric) {
+              bestMatch = { metric: userMetric, score };
+            }
+          }
+        }
+        
+        if (bestMatch.metric && bestMatch.score > 0) {
+          console.log(`[createGoal] Keyword matched "${lifeMetricName}" to "${bestMatch.metric.name}" (score: ${bestMatch.score})`);
+          resolvedLifeMetric = bestMatch.metric;
+        } else {
+          // Last resort: find any metric with overlapping words
+          const inputWords = inputLower.split(/\s+/).filter(w => w.length > 2);
+          const fuzzyMatch = lifeMetricsForUser.find(lm => {
+            const metricWords = (lm.name || '').toLowerCase().split(/\s+/).filter(w => w.length > 2);
+            return inputWords.some(iw => metricWords.some(mw => mw.includes(iw) || iw.includes(mw)));
+          });
+          
+          if (fuzzyMatch) {
+            console.log(`[createGoal] Fuzzy matched "${lifeMetricName}" to "${fuzzyMatch.name}"`);
+            resolvedLifeMetric = fuzzyMatch;
+          } else {
+            const created = await createLifeMetric(lifeMetricName);
+            if (created) resolvedLifeMetric = created;
+          }
+        }
+      }
     }
 
     if (!resolvedLifeMetric) {
@@ -2781,15 +2917,29 @@ router.post("/", async (req: Request, res: Response) => {
     }
     resolvedTargetDate.setHours(23, 59, 59, 999);
 
-    // Calculate term classification based on target date
-    const daysUntilTarget = Math.ceil((resolvedTargetDate.getTime() - today.getTime()) / (24 * 60 * 60 * 1000));
+    // Calculate term classification based on startTimeline if provided, otherwise target date
     let term: string;
-    if (daysUntilTarget <= 30) {
-      term = "short";
-    } else if (daysUntilTarget <= 90) {
-      term = "mid";
+    if (startTimeline) {
+      // startTimeline indicates when user wants to START working on the goal
+      // 'now' = short-term (focus), 'soon' = mid-term, 'later' = long-term
+      if (startTimeline === 'now') {
+        term = 'short';
+      } else if (startTimeline === 'soon') {
+        term = 'mid';
+      } else {
+        term = 'long';
+      }
+      console.log(`[createGoal] Term set from startTimeline: ${startTimeline} -> ${term}`);
     } else {
-      term = "long";
+      // Fallback: calculate from target date
+      const daysUntilTarget = Math.ceil((resolvedTargetDate.getTime() - today.getTime()) / (24 * 60 * 60 * 1000));
+      if (daysUntilTarget <= 30) {
+        term = "short";
+      } else if (daysUntilTarget <= 90) {
+        term = "mid";
+      } else {
+        term = "long";
+      }
     }
 
     // Create goal definition
@@ -2800,6 +2950,7 @@ router.post("/", async (req: Request, res: Response) => {
         title,
         description,
         lifeMetricId: resolvedLifeMetric.id,
+        category: resolvedLifeMetric.name, // keep category display consistent with life metric
         unit: "count",
         term,
         isActive: true,
