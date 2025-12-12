@@ -3225,6 +3225,46 @@ router.put("/:id", async (req: Request, res: Response) => {
         .where(eq(goalDefinitions.id, goalInstance[0].goalDefinitionId));
     }
 
+    // If term was changed from focus to short/mid/long, remove goal from focus
+    if (term !== undefined && (term === 'short' || term === 'mid' || term === 'long')) {
+      try {
+        // Dynamically import to avoid circular dependency
+        const { myFocusPrioritySnapshots } = await import("../../shared/schema");
+        // Check if goal is currently in focus
+        const [currentSnapshot] = await db
+          .select()
+          .from(myFocusPrioritySnapshots)
+          .where(eq(myFocusPrioritySnapshots.userId, userId))
+          .orderBy(desc(myFocusPrioritySnapshots.createdAt))
+          .limit(1);
+
+        if (currentSnapshot?.items && Array.isArray(currentSnapshot.items)) {
+          const items = currentSnapshot.items as any[];
+          const isInFocus = items.some((item: any) => 
+            item.goalInstanceId === goalId || item.id === goalId
+          );
+
+          if (isInFocus) {
+            // Remove this goal from focus by creating a new snapshot without it
+            const updatedItems = items.filter((item: any) => 
+              item.goalInstanceId !== goalId && item.id !== goalId
+            );
+
+            await db.insert(myFocusPrioritySnapshots).values({
+              userId,
+              items: updatedItems as any,
+              sourceThreadId: null,
+            } as any);
+
+            console.log(`[goals] Removed goal ${goalId} from focus after term change to ${term}`);
+          }
+        }
+      } catch (error) {
+        console.error('[goals] Failed to remove goal from focus after term change:', error);
+        // Don't fail the goal update if focus removal fails
+      }
+    }
+
     // Update goal instance
     const instanceUpdates: Record<string, any> = {};
 

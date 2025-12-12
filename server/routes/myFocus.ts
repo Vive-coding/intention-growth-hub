@@ -301,11 +301,58 @@ router.post("/priorities/apply", async (req: any, res) => {
       .map((it: any) => it.goalInstanceId)
       .filter((id: string) => !previousIds.has(id));
 
+    // Detect goals that were removed from focus (were in previous snapshot but not in new one)
+    const newPriorityIdsSet = new Set<string>(normalized.map((it: any) => it.goalInstanceId));
+    const removedFromFocusIds = Array.from(previousIds).filter((id: string) => !newPriorityIdsSet.has(id));
+
     await db.insert(myFocusPrioritySnapshots).values({
       userId,
       items: normalized as any,
       sourceThreadId: sourceThreadId || null,
     } as any);
+
+    // Update terms for goals removed from focus based on their target dates
+    for (const goalId of removedFromFocusIds) {
+      try {
+        const [goalRow] = await db
+          .select({ 
+            gdId: goalInstances.goalDefinitionId,
+            targetDate: goalInstances.targetDate 
+          })
+          .from(goalInstances)
+          .where(and(eq(goalInstances.id, goalId), eq(goalInstances.userId, userId)))
+          .limit(1);
+        
+        if (goalRow?.gdId) {
+          // Calculate term based on target date
+          let calculatedTerm: 'short' | 'mid' | 'long' | null = null;
+          if (goalRow.targetDate) {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const targetDate = new Date(goalRow.targetDate);
+            const daysUntilTarget = Math.ceil((targetDate.getTime() - today.getTime()) / (24 * 60 * 60 * 1000));
+            
+            if (daysUntilTarget <= 30) {
+              calculatedTerm = 'short';
+            } else if (daysUntilTarget <= 90) {
+              calculatedTerm = 'mid';
+            } else {
+              calculatedTerm = 'long';
+            }
+          }
+
+          if (calculatedTerm) {
+            await db
+              .update(goalDefinitions)
+              .set({ term: calculatedTerm as any })
+              .where(and(eq(goalDefinitions.id, goalRow.gdId as any), eq(goalDefinitions.userId, userId)));
+            console.log(`[my-focus] Updated term to ${calculatedTerm} for goal removed from focus: ${goalId}`);
+          }
+        }
+      } catch (err) {
+        console.warn("[my-focus] Failed to update term for goal removed from focus", goalId, err);
+      }
+    }
 
     // Recalculate habit targets for any newly prioritized goals
     for (const goalId of newPriorityIds) {

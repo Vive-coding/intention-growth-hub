@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Check } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
@@ -21,13 +22,21 @@ interface Props {
 }
 
 export default function PrioritizationCard({ items, messageId, onAccept, onReject, onLog }: Props) {
+	const queryClient = useQueryClient();
+	
+	// Helper to get the goal instance ID from an item (handles both id and goalInstanceId fields)
+	const getGoalInstanceId = (item: PrioritizationItem, idx: number): string => {
+		// Check if item has goalInstanceId (from tool output) or id (legacy)
+		return (item as any).goalInstanceId || item.id || String(idx);
+	};
+
 	// Use message ID if provided, otherwise fall back to goal IDs
 	// This ensures each card instance in the conversation has independent state
-	const cardId = `priority_${messageId || items.map(i => i.id || i.title).join('_')}`;
+	const cardId = `priority_${messageId || items.map(i => getGoalInstanceId(i, 0)).join('_')}`;
 	const [selectedItems, setSelectedItems] = useState<Record<string, boolean>>(() => {
 		const init: Record<string, boolean> = {};
 		items.forEach((item, idx) => {
-			init[item.id || String(idx)] = true; // All checked by default
+			init[getGoalInstanceId(item, idx)] = true; // All checked by default
 		});
 		return init;
 	});
@@ -56,18 +65,30 @@ export default function PrioritizationCard({ items, messageId, onAccept, onRejec
 		}
 		// Build payload with only selected items, preserving order
 		const acceptedItems = items
-			.map((it, idx) => ({ it, idx }))
-			.filter(({ it, idx }) => selectedItems[it.id || String(idx)])
-			.map(({ it }, i) => ({ goalInstanceId: it.id, rank: i + 1 }));
+			.map((it, idx) => ({ it, idx, goalId: getGoalInstanceId(it, idx) }))
+			.filter(({ goalId }) => selectedItems[goalId])
+			.map(({ goalId }, i) => ({ goalInstanceId: goalId, rank: i + 1 }));
+		
+		console.log('[PrioritizationCard] Applying selected priorities:', acceptedItems);
+		
 		try {
-			await fetch('/api/my-focus/priorities/apply', {
+			await apiRequest('/api/my-focus/priorities/apply', {
 				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({ items: acceptedItems, sourceThreadId: messageId || null }),
 			});
+			
+			console.log('[PrioritizationCard] Successfully applied priorities');
+			
+			// Invalidate queries to refresh My Focus and goals
+			await Promise.all([
+				queryClient.invalidateQueries({ queryKey: ['/api/my-focus'] }),
+				queryClient.invalidateQueries({ queryKey: ['/api/goals'] }),
+			]);
 		} catch (e) {
 			// Non-blocking: still mark accepted for UX, but log
 			console.error('Failed to apply selected priorities', e);
+			alert('Failed to apply priorities. Please try again.');
+			return; // Don't mark as accepted if the API call failed
 		}
 		setAccepted(true);
 		localStorage.setItem(cardId, 'accepted');
@@ -128,13 +149,15 @@ export default function PrioritizationCard({ items, messageId, onAccept, onRejec
 			</div>
 			{/* Focus slots are fixed at 3 for now; we keep the card focused on choosing priorities */}
 			<div className="space-y-3">
-				                                {items.map((it, idx) => (
-                                        <div key={it.id || idx} className="bg-white border border-gray-200 rounded-xl p-2 sm:p-3 min-w-0">
+				                                {items.map((it, idx) => {
+					const goalId = getGoalInstanceId(it, idx);
+					return (
+                                        <div key={goalId} className="bg-white border border-gray-200 rounded-xl p-2 sm:p-3 min-w-0">
 						<div className="flex items-start gap-3">
 							<input
 								type="checkbox"
-								checked={selectedItems[it.id || String(idx)] || false}
-								onChange={() => toggleItem(it.id || String(idx))}
+								checked={selectedItems[goalId] || false}
+								onChange={() => toggleItem(goalId)}
 								className="mt-1 w-5 h-5 rounded border-gray-300 text-teal-600 focus:ring-teal-500"
 							/>
 							                                                        <div className="min-w-0 flex-1">
@@ -163,7 +186,8 @@ export default function PrioritizationCard({ items, messageId, onAccept, onRejec
 							</div>
 						</div>
 					</div>
-				))}
+					);
+				})}
 			</div>
 			                                                        <div className="flex gap-2 sm:gap-3 mt-4 flex-col sm:flex-row">
                                 <Button 
