@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { apiRequest } from "@/lib/queryClient";
 import { analytics } from "@/services/analyticsService";
 
@@ -33,6 +33,7 @@ export function useAuth() {
     const storedUser = localStorage.getItem("user");
     return storedUser ? JSON.parse(storedUser) : null;
   });
+  const lastUserIdRef = useRef<string | null>(null);
 
   // Check if we have a token
   const hasToken = !!localStorage.getItem("token");
@@ -71,6 +72,10 @@ export function useAuth() {
   const login = async (userData: any) => {
     console.log("🔐 Login called with userData:", userData);
     setUser(userData);
+    // Sync onboarding flag to the current user to avoid stale state from a previous account
+    const completed = (userData as any)?.onboardingCompleted ?? false;
+    localStorage.setItem("onboardingCompleted", completed ? "true" : "false");
+    localStorage.removeItem("bypassOnboarding");
     
     // Track login event
     analytics.setUser(userData.id, {
@@ -96,6 +101,8 @@ export function useAuth() {
     
     localStorage.removeItem("token");
     localStorage.removeItem("user");
+    localStorage.removeItem("onboardingCompleted");
+    localStorage.removeItem("bypassOnboarding");
     setUser(null);
     queryClient.clear();
   };
@@ -124,6 +131,18 @@ export function useAuth() {
       }
     }
   }, [error, hasToken, queryClient]);
+
+  // When the authenticated user changes, sync onboarding flag from server to localStorage
+  useEffect(() => {
+    const currentId = (serverUser as any)?.id;
+    if (!currentId) return;
+    if (lastUserIdRef.current !== currentId) {
+      const completed = (serverUser as any)?.onboardingCompleted ?? false;
+      localStorage.setItem("onboardingCompleted", completed ? "true" : "false");
+      localStorage.removeItem("bypassOnboarding");
+      lastUserIdRef.current = currentId;
+    }
+  }, [serverUser]);
 
   // Simple authentication logic
   const isAuthenticated = hasToken && !!(serverUser || user) && !error;

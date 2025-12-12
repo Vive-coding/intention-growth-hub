@@ -61,8 +61,7 @@ export const Landing = () => {
             </span>
           </h1>
           <p className="text-lg sm:text-xl text-gray-700 mb-8 max-w-2xl mx-auto">
-            Chat with an AI coach that actually fits your energy and life. Get guidance and tracking to build your personal
-            Operating System.
+            Chat with an AI coach that learns your patterns. Turn vague goals into specific habits that actually fit your life.
           </p>
           <div className="flex justify-center">
             <Button
