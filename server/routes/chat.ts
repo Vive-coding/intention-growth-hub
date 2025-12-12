@@ -39,7 +39,10 @@ router.post("/threads/test-cards", async (req: any, res) => {
               description:
                 "Energy impacts your ability to pursue all other goals effectively. Research shows that consistent energy levels improve decision-making, productivity, and overall well-being.",
               category: "Health & Wellness",
-              priority: "Priority 1",
+              term: "short",
+              termLabel: "Focus",
+              startTimeline: "now",
+              isInFocus: true,
             },
             habits: [
               {

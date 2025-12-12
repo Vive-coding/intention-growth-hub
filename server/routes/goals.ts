@@ -2718,6 +2718,7 @@ router.post("/", async (req: Request, res: Response) => {
       habitTargets, // Frequency/target settings per habit
       lifeMetricName,
       startTimeline, // When user wants to start: 'now', 'soon', 'later'
+      term: requestedTerm,
     } = req.body;
 
     let lifeMetricsForUser = await db
@@ -2913,26 +2914,27 @@ router.post("/", async (req: Request, res: Response) => {
       resolvedTargetDate = parsed;
     } else {
       resolvedTargetDate = new Date(today);
-      resolvedTargetDate.setDate(resolvedTargetDate.getDate() + DEFAULT_GOAL_DURATION_DAYS);
+      // If the agent/user indicates a start timeline, adjust the default target horizon accordingly.
+      // This helps "planning ahead" goals land in the right short/mid/long term buckets even without an explicit target date.
+      const defaultDays =
+        startTimeline === "soon" ? 60 : startTimeline === "later" ? 120 : DEFAULT_GOAL_DURATION_DAYS;
+      resolvedTargetDate.setDate(resolvedTargetDate.getDate() + defaultDays);
     }
     resolvedTargetDate.setHours(23, 59, 59, 999);
 
-    // Calculate term classification based on startTimeline if provided, otherwise target date
+    // Calculate term classification from target date (short/mid/long). Focus is tracked separately via My Focus.
+    // Allow an explicit term override when provided by the client/agent.
     let term: string;
-    if (startTimeline) {
-      // startTimeline indicates when user wants to START working on the goal
-      // 'now' = short-term (focus), 'soon' = mid-term, 'later' = long-term
-      if (startTimeline === 'now') {
-        term = 'short';
-      } else if (startTimeline === 'soon') {
-        term = 'mid';
-      } else {
-        term = 'long';
+    if (requestedTerm !== undefined && requestedTerm !== null && String(requestedTerm).trim() !== "") {
+      const normalized = String(requestedTerm).trim().toLowerCase();
+      if (normalized !== "short" && normalized !== "mid" && normalized !== "long") {
+        return res.status(400).json({ message: "term must be one of 'short', 'mid', 'long', or null." });
       }
-      console.log(`[createGoal] Term set from startTimeline: ${startTimeline} -> ${term}`);
+      term = normalized;
     } else {
-      // Fallback: calculate from target date
-      const daysUntilTarget = Math.ceil((resolvedTargetDate.getTime() - today.getTime()) / (24 * 60 * 60 * 1000));
+      const daysUntilTarget = Math.ceil(
+        (resolvedTargetDate.getTime() - today.getTime()) / (24 * 60 * 60 * 1000),
+      );
       if (daysUntilTarget <= 30) {
         term = "short";
       } else if (daysUntilTarget <= 90) {

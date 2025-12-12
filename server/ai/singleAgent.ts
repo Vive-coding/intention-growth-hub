@@ -158,24 +158,30 @@ You have access to these actions. You should quietly use them (don't mention too
 - After calling: Check if any existing goal matches the user's intent by title and term. If a match exists, suggest using the existing goal instead of creating a duplicate.
 
 **create_goal_with_habits**
-- Purpose: Create a new goal and attach supporting habits.
+- Purpose: Suggest a new goal with supporting habits (these are SUGGESTIONS, not created goals - the user must accept them).
 - Use when:
   - The user clearly states something they want to work toward ("I want to start saving $500/month," "I want to get back in shape"), AND
   - You've checked get_context("all_goals") and confirmed there's no existing goal with a similar title and matching term (short/mid/long).
+- **CRITICAL - Multiple Goals Limit**: You can call this tool up to 3 times in a single response. If the user mentions more than 3 goals, create the first 3 and then say: "I've suggested 3 goals below. Let's review and add these first, then we can come back to create the rest." DO NOT create more than 3 goals at once.
 - **IMPORTANT**: Before creating a new goal, check existing goals using get_context("all_goals"). If the user mentions a goal that matches an existing goal's title and term (short/mid/long based on target date), suggest using the existing goal instead of creating a duplicate. Only create new goals when they're truly different or for a different timeframe.
 - **CRITICAL - Life Metrics**: Always use get_context("life_metrics") to get the user's existing life metrics. Use the EXACT name from that list (e.g., "Career Growth 🚀", "Health & Fitness 🏃‍♀️", "Finance 💰", "Mental Health 🧘‍♂️", "Relationships ❤️", "Personal Development 🧠"). NEVER create new life metrics or use variations like "Career & Business" or "Career Growth" without emoji. Always reference existing ones EXACTLY as they appear.
 - Gather key details conversationally, but make reasonable assumptions for missing details:
   - If timing unclear, assume 30-60 days out or "moderate" urgency.
   - If urgency unclear, assume "moderate."
   - If importance isn't stated, infer from their enthusiasm and language.
+  - **Term labels**: Goals are bucketed by term (short/mid/long) based on target date. Focus is separate ("My Focus") and usually corresponds to starting now. If you're unsure whether this should be Focus vs planned (short/mid/long), ask the user; otherwise make a reasonable inference and briefly explain it (1 sentence).
+  - **If the user dislikes the term label** ("Make this short-term instead", "Not Focus"), generate a NEW updated goal suggestion card by calling create_goal_with_habits again with adjusted start_timeline / target_date / term_override. Do not argue; reflect their preference and regenerate the card.
 - **Insight extraction**: If the user reveals a meaningful pattern, motivation, or characteristic trait during goal creation, include an 'insight' parameter with:
   - A brief, memorable title (5-10 words)
   - A 1-2 sentence summary capturing what you learned about them
   - Examples: "Balances ambition with realism", "Motivated by external accountability", "Values progress over perfection"
   - Only include if truly insightful - not for generic statements
-- **Response style when returning a card**: Your text message should introduce or frame the card, NOT repeat its contents. Be brief and complementary. Example: "Here's a goal structure based on what you shared 👇" rather than "I've created a goal called [title] with habits [list]..."
-- After calling: Celebrate and reflect why it matters to them.
-- If the user will end up with 4+ active goals, consider calling prioritize_goals afterward.
+- **Response style when returning cards**: 
+  - When returning multiple goal suggestions: Say "Here are [N] goal suggestions based on what you shared. Feel free to review and add the ones that resonate 👇" (DO NOT say "I created" - these are suggestions, not created goals).
+  - When returning a single goal: Say "Here's a goal suggestion based on what you shared 👇" (NOT "I created").
+  - Your text should introduce or frame the cards, NOT repeat their contents. Be brief and complementary.
+- After calling: Acknowledge these are suggestions that need user review. Do NOT claim goals are "created" until the user accepts them.
+- If the user will end up with 4+ active goals after accepting, consider calling prioritize_goals afterward.
 
 **update_goal_progress**
 - Purpose: Manually update goal progress percentage when user reports overall advancement that is NOT tied to a specific daily habit action.
@@ -273,8 +279,10 @@ You have access to these actions. You should quietly use them (don't mention too
   - Call get_context("all_goals") to see existing active titles.
   - Extract candidate titles from their message; split into existing vs missing.
 - For missing candidates:
-  - Gather key details conversationally, making reasonable assumptions when appropriate; then call create_goal_with_habits to add them with 1–3 simple starter habits.
-  - After creating one or more goals, if active goals ≥ 4 OR the user asks for focus, consider calling prioritize_goals.
+  - **LIMIT: Create up to 3 goal suggestions at a time**. If the user mentions more than 3 goals, create the first 3 and say: "I've suggested 3 goals below. Let's review and add these first, then we can come back to create the rest."
+  - Gather key details conversationally, making reasonable assumptions when appropriate; then call create_goal_with_habits to suggest them with 1–3 simple starter habits.
+  - **CRITICAL**: These are SUGGESTIONS, not created goals. Say "Here are [N] goal suggestions" or "Here are the goals below, feel free to review and add them" - DO NOT say "I created" until the user accepts them.
+  - After the user accepts one or more goals, if active goals ≥ 4 OR the user asks for focus, consider calling prioritize_goals.
 - Response rules:
   - Never mention specific goal titles until tools return them.
   - After prioritize_goals returns, use EXACT returned titles in your message (do not hallucinate).
@@ -1082,6 +1090,8 @@ ${myFocus.keyInsights.map((insight: any) => {
     // Find structured data from tool outputs
     // Tools that return cards should have a 'type' property (e.g., 'habit_review', 'goal_suggestion')
     let structuredData = null as any;
+    const goalSuggestions: any[] = []; // Collect all goal_suggestion outputs
+    
     for (const toolOutput of toolOutputs) {
       try {
         // Tool outputs come as JSON strings, parse them
@@ -1099,12 +1109,43 @@ ${myFocus.keyInsights.map((insight: any) => {
         }
         
         if (output && typeof output === 'object' && (output as any).type) {
-          // This is a card-generating tool output
-          structuredData = output;
-          console.log("[processWithToolAgent] ✅ Found structured data with type:", (output as any).type);
+          const outputType = (output as any).type;
+          
+          // Special handling: collect multiple goal_suggestion outputs
+          if (outputType === 'goal_suggestion') {
+            goalSuggestions.push({
+              goal: output.goal,
+              habits: output.habits || []
+            });
+            console.log("[processWithToolAgent] ✅ Collected goal suggestion:", output.goal?.title);
+          } else {
+            // For other card types, use the last one (existing behavior)
+            structuredData = output;
+            console.log("[processWithToolAgent] ✅ Found structured data with type:", outputType);
+          }
         }
       } catch (e) {
         console.error("[processWithToolAgent] Error inspecting tool output:", e);
+      }
+    }
+    
+    // If we collected multiple goal suggestions, combine them into goal_suggestions format
+    if (goalSuggestions.length > 0) {
+      if (goalSuggestions.length === 1) {
+        // Single goal: use goal_suggestion format
+        structuredData = {
+          type: 'goal_suggestion',
+          goal: goalSuggestions[0].goal,
+          habits: goalSuggestions[0].habits
+        };
+        console.log("[processWithToolAgent] ✅ Single goal suggestion formatted");
+      } else {
+        // Multiple goals: use goal_suggestions format (plural)
+        structuredData = {
+          type: 'goal_suggestions',
+          items: goalSuggestions
+        };
+        console.log(`[processWithToolAgent] ✅ Combined ${goalSuggestions.length} goal suggestions into goal_suggestions array`);
       }
     }
 

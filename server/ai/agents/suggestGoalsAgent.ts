@@ -177,15 +177,35 @@ export class SuggestGoalsAgent {
     let secondaryGoal: any | undefined;
     let secondaryHabits: any[] | undefined;
 
+    const computeTermFromStartTimeline = (startTimeline?: "now" | "soon" | "later") => {
+      if (!startTimeline) return undefined;
+      if (startTimeline === "now") return "short" as const;
+      if (startTimeline === "soon") return "mid" as const;
+      return "long" as const;
+    };
+
+    const termLabelFromTerm = (t: "short" | "mid" | "long") =>
+      t === "short" ? "Short term" : t === "mid" ? "Mid term" : "Long term";
+
+    const withTerm = (g: any) => {
+      const isInFocus = g?.isInFocus === true || g?.startTimeline === "now";
+      const term = computeTermFromStartTimeline(g?.startTimeline);
+      return {
+        ...g,
+        term,
+        termLabel: isInFocus ? "Focus" : (term ? termLabelFromTerm(term) : undefined),
+      };
+    };
+
     if (/energy|tired|exhausted|sleep|rest/.test(message)) {
       goal = {
         title: "Increase daily energy levels",
         description: "Energy impacts your ability to pursue all other goals effectively. Research shows that consistent energy levels improve decision-making, productivity, and overall well-being.",
         category: "Health & Fitness 🏃‍♀️",
-        priority: "Priority 1",
         startTimeline: "now",
         isInFocus: true
       };
+      goal = withTerm(goal);
       habits = [
         {
           title: "Morning workout (20 min)",
@@ -214,10 +234,10 @@ export class SuggestGoalsAgent {
         title: "Master AI Development Skills",
         description: "Build expertise in AI development and conversational interfaces to advance your career and complete your app project. This will help you stay competitive in the tech industry and deliver high-quality solutions.",
         category: "Career Growth 🚀",
-        priority: "Priority 1",
         startTimeline: "now",
         isInFocus: true
       };
+      goal = withTerm(goal);
       habits = [
         {
           title: "Daily AI learning",
@@ -240,10 +260,10 @@ export class SuggestGoalsAgent {
         title: "Ship GoodHabit MVP and Publish Announcement",
         description: "Finalize core features, run basic evaluations, and publish a launch note to your audience.",
         category: "Career Growth 🚀",
-        priority: "Priority 2",
         startTimeline: "soon",
         isInFocus: false
       };
+      secondaryGoal = withTerm(secondaryGoal);
       // Shared high-leverage habit across both: Daily Planning Snapshot
       const sharedHabit = {
         title: "Daily planning snapshot (5 min)",
@@ -268,10 +288,10 @@ export class SuggestGoalsAgent {
         title: "Build sustainable daily routines",
         description: "Establishing consistent daily routines creates the foundation for achieving larger goals. Small, consistent actions compound over time to create significant change.",
         category: "Personal Development 🧠",
-        priority: "Priority 1",
         startTimeline: "now",
         isInFocus: true
       };
+      goal = withTerm(goal);
       habits = [
         {
           title: "Morning reflection (5 min)",

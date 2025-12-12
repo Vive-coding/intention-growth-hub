@@ -13,6 +13,8 @@ interface Props {
     description?: string; 
     category?: string;
     priority?: string;
+    term?: 'short' | 'mid' | 'long';
+    termLabel?: string;
     lifeMetricId?: string;
     lifeMetricName?: string;
     targetDate?: string;
@@ -251,6 +253,17 @@ export default function GoalSuggestionCard({ threadId, goal, habits = [], onAcce
 
   const toggle = (key: string) => setSelected(prev => ({ ...prev, [key]: !prev[key] }));
 
+  const resolveTermLabel = () => {
+    if (goal.isInFocus) return "Focus";
+    if (typeof goal.termLabel === "string" && goal.termLabel.trim().length > 0) return goal.termLabel;
+    if (goal.term === "short") return "Short term";
+    if (goal.term === "mid") return "Mid term";
+    if (goal.term === "long") return "Long term";
+    // Back-compat for older thread payloads
+    if (typeof goal.priority === "string" && goal.priority.trim().length > 0) return goal.priority;
+    return null;
+  };
+
   const handleAccept = async () => {
     if (accepted) return;
     if (!confirm(`Add goal "${goal.title}" with selected habits?`)) return;
@@ -293,9 +306,16 @@ export default function GoalSuggestionCard({ threadId, goal, habits = [], onAcce
         payload.lifeMetricName = inferredLifeMetric;
       }
 
-      // When user accepts from the chat card, treat it as "start now" by default.
-      // This ensures the goal lands in Focus and shows up as "In focus" immediately.
-      payload.startTimeline = 'now';
+      // Respect the suggested timing/term instead of forcing everything into Focus.
+      if (goal.startTimeline) {
+        payload.startTimeline = goal.startTimeline;
+      } else if (goal.isInFocus) {
+        payload.startTimeline = 'now';
+      }
+
+      if (goal.term) {
+        payload.term = goal.term;
+      }
 
       if (typeof goal.targetDate === "string" && goal.targetDate.trim().length > 0) {
         payload.targetDate = goal.targetDate;
@@ -486,7 +506,7 @@ export default function GoalSuggestionCard({ threadId, goal, habits = [], onAcce
             <Trophy className="w-5 h-5" />
           </div>
           <div className="min-w-0 flex-1">
-            <div className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Suggested Priority Goal</div>
+            <div className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Suggested Goal</div>
             <div className="text-base sm:text-lg font-bold text-gray-900 mt-1 break-words">{goal.title}</div>
           </div>
         </div>
@@ -496,9 +516,9 @@ export default function GoalSuggestionCard({ threadId, goal, habits = [], onAcce
         {accepted && needsPrioritization && (
           <Badge className="bg-orange-600 text-white text-xs px-3 py-1 flex items-center justify-center text-center">Needs Prioritization</Badge>
         )}
-        {!accepted && goal.priority && (
+        {!accepted && resolveTermLabel() && (
           <Badge className="bg-gray-600 text-white text-xs px-3 py-1 flex items-center justify-center text-center">
-            {goal.priority}
+            {resolveTermLabel()}
           </Badge>
         )}
       </div>

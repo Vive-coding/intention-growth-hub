@@ -155,7 +155,8 @@ Returns: Interactive card with goal + habit suggestions`,
       importance: z.string().describe("Why this matters to them personally"),
       target_date: z.string().describe("Target date YYYY-MM-DD"),
       urgency: z.enum(["urgent", "moderate", "flexible"]),
-      start_timeline: z.enum(["now", "soon", "later"]).describe("When to start: 'now' (within 2 weeks, goes in Focus), 'soon' (2-8 weeks), 'later' (2+ months, long-term)")
+      start_timeline: z.enum(["now", "soon", "later"]).describe("When to start: 'now' (within 2 weeks, goes in Focus), 'soon' (2-8 weeks), 'later' (2+ months, long-term)"),
+      term_override: z.enum(["short", "mid", "long"]).optional().describe("Optional override for the goal term label when the user explicitly wants Short/Mid/Long regardless of target date. Focus is handled via start_timeline='now'."),
     }),
     habit_suggestions: z.array(z.object({
       title: z.string(),
@@ -263,7 +264,10 @@ Returns: Interactive card with goal + habit suggestions`,
         t === "short" ? "Short term" : t === "mid" ? "Mid term" : "Long term";
 
       const targetDt = safeParseDate(goal_data.target_date);
-      const computedTerm = computeTermFromTargetDate(targetDt);
+      const computedTerm =
+        goal_data.term_override === "short" || goal_data.term_override === "mid" || goal_data.term_override === "long"
+          ? goal_data.term_override
+          : computeTermFromTargetDate(targetDt);
       const isInFocus = goal_data.start_timeline === "now"; // Only "now" goals go into Focus
 
       const result = {
