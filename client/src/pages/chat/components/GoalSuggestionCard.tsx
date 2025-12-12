@@ -164,6 +164,17 @@ export default function GoalSuggestionCard({ threadId, goal, habits = [], onAcce
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cardStateKey]);
 
+  // Persist key state transitions so mobile reloads keep the same card state
+  useEffect(() => {
+    writeCardState({
+      dismissed,
+      accepted,
+      createdGoalInstanceId,
+      addedToFocus,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dismissed, accepted, createdGoalInstanceId, addedToFocus]);
+
   useEffect(() => {
     if (!onboardingProfile) return;
     if (typeof onboardingProfile.notificationFrequency === "string") {
@@ -467,7 +478,7 @@ export default function GoalSuggestionCard({ threadId, goal, habits = [], onAcce
   }
 
   return (
-    <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-2xl p-3 sm:p-4 md:p-6 shadow-lg min-w-0 overflow-hidden">
+    <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-2xl p-3 sm:p-4 md:p-6 shadow-lg min-w-0 overflow-hidden w-full max-w-[95vw]">
       {/* Header */}
       <div className="flex items-start justify-between gap-2 mb-4 min-w-0">
         <div className="flex items-center gap-3">
