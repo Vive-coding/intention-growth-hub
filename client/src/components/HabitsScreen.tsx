@@ -1,5 +1,5 @@
 import React from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { habitsService, type Habit } from "@/services/habitsService";
 import { HabitCompletionCard } from "./HabitCompletionCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,6 +10,7 @@ import { useLocation } from "wouter";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { OptimizeHabitsModal } from "./OptimizeHabitsModal";
 import { useToast } from "@/hooks/use-toast";
+import { EditHabitWizardModal } from "./EditHabitWizardModal";
 
 interface HabitsScreenProps {
   embedded?: boolean;
@@ -17,21 +18,42 @@ interface HabitsScreenProps {
 }
 
 export function HabitsScreen({ embedded = false, showBackLink = true }: HabitsScreenProps) {
-  // Get metric filter from URL
+  // Get metric filter and edit habit ID from URL
   const [location] = useLocation();
   const urlParams = new URLSearchParams(location.split('?')[1]);
   const metricFilter = urlParams.get('metric');
+  const editHabitId = urlParams.get('edit');
 
   // Hooks must stay at top-level and never be conditional
   const [statusFilter, setStatusFilter] = React.useState<'active' | 'archived' | 'all'>('active');
   const [lifeMetricFilter, setLifeMetricFilter] = React.useState<string>('All');
   const [showOptimizeModal, setShowOptimizeModal] = React.useState(false);
+  const [editingHabit, setEditingHabit] = React.useState<any | null>(null);
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   const { data: habits, isLoading, error, refetch } = useQuery({
     queryKey: ["habits", statusFilter],
     queryFn: () => habitsService.getHabits(statusFilter),
   });
+
+  // Auto-open edit modal if edit query param is present
+  React.useEffect(() => {
+    if (editHabitId && habits && !editingHabit) {
+      const habitToEdit = habits.find((h: any) => h.id === editHabitId);
+      if (habitToEdit) {
+        setEditingHabit({
+          id: habitToEdit.id,
+          title: habitToEdit.title,
+          description: habitToEdit.description,
+          category: habitToEdit.category,
+        });
+        // Remove edit param from URL without page reload
+        const newUrl = location.split('?')[0] + (metricFilter ? `?metric=${metricFilter}` : '');
+        window.history.replaceState({}, '', newUrl);
+      }
+    }
+  }, [editHabitId, habits, editingHabit, location, metricFilter]);
   const lifeMetricOptions = React.useMemo(() => {
     const set = new Set<string>();
     (habits || []).forEach((h: any) => (h.lifeMetrics || []).forEach((m: any) => set.add(m.name)));
@@ -262,6 +284,32 @@ export function HabitsScreen({ embedded = false, showBackLink = true }: HabitsSc
           refetch(); // Refresh habits list
         }}
       />
+
+      {/* Edit Habit Wizard Modal (for editing habit details) */}
+      {editingHabit && (
+        <EditHabitWizardModal
+          isOpen={!!editingHabit}
+          onClose={() => {
+            setEditingHabit(null);
+          }}
+          habit={editingHabit}
+          onHabitUpdated={async () => {
+            // Invalidate all relevant queries to refresh the UI
+            await Promise.all([
+              refetch(),
+              queryClient.invalidateQueries({ queryKey: ["habits"] }),
+              queryClient.invalidateQueries({ queryKey: ["/api/goals"] }),
+              queryClient.invalidateQueries({ queryKey: ["/api/goals/habits"] }),
+              queryClient.invalidateQueries({ queryKey: ["/api/my-focus"] }),
+            ]);
+            setEditingHabit(null);
+            toast({
+              title: "Habit Updated!",
+              description: "Your habit has been successfully updated.",
+            });
+          }}
+        />
+      )}
     </Wrapper>
   );
 } 

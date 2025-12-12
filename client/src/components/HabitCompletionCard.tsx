@@ -202,9 +202,15 @@ export function HabitCompletionCard({ habit }: HabitCompletionCardProps) {
             description: habit.description,
             category: habit.category 
           }}
-          onHabitUpdated={() => {
-            queryClient.invalidateQueries({ queryKey: ["habits"] });
-            queryClient.invalidateQueries({ queryKey: ["/api/goals"] });
+          onHabitUpdated={async () => {
+            // Invalidate all relevant queries to refresh the UI
+            await Promise.all([
+              queryClient.invalidateQueries({ queryKey: ["habits"] }),
+              queryClient.invalidateQueries({ queryKey: ["/api/goals"] }),
+              queryClient.invalidateQueries({ queryKey: ["/api/goals/habits"] }),
+              queryClient.invalidateQueries({ queryKey: ["/api/my-focus"] }),
+            ]);
+            setIsEditing(false);
           }}
         />
       </CardContent>

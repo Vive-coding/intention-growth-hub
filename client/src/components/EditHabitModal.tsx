@@ -179,9 +179,9 @@ export const EditHabitModal = ({
       <DialogContent className="max-w-lg md:max-w-2xl max-h-[90vh] overflow-y-auto w-[95vw]">
         <DialogHeader className="space-y-3">
           <div>
-            <DialogTitle className="text-lg font-bold">Edit Habit: {habitName}</DialogTitle>
+            <DialogTitle className="text-lg font-bold">Edit Habit Targets for This Goal</DialogTitle>
             <DialogDescription className="text-sm">
-              Modify how this habit contributes to your goal
+              Adjust how "{habitName}" contributes to this specific goal's targets and frequency
             </DialogDescription>
           </div>
         </DialogHeader>
@@ -194,9 +194,23 @@ export const EditHabitModal = ({
           )}
 
           <div className="space-y-4">
-            <div className="text-sm text-gray-600">
-              Editing how this habit contributes to <span className="font-medium">this goal</span>. 
-              Completed repetitions so far will be preserved even if you recalculate based on time remaining.
+            <div className="flex items-center justify-between p-3 bg-gray-50 border border-gray-200 rounded-lg">
+              <div className="flex-1">
+                <div className="text-sm font-medium text-gray-900 mb-1">
+                  Want to edit the habit itself?
+                </div>
+                <div className="text-xs text-gray-600">
+                  Change the habit title, description, or which goals it's linked to
+                </div>
+              </div>
+              <a
+                href={`/habits?edit=${habitDefinitionId}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm text-blue-600 hover:text-blue-700 hover:underline font-medium whitespace-nowrap ml-3"
+              >
+                Edit habit details →
+              </a>
             </div>
             
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">

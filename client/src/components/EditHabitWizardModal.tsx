@@ -47,7 +47,6 @@ export const EditHabitWizardModal = ({
 
   const [title, setTitle] = useState(habit.title);
   const [description, setDescription] = useState(habit.description || "");
-  const [lifeMetricId, setLifeMetricId] = useState(habit.category || "");
   
   const [associations, setAssociations] = useState<HabitGoalAssociation[]>([]);
   const [availableGoals, setAvailableGoals] = useState<Array<{id: string, title: string}>>([]);
@@ -56,12 +55,28 @@ export const EditHabitWizardModal = ({
   const [saving, setSaving] = useState(false);
   const [initialized, setInitialized] = useState(false);
 
-  // Load habit-goal associations when modal opens
+  // Reset form when modal opens or habit changes
   useEffect(() => {
-    if (isOpen && !initialized) {
-      loadHabitAssociations();
+    if (isOpen) {
+      setTitle(habit.title);
+      setDescription(habit.description || "");
+      setCurrentStep(1);
+      if (!initialized) {
+        loadHabitAssociations();
+      }
+    } else {
+      // Reset when modal closes
+      setInitialized(false);
     }
-  }, [isOpen, initialized]);
+  }, [isOpen, habit.id]);
+
+  // Update title/description when habit prop changes (e.g., after save)
+  useEffect(() => {
+    if (isOpen) {
+      setTitle(habit.title);
+      setDescription(habit.description || "");
+    }
+  }, [habit.title, habit.description, isOpen]);
 
   const loadHabitAssociations = async () => {
     setLoading(true);
@@ -206,7 +221,21 @@ export const EditHabitWizardModal = ({
   const handleSaveTargets = async () => {
     setSaving(true);
     try {
-      // Handle each association (existing and new)
+      // First, update habit title and description if they changed
+      const titleChanged = title.trim() !== habit.title;
+      const descriptionChanged = description.trim() !== (habit.description || '');
+      
+      if (titleChanged || descriptionChanged) {
+        await apiRequest(`/api/goals/habits/${habit.id}`, {
+          method: 'PUT',
+          body: JSON.stringify({
+            title: title.trim(),
+            description: description.trim() || undefined,
+          }),
+        });
+      }
+      
+      // Then handle each association (existing and new)
       for (const association of associations) {
         const totalTarget = association.perPeriodTarget * association.periodsCount;
         
@@ -236,7 +265,8 @@ export const EditHabitWizardModal = ({
       onHabitUpdated?.();
       onClose();
     } catch (error) {
-      console.error('Error updating habit associations:', error);
+      console.error('Error updating habit:', error);
+      alert('Failed to save habit changes. Please try again.');
     } finally {
       setSaving(false);
     }
@@ -277,16 +307,6 @@ export const EditHabitWizardModal = ({
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="Describe your habit..."
-              />
-            </div>
-            
-            <div>
-              <Label htmlFor="category">Life Metric Category</Label>
-              <Input
-                id="category"
-                value={lifeMetricId}
-                onChange={(e) => setLifeMetricId(e.target.value)}
-                placeholder="e.g., Health, Career, Relationships"
               />
             </div>
           </div>
