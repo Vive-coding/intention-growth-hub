@@ -299,7 +299,7 @@ export const OnboardingFlow = ({ onComplete, startStepKey }: OnboardingFlowProps
   const [, navigate] = useLocation();
   const [currentStepIndex, setCurrentStepIndex] = useState(() => {
     if (!startStepKey) return 0;
-    const idx = steps.findIndex((s) => s.key === startStepKey);
+    const idx = onboardingSteps.findIndex((s) => s.key === startStepKey);
     return idx >= 0 ? idx : 0;
   });
   const [responses, setResponses] = useState<OnboardingResponses>({});
@@ -565,6 +565,33 @@ export const OnboardingFlow = ({ onComplete, startStepKey }: OnboardingFlowProps
       sessionStorage.removeItem("pendingWelcomeThread");
     }
 
+    // Check if user already has existing threads
+    try {
+      const existingThreads = await apiRequest("/api/chat/threads");
+      if (Array.isArray(existingThreads) && existingThreads.length > 0) {
+        // User has existing chats - navigate to most recent one and send a message about preferences
+        const mostRecentThread = existingThreads[0]; // Already sorted by updatedAt desc
+        const threadId = mostRecentThread.id;
+        
+        // Navigate to the thread
+        navigate(`/${threadId}`);
+        
+        // Send a message about preferences update after a short delay to ensure chat is loaded
+        setTimeout(() => {
+          const message = "I just updated my preferences. Can you review them and let me know if there's anything I should work on based on my current goals and focus areas?";
+          if ((window as any).composeAndSend) {
+            (window as any).composeAndSend(message);
+          } else if ((window as any).sendMessage) {
+            (window as any).sendMessage(message);
+          }
+        }, 500);
+        return;
+      }
+    } catch (err) {
+      console.warn("[OnboardingFlow] Failed to check existing threads, creating new one", err);
+    }
+
+    // No existing threads - create a new welcome thread
     const threadResponse = await apiRequest("/api/chat/threads", {
       method: "POST",
       body: JSON.stringify({}),
@@ -914,6 +941,50 @@ export const OnboardingFlow = ({ onComplete, startStepKey }: OnboardingFlowProps
                       ) : (
                         currentStep.actionLabel ?? "Start Chat"
                       )}
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        // Just complete onboarding and go home without starting a chat
+                        if (saveOnboardingMutation.isPending) return;
+                        setSubmitError(null);
+                        const notificationEnabled = responses.notification_opt_in === "opt_in"
+                          ? true
+                          : responses.notification_opt_in === "opt_out"
+                            ? false
+                            : null;
+                        const notificationFrequency = notificationEnabled
+                          ? (typeof responses.notification_frequency === "string" ? responses.notification_frequency : null)
+                          : null;
+                        const notificationTimeSelections = notificationEnabled ? ensureArray(responses.notification_time) : [];
+                        const coachPersonalitySelections = ensureArray(responses.coach_personality);
+                        const payload = {
+                          goalSettingAbility: typeof responses.goal_setting_ability === "string" ? responses.goal_setting_ability : null,
+                          habitBuildingAbility: typeof responses.habit_building === "string" ? responses.habit_building : null,
+                          coachingStyle: [],
+                          coachPersonality: coachPersonalitySelections.length > 0 ? coachPersonalitySelections.join(",") : null,
+                          focusLifeMetrics: Array.isArray(responses.life_metrics) ? (responses.life_metrics as string[]) : [],
+                          notificationEnabled,
+                          notificationFrequency,
+                          preferredNotificationTime:
+                            notificationEnabled && notificationTimeSelections.length > 0
+                              ? notificationTimeSelections.join(",")
+                              : null,
+                        };
+                        // Save preferences but don't start chat
+                        apiRequest("/api/users/onboarding-profile", {
+                          method: "POST",
+                          body: JSON.stringify(payload),
+                        }).then(() => {
+                          onComplete();
+                          navigate("/journal");
+                        }).catch((err: any) => {
+                          setSubmitError(err?.message ?? "Failed to save preferences");
+                        });
+                      }}
+                      variant="outline"
+                      className="w-full sm:w-auto border-emerald-500 text-emerald-700 hover:bg-emerald-50"
+                    >
+                      Continue to home
                     </Button>
                   </div>
                   {summaryItems.length > 0 && (

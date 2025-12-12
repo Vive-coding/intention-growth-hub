@@ -232,29 +232,18 @@ const Index = () => {
     const startStepKey = (localStorage.getItem('onboardingStartStep') || undefined) as any;
     return (
       <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-blue-50 flex flex-col" style={{ minHeight: "100dvh" }}>
-        <header className="w-full max-w-5xl mx-auto flex items-center justify-between px-4 py-4">
+        <header className="w-full max-w-5xl mx-auto flex items-center justify-between px-4 py-3">
           <a href="/journal" className="flex items-center gap-2">
             <img src="/goodhabit.ai(200 x 40 px).png" alt="GoodHabit" className="h-6" />
           </a>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button className="inline-flex items-center gap-3 px-3 py-2 rounded-xl border hover:bg-gray-50">
-                <div className="w-9 h-9 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 text-white flex items-center justify-center text-sm font-bold">
-                  {(typedUser?.firstName?.[0] || "U").toUpperCase()}{(typedUser?.lastName?.[0] || "").toUpperCase()}
-                </div>
-                <div className="hidden sm:block text-left">
-                  <div className="text-sm font-semibold text-gray-900">{typedUser?.firstName || "User"} {typedUser?.lastName || ""}</div>
-                  <div className="text-xs text-gray-500">{typedUser?.email || ""}</div>
-                </div>
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuItem onClick={handleReturnToOnboarding}>Preferences</DropdownMenuItem>
-              <DropdownMenuItem onClick={handleLogout}>Log Out</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <button
+            onClick={handleLogout}
+            className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border hover:bg-gray-50 text-sm font-medium text-gray-700"
+          >
+            Log out
+          </button>
         </header>
-        <main className="flex-1 flex items-center justify-center px-4 pb-8">
+        <main className="flex-1 flex items-center justify-center px-4 pb-6">
           <div className="w-full max-w-4xl">
             <OnboardingFlow onComplete={handleOnboardingComplete} startStepKey={startStepKey} />
           </div>
