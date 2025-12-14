@@ -33,7 +33,19 @@ export function useAuth() {
     const storedUser = localStorage.getItem("user");
     return storedUser ? JSON.parse(storedUser) : null;
   });
-  const lastUserIdRef = useRef<string | null>(null);
+  // Initialize lastUserIdRef from stored user to handle page refreshes
+  const lastUserIdRef = useRef<string | null>(() => {
+    const storedUser = localStorage.getItem("user");
+    if (storedUser) {
+      try {
+        const parsed = JSON.parse(storedUser);
+        return (parsed as any)?.id || null;
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  }());
 
   // Check if we have a token
   const hasToken = !!localStorage.getItem("token");
@@ -71,12 +83,58 @@ export function useAuth() {
 
   const login = async (userData: any) => {
     console.log("🔐 Login called with userData:", userData);
+    const newUserId = (userData as any)?.id;
+    const previousUserId = lastUserIdRef.current;
+    const existingLocalStorage = localStorage.getItem("onboardingCompleted");
+    
+    // If this is a different user logging in, clear all onboarding-related localStorage
+    // This prevents User A's onboarding state from affecting User B
+    if (previousUserId && previousUserId !== newUserId) {
+      console.log("🔐 Different user detected - clearing onboarding localStorage");
+      localStorage.removeItem("onboardingCompleted");
+      localStorage.removeItem("bypassOnboarding");
+      localStorage.removeItem("forceShowOnboarding");
+      localStorage.removeItem("onboardingStartStep");
+    }
+    
     setUser(userData);
-    // Sync onboarding flag to the current user to avoid stale state from a previous account
-    const completed = (userData as any)?.onboardingCompleted ?? false;
-    localStorage.setItem("onboardingCompleted", completed ? "true" : "false");
+    
+    // Sync onboarding flag from database for the current user
+    const dbCompleted = (userData as any)?.onboardingCompleted ?? false;
+    
+    // Trust localStorage over DB if:
+    // 1. Same user (not a user change)
+    // 2. localStorage says "true" but DB says "false"
+    // This handles cases where user skipped/completed onboarding but DB update failed
+    if (existingLocalStorage === "true" && !dbCompleted && previousUserId === newUserId) {
+      console.log("🔐 localStorage says onboarding completed but DB doesn't - updating DB to match localStorage");
+      // Update DB to match localStorage (user likely skipped/completed but DB update failed)
+      try {
+        await apiRequest('/api/users/complete-onboarding', {
+          method: 'POST',
+        });
+        console.log("🔐 ✅ DB updated to match localStorage");
+        // Keep localStorage as "true"
+        localStorage.setItem("onboardingCompleted", "true");
+      } catch (error) {
+        console.error("🔐 Failed to update DB to match localStorage:", error);
+        // Still trust localStorage - user action was completed
+        localStorage.setItem("onboardingCompleted", "true");
+      }
+    } else {
+      // Normal sync: use DB value
+      localStorage.setItem("onboardingCompleted", dbCompleted ? "true" : "false");
+    }
+    
     // Clear bypass flag on fresh login to ensure new users see onboarding
-    localStorage.removeItem("bypassOnboarding");
+    // But only if onboarding is not completed
+    const finalCompleted = existingLocalStorage === "true" && previousUserId === newUserId ? true : dbCompleted;
+    if (!finalCompleted) {
+      localStorage.removeItem("bypassOnboarding");
+    }
+    
+    // Update the last user ID reference
+    lastUserIdRef.current = newUserId;
     
     // Track login event
     analytics.setUser(userData.id, {
@@ -133,22 +191,61 @@ export function useAuth() {
     }
   }, [error, hasToken, queryClient]);
 
-  // When the authenticated user changes, sync onboarding flag from server to localStorage
+  // When the authenticated user changes (e.g., on page load with existing token), sync onboarding flag
   useEffect(() => {
     const currentId = (serverUser as any)?.id;
     if (!currentId) return;
+    
+    const existingLocalStorage = localStorage.getItem("onboardingCompleted");
+    const previousUserId = lastUserIdRef.current;
+    
+    // If this is a different user than we last saw, clear onboarding localStorage
+    // This handles the case where User A was logged in, browser closed, User B opens browser
+    if (previousUserId && previousUserId !== currentId) {
+      console.log("🔐 User ID changed - clearing onboarding localStorage");
+      localStorage.removeItem("onboardingCompleted");
+      localStorage.removeItem("bypassOnboarding");
+      localStorage.removeItem("forceShowOnboarding");
+      localStorage.removeItem("onboardingStartStep");
+    }
+    
+    // Sync onboarding flag from server to localStorage for current user
     if (lastUserIdRef.current !== currentId) {
       // Don't sync if user explicitly requested to return to onboarding
       const forceOnboarding = localStorage.getItem("forceShowOnboarding") === "true";
       if (!forceOnboarding) {
-        const completed = (serverUser as any)?.onboardingCompleted ?? false;
-        localStorage.setItem("onboardingCompleted", completed ? "true" : "false");
+        const dbCompleted = (serverUser as any)?.onboardingCompleted ?? false;
+        
+        // Trust localStorage over DB if:
+        // 1. Same user (not a user change - previousUserId check above handles that)
+        // 2. localStorage says "true" but DB says "false"
+        // This handles cases where user skipped/completed onboarding but DB update failed
+        if (existingLocalStorage === "true" && !dbCompleted && previousUserId === currentId) {
+          console.log("🔐 localStorage says onboarding completed but DB doesn't - updating DB to match localStorage");
+          // Update DB to match localStorage (user likely skipped/completed but DB update failed)
+          apiRequest('/api/users/complete-onboarding', {
+            method: 'POST',
+          }).then(() => {
+            console.log("🔐 ✅ DB updated to match localStorage");
+            // Keep localStorage as "true"
+            localStorage.setItem("onboardingCompleted", "true");
+            // Invalidate query to refetch updated user data
+            queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+          }).catch((error) => {
+            console.error("🔐 Failed to update DB to match localStorage:", error);
+            // Still trust localStorage - user action was completed
+            localStorage.setItem("onboardingCompleted", "true");
+          });
+        } else {
+          // Normal sync: use DB value
+          localStorage.setItem("onboardingCompleted", dbCompleted ? "true" : "false");
+        }
       }
       // Don't clear bypassOnboarding here - let users keep their bypass preference
       // It will only be cleared on logout or when explicitly returning to onboarding
       lastUserIdRef.current = currentId;
     }
-  }, [serverUser]);
+  }, [serverUser, queryClient]);
 
   // Simple authentication logic
   const isAuthenticated = hasToken && !!(serverUser || user) && !error;

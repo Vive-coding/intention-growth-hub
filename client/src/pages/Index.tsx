@@ -75,8 +75,17 @@ const Index = () => {
     },
   });
 
-  const handleOnboardingComplete = () => {
+  const handleOnboardingComplete = async () => {
     console.log('handleOnboardingComplete called');
+    
+    // Mark onboarding as completed in the database
+    try {
+      await completeOnboardingMutation.mutateAsync();
+      console.log('✅ Onboarding marked as completed in database');
+    } catch (error) {
+      console.error('Failed to mark onboarding as completed:', error);
+      // Continue anyway - we'll set localStorage
+    }
     
     // Set localStorage to mark onboarding as completed
     localStorage.setItem('onboardingCompleted', 'true');

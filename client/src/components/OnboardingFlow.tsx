@@ -709,7 +709,7 @@ export const OnboardingFlow = ({ onComplete, startStepKey }: OnboardingFlowProps
     setCurrentStepIndex((prev) => findNextStepIndex(prev, -1));
   };
 
-  const handleSkip = () => {
+  const handleSkip = async () => {
     // Track step abandoned
     if (currentStep && !shouldSkipStep(currentStep.key)) {
       analytics.trackOnboardingStepAbandoned(
@@ -722,9 +722,22 @@ export const OnboardingFlow = ({ onComplete, startStepKey }: OnboardingFlowProps
       );
     }
     
-    // Set bypass flag so user can access all screens without being forced back into onboarding
+    // Mark onboarding as completed in the database
+    try {
+      await apiRequest('/api/users/complete-onboarding', {
+        method: 'POST',
+      });
+      console.log('[OnboardingFlow] ✅ Onboarding marked as completed in database after skip');
+    } catch (error) {
+      console.error('[OnboardingFlow] Failed to mark onboarding as completed:', error);
+      // Continue anyway - we'll set localStorage
+    }
+    
+    // Set localStorage flags
+    localStorage.setItem('onboardingCompleted', 'true');
     localStorage.setItem('bypassOnboarding', 'true');
     localStorage.removeItem('forceShowOnboarding'); // Clear the force flag
+    localStorage.removeItem('onboardingStartStep'); // Clear the start step
     
     // Navigate to chat screen when skipping onboarding
     navigate('/?new=1');

@@ -484,6 +484,7 @@ router.post("/respond", async (req: any, res) => {
       if (userRow && !userRow.firstChatSession) {
         const updatePayload: Record<string, any> = {
           firstChatSession: true,
+          onboardingCompleted: true, // Mark onboarding as completed when user starts their first chat
           updatedAt: new Date(),
         };
 
@@ -501,6 +502,7 @@ router.post("/respond", async (req: any, res) => {
           .set(updatePayload)
           .where(eq(users.id, userId));
         console.log('[chat/respond] ✅ First chat milestone recorded for user', userId);
+        console.log('[chat/respond] ✅ Onboarding marked as completed for user', userId);
       }
     } catch (milestoneError) {
       console.error('[chat/respond] Failed to update chat onboarding milestone', milestoneError);
