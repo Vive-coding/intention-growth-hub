@@ -106,15 +106,8 @@ export default function ChatHome() {
     enabled: !isLoading && isAuthenticated,
   });
 
-  // Default behavior: if no thread selected, show empty chat home (do not create a thread)
-  useEffect(() => {
-    if (threadId) return;
-    // If URL has ?new=1 (initiated from +), stay blank even if threads exist
-    const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : undefined;
-    const urlHasNew = !!urlParams && urlParams.get('new') === '1';
-    if (urlHasNew) return;
-    if (threads.length > 0) navigate(`/${threads[0].id}`, { replace: true });
-  }, [threadId, threads.length, navigate]);
+  // Removed auto-navigation to first thread - users should start on home page to create new threads
+  // If they want to continue a previous thread, they can select it from the sidebar
 
   // If optimize=1, setfocus=1, or planAhead=1 on blank state, pre-populate the chat input
   useEffect(() => {
