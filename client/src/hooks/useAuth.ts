@@ -34,7 +34,7 @@ export function useAuth() {
     return storedUser ? JSON.parse(storedUser) : null;
   });
   // Initialize lastUserIdRef from stored user to handle page refreshes
-  const lastUserIdRef = useRef<string | null>(() => {
+  const getInitialUserId = (): string | null => {
     const storedUser = localStorage.getItem("user");
     if (storedUser) {
       try {
@@ -45,7 +45,8 @@ export function useAuth() {
       }
     }
     return null;
-  }());
+  };
+  const lastUserIdRef = useRef<string | null>(getInitialUserId());
 
   // Check if we have a token
   const hasToken = !!localStorage.getItem("token");
