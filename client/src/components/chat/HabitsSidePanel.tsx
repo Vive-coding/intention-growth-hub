@@ -120,7 +120,7 @@ export function HabitsSidePanel({ open, onOpenChange, todaySummary }: HabitsSide
                 <Flame className="w-5 h-5" />
               </div>
               <div>
-                <SheetTitle className="text-lg font-semibold text-gray-900">Active Habits</SheetTitle>
+                <SheetTitle className="text-lg font-semibold text-gray-900">Focus Habits</SheetTitle>
                 <SheetDescription className="text-sm text-gray-600">
                   Tap a habit to mark it complete for today.
                 </SheetDescription>
