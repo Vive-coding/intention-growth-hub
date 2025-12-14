@@ -29,6 +29,7 @@ export default function ConversationStream({ threadId }: Props) {
   const useIsomorphicLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
   const scrollContainerRef = useRef<HTMLElement | null>(null);
   const autoScrollRef = useRef(true);
+  const hasRestoredRef = useRef<Record<string, boolean>>({});
 
   const resolveScrollContainer = () => {
     if (typeof window === "undefined") return null;
@@ -64,8 +65,12 @@ export default function ConversationStream({ threadId }: Props) {
   });
 
   // Check on mount if we should restore thinking state (after page refresh/navigation)
+  // Only run ONCE per thread to avoid interfering with live streaming
   useEffect(() => {
     if (!threadId) return;
+    
+    // Only restore once per thread
+    if (hasRestoredRef.current[threadId]) return;
     
     // Check if there's a sessionStorage flag indicating we were thinking
     const thinkingKey = `thinking_thread_${threadId}`;
@@ -73,7 +78,15 @@ export default function ConversationStream({ threadId }: Props) {
     const wasThinking = typeof window !== 'undefined' && sessionStorage.getItem(thinkingKey) === 'true';
     const storedOptimistic = typeof window !== 'undefined' ? sessionStorage.getItem(optimisticKey) : null;
     
-    if (!wasThinking && !storedOptimistic) return;
+    if (!wasThinking && !storedOptimistic) {
+      hasRestoredRef.current[threadId] = true;
+      return;
+    }
+    
+    // Mark as restored immediately to prevent multiple runs
+    hasRestoredRef.current[threadId] = true;
+    
+    console.log('[ConversationStream] Checking if we should restore state:', { wasThinking, storedOptimistic, messagesLength: messages.length });
     
     // If we have messages, check if last message is from user (meaning we're waiting for a response)
     if (messages.length > 0) {
@@ -93,6 +106,7 @@ export default function ConversationStream({ threadId }: Props) {
         }
       } else {
         // Clear the flags if we have a response (no longer waiting)
+        console.log('[ConversationStream] Last message is from assistant, clearing flags');
         if (typeof window !== 'undefined') {
           sessionStorage.removeItem(thinkingKey);
           sessionStorage.removeItem(optimisticKey);
@@ -111,7 +125,7 @@ export default function ConversationStream({ threadId }: Props) {
         setOptimisticUserMessage(storedOptimistic);
       }
     }
-  }, [threadId, messages]);
+  }, [threadId, messages.length]);
 
   // Navigate away promptly on 404 without causing setState loops
   useEffect(() => {
@@ -147,21 +161,25 @@ export default function ConversationStream({ threadId }: Props) {
     }
   }, [threadId]);
 
-  // Clear optimistic message when we get fresh messages, but only if we're not currently streaming/thinking
-  // AND the last message is from assistant (meaning response has arrived)
+  // Clear optimistic message when messages query refetches and includes the user's message
+  // This happens after the message is persisted to the database
   useEffect(() => {
-    if (messages.length > 0 && !isStreaming && !isThinking) {
-      const lastMessage = messages[messages.length - 1];
-      // Only clear if we have an assistant response (not just any message update)
-      if (lastMessage?.role === 'assistant') {
-        setOptimisticUserMessage(undefined);
-        // Also clear from sessionStorage
-        if (threadId && typeof window !== 'undefined') {
-          sessionStorage.removeItem(`optimistic_message_${threadId}`);
-        }
+    if (!optimisticUserMessage || messages.length === 0) return;
+    
+    // Check if our optimistic message is now in the actual messages
+    const hasUserMessage = messages.some((m: any) => 
+      m.role === 'user' && m.content === optimisticUserMessage
+    );
+    
+    if (hasUserMessage) {
+      console.log('[ConversationStream] Optimistic message now in actual messages, clearing it');
+      setOptimisticUserMessage(undefined);
+      // Also clear from sessionStorage
+      if (threadId && typeof window !== 'undefined') {
+        sessionStorage.removeItem(`optimistic_message_${threadId}`);
       }
     }
-  }, [messages, isStreaming, isThinking, threadId]);
+  }, [messages, optimisticUserMessage, threadId]);
 
   // Clear thinking state flag and optimistic message when we receive an assistant response
   useEffect(() => {
@@ -244,16 +262,13 @@ export default function ConversationStream({ threadId }: Props) {
       }
     },
     append: (token: string) => {
-      // Only clear thinking flag on first token (when we actually start receiving response)
-      if (isThinking) {
-        setIsThinking(false);
-        // Clear thinking flag when we start streaming (response has started)
-        if (threadId && typeof window !== 'undefined') {
-          sessionStorage.removeItem(`thinking_thread_${threadId}`);
-        }
-      }
+      setIsThinking(false);
       setIsStreaming(true);
       setStreamingText((s) => s + token);
+      // Clear thinking flag when we start streaming (response has started)
+      if (threadId && typeof window !== 'undefined') {
+        sessionStorage.removeItem(`thinking_thread_${threadId}`);
+      }
     },
     end: () => {
       console.log('[ConversationStream] Ending stream');
