@@ -63,6 +63,45 @@ export default function ConversationStream({ threadId }: Props) {
     gcTime: 0,
   });
 
+  // Check on mount if we should restore thinking state (after page refresh/navigation)
+  useEffect(() => {
+    if (!threadId) return;
+    
+    // Check if there's a sessionStorage flag indicating we were thinking
+    const thinkingKey = `thinking_thread_${threadId}`;
+    const wasThinking = typeof window !== 'undefined' && sessionStorage.getItem(thinkingKey) === 'true';
+    
+    if (!wasThinking) return;
+    
+    // If we have messages, check if last message is from user (meaning we're waiting for a response)
+    if (messages.length > 0) {
+      const lastMessage = messages[messages.length - 1];
+      const isWaitingForResponse = lastMessage?.role === 'user';
+      
+      // Restore thinking state if we're waiting for a response
+      if (isWaitingForResponse) {
+        console.log('[ConversationStream] Restoring thinking state after page refresh');
+        setIsThinking(true);
+        setIsStreaming(false);
+        setStreamingText("");
+        setStreamingStructuredData(undefined);
+      } else {
+        // Clear the flag if we have a response (no longer waiting)
+        if (typeof window !== 'undefined') {
+          sessionStorage.removeItem(thinkingKey);
+        }
+      }
+    } else {
+      // No messages yet, but we have the flag - restore thinking state anyway
+      // This handles the case where user just sent a message but messages haven't loaded yet
+      console.log('[ConversationStream] Restoring thinking state (no messages loaded yet)');
+      setIsThinking(true);
+      setIsStreaming(false);
+      setStreamingText("");
+      setStreamingStructuredData(undefined);
+    }
+  }, [threadId, messages]);
+
   // Navigate away promptly on 404 without causing setState loops
   useEffect(() => {
     const status = (messagesError as any)?.status;
@@ -103,6 +142,25 @@ export default function ConversationStream({ threadId }: Props) {
       setOptimisticUserMessage(undefined);
     }
   }, [messages, isStreaming, isThinking]);
+
+  // Clear thinking state flag when we receive an assistant response
+  useEffect(() => {
+    if (!threadId || messages.length === 0) return;
+    
+    const lastMessage = messages[messages.length - 1];
+    // If last message is from assistant, clear the thinking flag (response has arrived)
+    if (lastMessage?.role === 'assistant') {
+      const thinkingKey = `thinking_thread_${threadId}`;
+      if (typeof window !== 'undefined' && sessionStorage.getItem(thinkingKey) === 'true') {
+        console.log('[ConversationStream] Assistant response received, clearing thinking flag');
+        sessionStorage.removeItem(thinkingKey);
+        // Also clear thinking state if it's still active
+        if (isThinking) {
+          setIsThinking(false);
+        }
+      }
+    }
+  }, [threadId, messages, isThinking]);
 
   // Note: We navigate away on explicit 404 via onError above to avoid loops
 
@@ -145,16 +203,28 @@ export default function ConversationStream({ threadId }: Props) {
       setIsStreaming(false);
       setCta(undefined);
       setStreamingStructuredData(undefined);
+      // Persist thinking state in sessionStorage so it survives page refresh
+      if (threadId && typeof window !== 'undefined') {
+        sessionStorage.setItem(`thinking_thread_${threadId}`, 'true');
+      }
     },
     append: (token: string) => {
       setIsThinking(false);
       setIsStreaming(true);
       setStreamingText((s) => s + token);
+      // Clear thinking flag when we start streaming (response has started)
+      if (threadId && typeof window !== 'undefined') {
+        sessionStorage.removeItem(`thinking_thread_${threadId}`);
+      }
     },
     end: () => {
       console.log('[ConversationStream] Ending stream');
       setIsStreaming(false);
       setIsThinking(false);
+      // Clear thinking flag when response completes
+      if (threadId && typeof window !== 'undefined') {
+        sessionStorage.removeItem(`thinking_thread_${threadId}`);
+      }
       // Don't clear optimistic message here - let the query refresh handle it
     },
     cta: (label: string) => setCta(label),
