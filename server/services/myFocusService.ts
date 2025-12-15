@@ -277,21 +277,21 @@ export class MyFocusService {
     // If we have priority goals, ONLY show habits linked to those goal instances
     const limitToPriority = Array.isArray(priorityGoalIds) && priorityGoalIds.length > 0;
 
+    // If no priority goals are set, return empty array (don't show all habits)
+    if (!limitToPriority) {
+      return [];
+    }
+
     // Build WHERE clause conditions
     const whereConditions = [
       eq(habitDefinitions.userId, userId),
       eq(habitDefinitions.isActive, true), // Only show active habits
       eq(goalInstances.archived, false),
-      eq(goalInstances.status, 'active')
+      eq(goalInstances.status, 'active'),
+      inArray(goalInstances.id, priorityGoalIds) // Only habits linked to priority goals
     ];
 
-    // If filtering by priority goals, add condition to only include habits linked to those goals
-    if (limitToPriority) {
-      whereConditions.push(inArray(goalInstances.id, priorityGoalIds));
-    }
-
     // Query habits - NO artificial limit when filtering by priority goals
-    // Only limit to 10 if we're showing ALL habits (no priority filtering)
     const query = db
       .select({
         habitDef: habitDefinitions,
@@ -312,7 +312,7 @@ export class MyFocusService {
     const habitMap = new Map();
     
     habits.forEach(h => {
-      // All habits at this point are already filtered to priority goals if limitToPriority is true
+      // All habits at this point are already filtered to priority goals
       if (!habitMap.has(h.habitDef.id)) {
         habitMap.set(h.habitDef.id, {
           id: h.habitDef.id,
@@ -344,12 +344,7 @@ export class MyFocusService {
 
     const result = Array.from(habitMap.values());
     
-    // Fallback: if filtering by priority goals produced zero habits, show all active habits instead
-    if (limitToPriority && result.length === 0) {
-      console.log('[MyFocus] No habits found for priority goals, falling back to all active habits');
-      return await this.getHighLeverageHabits(userId, undefined);
-    }
-    
+    // Sort by priority goal order
     if (priorityGoalIds && priorityGoalIds.length > 0) {
       const priorityIndex = new Map<string, number>();
       priorityGoalIds.forEach((id, idx) => priorityIndex.set(id, idx));
