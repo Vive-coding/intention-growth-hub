@@ -165,13 +165,14 @@ export default function ConversationStream({ threadId }: Props) {
 
   // Clear optimistic message when messages query refetches and includes the user's message
   // This happens after the message is persisted to the database
-  // CRITICAL: Only depend on messages, not optimisticUserMessage, to avoid clearing immediately when set
+  // CRITICAL: Use ref to read latest value without triggering effect on every optimisticUserMessage change
   useEffect(() => {
-    if (!optimisticUserMessage || messages.length === 0) return;
+    const currentOptimistic = optimisticMessageRef.current;
+    if (!currentOptimistic || messages.length === 0) return;
     
     // Check if our optimistic message is now in the actual messages
     const hasUserMessage = messages.some((m: any) => 
-      m.role === 'user' && m.content === optimisticUserMessage
+      m.role === 'user' && m.content === currentOptimistic
     );
     
     if (hasUserMessage) {
@@ -182,7 +183,7 @@ export default function ConversationStream({ threadId }: Props) {
         sessionStorage.removeItem(`optimistic_message_${threadId}`);
       }
     }
-  }, [messages, threadId]); // Removed optimisticUserMessage from deps - only check when messages change
+  }, [messages, threadId]); // Only check when messages change, use ref to read latest optimistic value
 
   // Keep a ref so we can read the latest optimistic message without forcing the useEffect
   useEffect(() => {
@@ -190,6 +191,7 @@ export default function ConversationStream({ threadId }: Props) {
   }, [optimisticUserMessage]);
 
   // Clear thinking state flag and optimistic message when we receive a NEW assistant response
+  // CRITICAL: Only clear when we actually get a NEW assistant message, not when user message is persisted
   useEffect(() => {
     if (!threadId || messages.length === 0) {
       prevMessagesLengthRef.current = messages.length;
@@ -199,31 +201,38 @@ export default function ConversationStream({ threadId }: Props) {
     const messagesLengthIncreased = messages.length > prevMessagesLengthRef.current;
     const lastMessage = messages[messages.length - 1];
     
-    // Only clear when:
+    // Only clear thinking/optimistic state when:
     // 1. Messages array actually grew (we got a NEW message)
-    // 2. The new message is from assistant
-    // 3. We're not actively streaming (response is complete)
+    // 2. The new message is from assistant (not user)
+    // 3. We're not actively streaming (response is complete, not mid-stream)
+    // This ensures we don't clear thinking state when user message gets persisted
     if (messagesLengthIncreased && lastMessage?.role === 'assistant' && !isStreaming) {
       const thinkingKey = `thinking_thread_${threadId}`;
       const optimisticKey = `optimistic_message_${threadId}`;
       if (typeof window !== 'undefined') {
         if (sessionStorage.getItem(thinkingKey) === 'true') {
-          console.log('[ConversationStream] New assistant response received, clearing thinking flag');
+          console.log('[ConversationStream] New assistant response received, clearing thinking flag from sessionStorage');
           sessionStorage.removeItem(thinkingKey);
         }
         if (sessionStorage.getItem(optimisticKey)) {
-          console.log('[ConversationStream] New assistant response received, clearing optimistic message flag');
+          console.log('[ConversationStream] New assistant response received, clearing optimistic message flag from sessionStorage');
           sessionStorage.removeItem(optimisticKey);
         }
       }
+      // Only clear thinking state if we're actually in thinking mode
+      // Don't clear if we're already streaming (append() already cleared it)
       if (isThinking) {
         console.log('[ConversationStream] Clearing thinking state after new assistant response');
         setIsThinking(false);
       }
+      // Only clear optimistic message if it still exists
       if (optimisticMessageRef.current) {
         console.log('[ConversationStream] Clearing optimistic message after new assistant response');
         setOptimisticUserMessage(undefined);
       }
+    } else if (messagesLengthIncreased && lastMessage?.role === 'user') {
+      // User message was persisted - this is expected, don't clear thinking state
+      console.log('[ConversationStream] User message persisted to DB - keeping thinking state active');
     }
     
     // Always update ref for next comparison
@@ -269,7 +278,7 @@ export default function ConversationStream({ threadId }: Props) {
       console.log('[ConversationStream] Optimistic message state set to:', message);
     },
     begin: () => {
-      console.log('[ConversationStream] Beginning stream');
+      console.log('[ConversationStream] Beginning stream - setting thinking state');
       setStreamingText("");
       setIsThinking(true);
       setIsStreaming(false);
@@ -278,15 +287,19 @@ export default function ConversationStream({ threadId }: Props) {
       // Persist thinking state in sessionStorage so it survives page refresh
       if (threadId && typeof window !== 'undefined') {
         sessionStorage.setItem(`thinking_thread_${threadId}`, 'true');
+        console.log('[ConversationStream] Thinking state persisted to sessionStorage');
       }
+      console.log('[ConversationStream] Thinking state set - isThinking should be true now');
     },
     append: (token: string) => {
+      console.log('[ConversationStream] Appending token - switching from thinking to streaming');
       setIsThinking(false);
       setIsStreaming(true);
       setStreamingText((s) => s + token);
       // Clear thinking flag when we start streaming (response has started)
       if (threadId && typeof window !== 'undefined') {
         sessionStorage.removeItem(`thinking_thread_${threadId}`);
+        console.log('[ConversationStream] Thinking state cleared from sessionStorage - streaming started');
       }
     },
     end: () => {
