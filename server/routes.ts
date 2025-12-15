@@ -769,7 +769,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const refreshed = await storage.getUserLifeMetrics(userId);
-      res.json(refreshed);
+      
+      // Create default life metrics if user has none (should always exist)
+      if (refreshed.length === 0) {
+        console.log(`[life-metrics] Creating default life metrics for user ${userId}`);
+        const defaultMetrics = [
+          { name: "Career Growth 🚀", color: "#6366F1" },
+          { name: "Health & Fitness 🏃‍♀️", color: "#10B981" },
+          { name: "Personal Development 🧠", color: "#8B5CF6" },
+          { name: "Finance 💰", color: "#F59E0B" },
+          { name: "Relationships ❤️", color: "#EC4899" },
+          { name: "Mental Health 🧘‍♂️", color: "#0EA5E9" },
+        ];
+        
+        for (const metric of defaultMetrics) {
+          await db
+            .insert(lifeMetricDefinitions)
+            .values({
+              userId,
+              name: metric.name,
+              description: null,
+              color: metric.color,
+            });
+        }
+        
+        // Fetch again to return the newly created metrics
+        const newlyCreated = await storage.getUserLifeMetrics(userId);
+        res.json(newlyCreated);
+      } else {
+        res.json(refreshed);
+      }
     } catch (error) {
       console.error("Error fetching life metrics:", error);
       res.status(500).json({ message: "Failed to fetch life metrics" });

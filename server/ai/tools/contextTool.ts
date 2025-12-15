@@ -275,7 +275,7 @@ ${myFocus.keyInsights.map((i: any) => `- ${i.title}: ${i.explanation.substring(0
         }
         
         case "life_metrics": {
-          const metrics = await db
+          let metrics = await db
             .select()
             .from(lifeMetricDefinitions)
             .where(
@@ -284,6 +284,32 @@ ${myFocus.keyInsights.map((i: any) => `- ${i.title}: ${i.explanation.substring(0
                 eq(lifeMetricDefinitions.isActive, true)
               )
             );
+          
+          // Create default life metrics if user has none (should always exist)
+          if (metrics.length === 0) {
+            console.log(`[contextTool] Creating default life metrics for user ${userId}`);
+            const defaultMetrics = [
+              { name: "Career Growth 🚀", color: "#6366F1" },
+              { name: "Health & Fitness 🏃‍♀️", color: "#10B981" },
+              { name: "Personal Development 🧠", color: "#8B5CF6" },
+              { name: "Finance 💰", color: "#F59E0B" },
+              { name: "Relationships ❤️", color: "#EC4899" },
+              { name: "Mental Health 🧘‍♂️", color: "#0EA5E9" },
+            ];
+            
+            for (const metric of defaultMetrics) {
+              const [created] = await db
+                .insert(lifeMetricDefinitions)
+                .values({
+                  userId,
+                  name: metric.name,
+                  description: null,
+                  color: metric.color,
+                })
+                .returning();
+              metrics.push(created);
+            }
+          }
           
           // Get goal/habit counts per metric
           const metricsWithCounts = await Promise.all(

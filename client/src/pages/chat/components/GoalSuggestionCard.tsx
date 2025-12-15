@@ -155,6 +155,38 @@ export default function GoalSuggestionCard({ threadId, goal, habits = [], onAcce
     } catch {}
   };
 
+  // Check if goal already exists in database (persisted across devices)
+  useEffect(() => {
+    const checkGoalExists = async () => {
+      if (!goal.title) return;
+      
+      try {
+        const goals = await apiRequest('/api/goals');
+        const matchingGoal = Array.isArray(goals) ? goals.find((g: any) => {
+          const goalTitle = g.title || g.goalDef?.title || '';
+          return goalTitle.toLowerCase().trim() === goal.title.toLowerCase().trim();
+        }) : null;
+        
+        if (matchingGoal) {
+          const goalInstanceId = matchingGoal.id || matchingGoal.goalInstance?.id;
+          if (goalInstanceId) {
+            console.log('[GoalSuggestionCard] Goal already exists in DB, marking as accepted');
+            setAccepted(true);
+            setCreatedGoalInstanceId(goalInstanceId);
+            writeCardState({ 
+              accepted: true, 
+              createdGoalInstanceId: goalInstanceId 
+            });
+          }
+        }
+      } catch (error) {
+        console.warn('[GoalSuggestionCard] Failed to check if goal exists:', error);
+      }
+    };
+    
+    checkGoalExists();
+  }, [goal.title, cardStateKey]);
+
   useEffect(() => {
     const s = readCardState();
     if (!s) return;
@@ -423,6 +455,37 @@ export default function GoalSuggestionCard({ threadId, goal, habits = [], onAcce
       queryClient.invalidateQueries({ queryKey: ['/api/my-focus'] });
       queryClient.invalidateQueries({ queryKey: ['/api/goals'] });
       queryClient.invalidateQueries({ queryKey: ['/api/chat/threads'] });
+      
+      // Auto-respond to continue conversation after goal acceptance
+      // Automatically trigger agent to respond by sending a message
+      if (threadId && (window as any).sendServerStream) {
+        // Wait a moment for state to settle, then trigger agent response
+        setTimeout(async () => {
+          try {
+            // Send a message that triggers the agent to continue the conversation
+            // The agent will see the goal was added and respond naturally
+            const continuationMessage = "I've added the goal";
+            
+            // Show optimistic UI
+            if ((window as any).chatStream?.addUserMessage) {
+              (window as any).chatStream.addUserMessage(continuationMessage);
+            }
+            if ((window as any).chatStream?.begin) {
+              (window as any).chatStream.begin();
+            }
+            
+            // Send to server to trigger agent response
+            await (window as any).sendServerStream({ 
+              threadId, 
+              content: continuationMessage,
+              requestedAgentType: undefined // Use default agent
+            });
+          } catch (error) {
+            console.error('[GoalSuggestionCard] Failed to trigger auto-response:', error);
+            (window as any).chatStream?.end?.();
+          }
+        }, 500);
+      }
       
       onAccept?.();
     } catch (e: any) {
