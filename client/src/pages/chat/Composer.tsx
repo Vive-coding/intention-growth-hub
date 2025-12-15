@@ -127,34 +127,42 @@ export default function Composer({ threadId }: Props) {
         }
       );
 
-      // Show user message immediately by adding it to the stream
-      console.log('[Composer] Calling addUserMessage with:', messageText);
-      console.log('[Composer] chatStream available?', !!(window as any).chatStream);
-      console.log('[Composer] addUserMessage available?', !!(window as any).chatStream?.addUserMessage);
+      // Show user message immediately and start thinking state
+      // CRITICAL: Always call addUserMessage first, then begin(), in that order
+      console.log('[Composer] Setting up optimistic UI for message:', messageText);
       
-      // Wait a bit for ConversationStream to mount if we just navigated
-      if (!targetThreadId || targetThreadId === threadId) {
-        if ((window as any).chatStream?.addUserMessage) {
-          (window as any).chatStream.addUserMessage(messageText);
-          console.log('[Composer] Successfully called addUserMessage');
-        } else {
-          console.error('[Composer] chatStream.addUserMessage not available!');
-        }
-      } else {
-        // We're navigating to a new thread, wait for it to mount
+      if (isNewThread) {
+        // For new threads, wait for ConversationStream to mount after navigation
         setTimeout(() => {
           if ((window as any).chatStream?.addUserMessage) {
             (window as any).chatStream.addUserMessage(messageText);
-            console.log('[Composer] Successfully called addUserMessage after navigation');
+            console.log('[Composer] ✅ Added user message (new thread)');
+          } else {
+            console.error('[Composer] ❌ chatStream.addUserMessage not available!');
           }
-          // Ensure thinking state begins only after ConversationStream is mounted
-          (window as any).chatStream?.begin?.();
-        }, 120);
-      }
-
-      // Start thinking state immediately when staying on same thread
-      if (targetThreadId === threadId) {
-        (window as any).chatStream?.begin?.();
+          
+          if ((window as any).chatStream?.begin) {
+            (window as any).chatStream.begin();
+            console.log('[Composer] ✅ Started thinking state (new thread)');
+          } else {
+            console.error('[Composer] ❌ chatStream.begin not available!');
+          }
+        }, 150);
+      } else {
+        // For existing threads, call immediately
+        if ((window as any).chatStream?.addUserMessage) {
+          (window as any).chatStream.addUserMessage(messageText);
+          console.log('[Composer] ✅ Added user message (existing thread)');
+        } else {
+          console.error('[Composer] ❌ chatStream.addUserMessage not available!');
+        }
+        
+        if ((window as any).chatStream?.begin) {
+          (window as any).chatStream.begin();
+          console.log('[Composer] ✅ Started thinking state (existing thread)');
+        } else {
+          console.error('[Composer] ❌ chatStream.begin not available!');
+        }
       }
 
       await (window as any).sendServerStream({ threadId: targetThreadId as string, content: messageText, requestedAgentType: pendingAgentTypeRef.current });
