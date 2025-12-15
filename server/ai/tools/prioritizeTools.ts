@@ -37,7 +37,7 @@ If you cannot find 3 specific goal titles in the reasoning, choose the 3 most re
         'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
+        model: 'gpt-5-nano',
         temperature: 0.7,
         messages: [
           { role: 'user', content: prompt }

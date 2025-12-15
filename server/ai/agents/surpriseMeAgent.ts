@@ -57,11 +57,11 @@ export class SurpriseMeAgent {
 
   constructor() {
     this.model = new ChatOpenAI({
-      model: "gpt-4o-mini",
+      model: "gpt-5-nano",
       temperature: 0.7,
     });
     this.structuredModel = new ChatOpenAI({
-      model: "gpt-4o-mini",
+      model: "gpt-5-nano",
       temperature: 0.7,
     });
   }

@@ -445,7 +445,7 @@ export async function createLifeCoachAgentWithTools(tools: any[], mode?: string,
   console.log("[createLifeCoachAgent] Creating agent with tools:", tools.map(t => t.name));
   
   const model = new ChatOpenAI({
-    model: "gpt-4o-mini",
+    model: "gpt-5-nano",
     temperature: 0.7,
   });
 
