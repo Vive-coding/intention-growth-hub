@@ -359,7 +359,8 @@ router.post("/priorities/apply", async (req: any, res) => {
       try {
         await recalculateHabitTargetsForGoal(userId, goalId);
       } catch (err) {
-        console.warn("[my-focus] Failed to recalculate targets for prioritized goal", goalId, err);
+        console.error("[my-focus] Failed to recalculate targets for prioritized goal", goalId, err);
+        // Don't fail the entire request if recalculation fails - it's a best-effort operation
       }
     }
 
@@ -386,7 +387,15 @@ router.post("/priorities/apply", async (req: any, res) => {
     res.json({ success: true });
   } catch (e) {
     console.error('[my-focus] priorities apply failed', e);
-    res.status(500).json({ message: 'Failed to apply priorities' });
+    console.error('[my-focus] Error details:', {
+      message: e instanceof Error ? e.message : String(e),
+      stack: e instanceof Error ? e.stack : undefined,
+      name: e instanceof Error ? e.name : undefined,
+    });
+    res.status(500).json({ 
+      message: 'Failed to apply priorities',
+      error: process.env.NODE_ENV === 'development' ? (e instanceof Error ? e.message : String(e)) : undefined
+    });
   }
 });
 
@@ -479,54 +488,77 @@ async function computeHabitProgressTx(tx: any, userId: string, goalInstanceId: s
 
 // Helper: recalculate all habit targets for a goal based on remaining time to target date
 async function recalculateHabitTargetsForGoal(userId: string, goalInstanceId: string): Promise<void> {
-  // Load goal to get target date and ensure it belongs to user
-  const [goal] = await db
-    .select()
-    .from(goalInstances)
-    .where(and(eq(goalInstances.id, goalInstanceId), eq(goalInstances.userId, userId)))
-    .limit(1);
+  try {
+    // Load goal to get target date and ensure it belongs to user
+    const [goal] = await db
+      .select()
+      .from(goalInstances)
+      .where(and(eq(goalInstances.id, goalInstanceId), eq(goalInstances.userId, userId)))
+      .limit(1);
 
-  if (!goal || !goal.targetDate) {
-    return;
-  }
+    if (!goal || !goal.targetDate) {
+      console.log(`[my-focus] Skipping recalculate for goal ${goalInstanceId}: no target date`);
+      return;
+    }
 
-  // Load all habit instances for this goal
-  const habitRows = await db
-    .select()
-    .from(habitInstances)
-    .where(and(eq(habitInstances.goalInstanceId, goalInstanceId), eq(habitInstances.userId, userId)));
+    // Convert targetDate to Date if it's a string
+    const targetDate = goal.targetDate instanceof Date ? goal.targetDate : new Date(goal.targetDate);
+    if (isNaN(targetDate.getTime())) {
+      console.warn(`[my-focus] Invalid target date for goal ${goalInstanceId}: ${goal.targetDate}`);
+      return;
+    }
 
-  for (const hi of habitRows as any[]) {
-    const currentValue = hi.currentValue || 0;
-    const settings: any = hi.frequencySettings || {};
-    const frequency: string = settings.frequency || "daily";
-    const perPeriodTarget: number = settings.perPeriodTarget || 1;
-    const weekdaysOnly: boolean = !!settings.weekdaysOnly;
+    // Load all habit instances for this goal
+    const habitRows = await db
+      .select()
+      .from(habitInstances)
+      .where(and(eq(habitInstances.goalInstanceId, goalInstanceId), eq(habitInstances.userId, userId)));
 
-    const calc = calculateFrequencySettings(
-      goal.targetDate,
-      frequency,
-      perPeriodTarget,
-      weekdaysOnly,
-    );
+    if (habitRows.length === 0) {
+      console.log(`[my-focus] No habits to recalculate for goal ${goalInstanceId}`);
+      return;
+    }
 
-    const periodsRemaining = calc.periodsCount;
-    const remainingTarget = perPeriodTarget * periodsRemaining;
-    const newTargetValue = currentValue + remainingTarget;
+    for (const hi of habitRows as any[]) {
+      try {
+        const currentValue = hi.currentValue || 0;
+        const settings: any = hi.frequencySettings || {};
+        const frequency: string = settings.frequency || "daily";
+        const perPeriodTarget: number = settings.perPeriodTarget || 1;
+        const weekdaysOnly: boolean = !!settings.weekdaysOnly;
 
-    const newSettings: any = {
-      frequency: calc.frequency,
-      perPeriodTarget: calc.perPeriodTarget,
-      periodsCount: calc.periodsCount,
-      ...(weekdaysOnly ? { weekdaysOnly: true } : {}),
-    };
+        const calc = calculateFrequencySettings(
+          targetDate,
+          frequency,
+          perPeriodTarget,
+          weekdaysOnly,
+        );
 
-    await db
-      .update(habitInstances)
-      .set({
-        targetValue: newTargetValue,
-        frequencySettings: newSettings as any,
-      })
-      .where(eq(habitInstances.id, hi.id));
+        const periodsRemaining = calc.periodsCount;
+        const remainingTarget = perPeriodTarget * periodsRemaining;
+        const newTargetValue = currentValue + remainingTarget;
+
+        const newSettings: any = {
+          frequency: calc.frequency,
+          perPeriodTarget: calc.perPeriodTarget,
+          periodsCount: calc.periodsCount,
+          ...(weekdaysOnly ? { weekdaysOnly: true } : {}),
+        };
+
+        await db
+          .update(habitInstances)
+          .set({
+            targetValue: newTargetValue,
+            frequencySettings: newSettings as any,
+          })
+          .where(eq(habitInstances.id, hi.id));
+      } catch (habitErr) {
+        console.error(`[my-focus] Failed to recalculate habit ${hi.id} for goal ${goalInstanceId}:`, habitErr);
+        // Continue with other habits
+      }
+    }
+  } catch (err) {
+    console.error(`[my-focus] Error in recalculateHabitTargetsForGoal for goal ${goalInstanceId}:`, err);
+    throw err; // Re-throw to be caught by the caller
   }
 }
