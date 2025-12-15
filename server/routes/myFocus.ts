@@ -10,6 +10,7 @@ import {
   myFocusOptimizations,
   myFocusPrioritySnapshots,
   userOnboardingProfiles,
+  chatThreads,
 } from "../../shared/schema";
 import { calculateFrequencySettings } from "./goals";
 
@@ -83,6 +84,27 @@ router.get("/needs-setup", async (req: any, res) => {
   }
 });
 
+// Helper: Validate and sanitize sourceThreadId
+async function validateSourceThreadId(userId: string, sourceThreadId: string | null | undefined): Promise<string | null> {
+  if (!sourceThreadId) return null;
+  try {
+    const [thread] = await db
+      .select({ id: chatThreads.id })
+      .from(chatThreads)
+      .where(and(eq(chatThreads.id, sourceThreadId), eq(chatThreads.userId, userId)))
+      .limit(1);
+    if (thread?.id) {
+      return thread.id as any;
+    } else {
+      console.warn(`[my-focus] Invalid sourceThreadId ${sourceThreadId} - thread not found or doesn't belong to user`);
+      return null;
+    }
+  } catch (err) {
+    console.warn(`[my-focus] Error validating sourceThreadId ${sourceThreadId}:`, err);
+    return null;
+  }
+}
+
 // Apply an optimization proposal and persist prioritization snapshot atomically
 router.post("/optimization/apply", async (req: any, res) => {
   try {
@@ -90,6 +112,7 @@ router.post("/optimization/apply", async (req: any, res) => {
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
     const { proposal, sourceThreadId } = req.body || {};
+    const validatedSourceThreadId = await validateSourceThreadId(userId, sourceThreadId);
     if (!proposal || proposal.type !== "optimization") {
       return res.status(400).json({ message: "Invalid payload: missing optimization proposal" });
     }
@@ -118,7 +141,7 @@ router.post("/optimization/apply", async (req: any, res) => {
         await tx.insert(myFocusPrioritySnapshots).values({
           userId,
           items: items as any,
-          sourceThreadId: sourceThreadId || null,
+          sourceThreadId: validatedSourceThreadId,
         } as any);
       }
 
@@ -200,7 +223,7 @@ router.post("/optimization/apply", async (req: any, res) => {
         summary: proposal.summary || null,
         recommendations: [{ type: 'apply', payload: proposal }] as any,
         status: 'applied',
-        sourceThreadId: sourceThreadId || null,
+        sourceThreadId: validatedSourceThreadId,
       } as any);
     });
 
@@ -223,12 +246,15 @@ router.post("/priorities/apply", async (req: any, res) => {
       return res.status(400).json({ message: "Invalid payload: items[] required" });
     }
 
+    // Validate sourceThreadId if provided - must exist and belong to user
+    const validatedSourceThreadId = await validateSourceThreadId(userId, sourceThreadId);
+
     // Allow empty array to clear all priorities
     if (items.length === 0) {
       await db.insert(myFocusPrioritySnapshots).values({
         userId,
         items: [] as any,
-        sourceThreadId: sourceThreadId || null,
+        sourceThreadId: validatedSourceThreadId,
       } as any);
       return res.json({ success: true });
     }
@@ -308,7 +334,7 @@ router.post("/priorities/apply", async (req: any, res) => {
     await db.insert(myFocusPrioritySnapshots).values({
       userId,
       items: normalized as any,
-      sourceThreadId: sourceThreadId || null,
+      sourceThreadId: validatedSourceThreadId,
     } as any);
 
     // Update terms for goals removed from focus based on their target dates
@@ -406,12 +432,13 @@ router.post("/priorities/clear", async (req: any, res) => {
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
     const { sourceThreadId } = req.body || {};
+    const validatedSourceThreadId = await validateSourceThreadId(userId, sourceThreadId);
 
     // Create empty snapshot to clear all priorities
     await db.insert(myFocusPrioritySnapshots).values({
       userId,
       items: [] as any,
-      sourceThreadId: sourceThreadId || null,
+      sourceThreadId: validatedSourceThreadId,
     } as any);
 
     res.json({ success: true });
@@ -431,6 +458,8 @@ router.post("/priorities/remove", async (req: any, res) => {
     if (!Array.isArray(goalInstanceIds) || goalInstanceIds.length === 0) {
       return res.status(400).json({ message: "Invalid payload: goalInstanceIds[] required" });
     }
+
+    const validatedSourceThreadId = await validateSourceThreadId(userId, sourceThreadId);
 
     // Get current priority snapshot
     const [currentSnapshot] = await db
@@ -452,7 +481,7 @@ router.post("/priorities/remove", async (req: any, res) => {
     await db.insert(myFocusPrioritySnapshots).values({
       userId,
       items: updatedItems as any,
-      sourceThreadId: sourceThreadId || null,
+      sourceThreadId: validatedSourceThreadId,
     } as any);
 
     res.json({ success: true, remainingCount: updatedItems.length });
