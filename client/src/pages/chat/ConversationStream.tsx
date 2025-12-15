@@ -25,6 +25,7 @@ export default function ConversationStream({ threadId }: Props) {
   const [optimisticUserMessage, setOptimisticUserMessage] = useState<string | undefined>(undefined);
   const optimisticMessageRef = useRef<string | undefined>(undefined);
   const prevMessagesLengthRef = useRef(0);
+  const hasStartedStreamingRef = useRef(false);
   const [, navigate] = useLocation();
   const [recentlyCompleted, setRecentlyCompleted] = useState<Record<string, boolean>>({});
   const [habitCardSubmitted, setHabitCardSubmitted] = useState<Record<string, boolean>>({});
@@ -284,6 +285,7 @@ export default function ConversationStream({ threadId }: Props) {
       setIsStreaming(false);
       setCta(undefined);
       setStreamingStructuredData(undefined);
+      hasStartedStreamingRef.current = false; // Reset streaming flag
       // Persist thinking state in sessionStorage so it survives page refresh
       if (threadId && typeof window !== 'undefined') {
         sessionStorage.setItem(`thinking_thread_${threadId}`, 'true');
@@ -292,26 +294,36 @@ export default function ConversationStream({ threadId }: Props) {
       console.log('[ConversationStream] Thinking state set - isThinking should be true now');
     },
     append: (token: string) => {
-      console.log('[ConversationStream] Appending token - switching from thinking to streaming');
-      setIsThinking(false);
-      setIsStreaming(true);
-      setStreamingText((s) => s + token);
-      // Clear thinking flag when we start streaming (response has started)
-      if (threadId && typeof window !== 'undefined') {
-        sessionStorage.removeItem(`thinking_thread_${threadId}`);
-        console.log('[ConversationStream] Thinking state cleared from sessionStorage - streaming started');
+      // CRITICAL: First token means agent has started responding - clear thinking state immediately
+      if (!hasStartedStreamingRef.current) {
+        console.log('[ConversationStream] First token received - clearing thinking state and starting stream');
+        setIsThinking(false);
+        setIsStreaming(true);
+        hasStartedStreamingRef.current = true;
+        // Clear thinking flag from sessionStorage immediately
+        if (threadId && typeof window !== 'undefined') {
+          sessionStorage.removeItem(`thinking_thread_${threadId}`);
+          console.log('[ConversationStream] Thinking state cleared from sessionStorage - streaming started');
+        }
+      } else {
+        // Already streaming, just append
+        setIsStreaming(true);
       }
+      setStreamingText((s) => s + token);
     },
     end: () => {
-      console.log('[ConversationStream] Ending stream');
+      console.log('[ConversationStream] Ending stream - clearing all streaming states');
       setIsStreaming(false);
       setIsThinking(false);
-      // Clear thinking flag when response completes
+      hasStartedStreamingRef.current = false; // Reset for next message
+      // CRITICAL: Always clear thinking state when stream ends, even if no tokens were received
+      // This handles cases where the agent responds very quickly or there's an error
       if (threadId && typeof window !== 'undefined') {
         sessionStorage.removeItem(`thinking_thread_${threadId}`);
-        // Don't clear optimistic message here - let the query refresh handle it
-        // It will be cleared when we see the assistant response in messages
+        console.log('[ConversationStream] Thinking state cleared from sessionStorage on stream end');
       }
+      // Don't clear optimistic message here - let the query refresh handle it
+      // It will be cleared when we see the assistant response in messages
     },
     cta: (label: string) => setCta(label),
     structuredData: (data: any) => setStreamingStructuredData(data),
