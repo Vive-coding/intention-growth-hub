@@ -111,14 +111,17 @@ export default function PrioritizationCard({ items, messageId, onAccept, onRejec
 	};
 
 	if (accepted) {
-		        return (
-                <div className="bg-green-50 border-2 border-green-300 rounded-2xl p-3 sm:p-4 md:p-5 shadow-sm min-w-0 overflow-hidden">
+		const priorityCount = items.length;
+		const priorityText = priorityCount === 1 ? 'priority' : 'priorities';
+		
+		return (
+			<div className="bg-green-50 border-2 border-green-300 rounded-2xl p-3 sm:p-4 md:p-5 shadow-sm min-w-0 overflow-hidden">
 				<div className="flex items-center gap-2 text-green-700 font-semibold mb-3">
 					<Check className="w-5 h-5" />
 					<span>Priorities Accepted</span>
 				</div>
 				<div className="text-sm text-green-600 mb-3">
-					Your focus has been updated to these 3 priorities.
+					Your focus has been updated to {priorityCount} {priorityText}.
 				</div>
 				<Button
 					className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-2 rounded-xl"
