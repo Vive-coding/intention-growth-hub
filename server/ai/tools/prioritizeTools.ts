@@ -38,7 +38,7 @@ If you cannot find 3 specific goal titles in the reasoning, choose the 3 most re
       },
       body: JSON.stringify({
         model: 'gpt-5-nano',
-        temperature: 0.7,
+        // Note: GPT-5-nano only supports default temperature (1)
         messages: [
           { role: 'user', content: prompt }
         ],

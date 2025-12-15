@@ -45,7 +45,7 @@ export class MasterAgent {
   constructor() {
     this.model = new ChatOpenAI({
       model: "gpt-5-nano",
-      temperature: 0.7,
+      // Note: GPT-5-nano only supports default temperature (1)
     });
   }
 

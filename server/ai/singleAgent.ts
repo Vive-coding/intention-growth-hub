@@ -446,7 +446,8 @@ export async function createLifeCoachAgentWithTools(tools: any[], mode?: string,
   
   const model = new ChatOpenAI({
     model: "gpt-5-nano",
-    temperature: 0.7,
+    // Note: GPT-5-nano only supports default temperature (1)
+    // LangChain doesn't support these parameters yet, so using defaults
   });
 
   // CRITICAL: Convert tools to OpenAI function format
