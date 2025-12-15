@@ -1043,24 +1043,24 @@ export const OnboardingFlow = ({ onComplete, startStepKey }: OnboardingFlowProps
                 <p className="text-sm font-medium text-rose-600">{submitError}</p>
               )}
 
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
+                {currentStep.type !== "action" && (
+                  <Button
+                    onClick={handleContinue}
+                    className="flex-1 bg-emerald-500 text-white shadow-lg hover:bg-emerald-600 sm:order-2"
+                  >
+                    Continue
+                    <ChevronRight className="ml-2 h-4 w-4" />
+                  </Button>
+                )}
+
                 {currentStepIndex > 0 && (
                   <Button
                     variant="outline"
                     onClick={handleBack}
-                    className="flex-1 border-slate-200 text-slate-700 hover:bg-slate-50"
+                    className="flex-1 border-slate-200 text-slate-700 hover:bg-slate-50 sm:order-1"
                   >
                     <ChevronLeft className="mr-2 h-4 w-4" /> Back
-                  </Button>
-                )}
-
-                {currentStep.type !== "action" && (
-                  <Button
-                    onClick={handleContinue}
-                    className="flex-1 bg-emerald-500 text-white shadow-lg hover:bg-emerald-600"
-                  >
-                    Continue
-                    <ChevronRight className="ml-2 h-4 w-4" />
                   </Button>
                 )}
 
