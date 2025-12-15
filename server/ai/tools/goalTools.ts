@@ -780,7 +780,7 @@ IMPORTANT:
 - Prefer to use it on one clearly identified focus goal at a time.`,
 
   schema: z.object({
-    goal_id: z.string().describe("UUID of the goal instance whose habits should be updated"),
+    goal_id: z.string().describe("UUID of the goal INSTANCE (not goal definition) whose habits should be updated. Use get_context('my_focus') or get_context('all_goals') to get the correct goal instance ID. The goal_id must be from goalInstances table, not goalDefinitions."),
     remove_habit_ids: z
       .array(z.string())
       .optional()
@@ -828,7 +828,27 @@ IMPORTANT:
         .limit(1);
 
       if (!goalRow) {
-        throw new Error("Goal not found or does not belong to this user.");
+        // Try to provide helpful error message - check if it might be a goal definition ID instead
+        const [defCheck] = await tx
+          .select()
+          .from(goalDefinitions)
+          .where(and(eq(goalDefinitions.id, goal_id), eq(goalDefinitions.userId, userId)))
+          .limit(1);
+        
+        if (defCheck) {
+          // Found a goal definition but not an instance - need to get the instance
+          const [instanceCheck] = await tx
+            .select()
+            .from(goalInstances)
+            .where(and(eq(goalInstances.goalDefinitionId, goal_id), eq(goalInstances.userId, userId)))
+            .limit(1);
+          
+          if (instanceCheck) {
+            throw new Error(`Invalid goal_id: You provided a goal definition ID (${goal_id}), but this tool requires a goal INSTANCE ID (${instanceCheck.id}). Use get_context('my_focus') or get_context('all_goals') to get the correct goal instance ID.`);
+          }
+        }
+        
+        throw new Error(`Goal not found or does not belong to this user. The goal_id "${goal_id}" was not found in goal instances. Make sure you're using a goal INSTANCE ID (from goalInstances table), not a goal definition ID. Use get_context('my_focus') or get_context('all_goals') to get the correct ID.`);
       }
 
       const goalTitle = goalRow.def.title;
