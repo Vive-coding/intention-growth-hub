@@ -24,6 +24,7 @@ export default function ConversationStream({ threadId }: Props) {
   const [streamingStructuredData, setStreamingStructuredData] = useState<any | undefined>(undefined);
   const [optimisticUserMessage, setOptimisticUserMessage] = useState<string | undefined>(undefined);
   const optimisticMessageRef = useRef<string | undefined>(undefined);
+  const prevMessagesLengthRef = useRef(0);
   const [, navigate] = useLocation();
   const [recentlyCompleted, setRecentlyCompleted] = useState<Record<string, boolean>>({});
   const [habitCardSubmitted, setHabitCardSubmitted] = useState<Record<string, boolean>>({});
@@ -164,6 +165,7 @@ export default function ConversationStream({ threadId }: Props) {
 
   // Clear optimistic message when messages query refetches and includes the user's message
   // This happens after the message is persisted to the database
+  // CRITICAL: Only depend on messages, not optimisticUserMessage, to avoid clearing immediately when set
   useEffect(() => {
     if (!optimisticUserMessage || messages.length === 0) return;
     
@@ -180,43 +182,52 @@ export default function ConversationStream({ threadId }: Props) {
         sessionStorage.removeItem(`optimistic_message_${threadId}`);
       }
     }
-  }, [messages, optimisticUserMessage, threadId]);
+  }, [messages, threadId]); // Removed optimisticUserMessage from deps - only check when messages change
 
   // Keep a ref so we can read the latest optimistic message without forcing the useEffect
   useEffect(() => {
     optimisticMessageRef.current = optimisticUserMessage;
   }, [optimisticUserMessage]);
 
-  // Clear thinking state flag and optimistic message when we receive an assistant response
+  // Clear thinking state flag and optimistic message when we receive a NEW assistant response
   useEffect(() => {
-    if (!threadId || messages.length === 0) return;
+    if (!threadId || messages.length === 0) {
+      prevMessagesLengthRef.current = messages.length;
+      return;
+    }
     
+    const messagesLengthIncreased = messages.length > prevMessagesLengthRef.current;
     const lastMessage = messages[messages.length - 1];
-    // Only clear when we just received an assistant message
-    if (lastMessage?.role === 'assistant') {
+    
+    // Only clear when:
+    // 1. Messages array actually grew (we got a NEW message)
+    // 2. The new message is from assistant
+    // 3. We're not actively streaming (response is complete)
+    if (messagesLengthIncreased && lastMessage?.role === 'assistant' && !isStreaming) {
       const thinkingKey = `thinking_thread_${threadId}`;
       const optimisticKey = `optimistic_message_${threadId}`;
       if (typeof window !== 'undefined') {
         if (sessionStorage.getItem(thinkingKey) === 'true') {
-          console.log('[ConversationStream] Assistant response received, clearing thinking flag');
+          console.log('[ConversationStream] New assistant response received, clearing thinking flag');
           sessionStorage.removeItem(thinkingKey);
         }
         if (sessionStorage.getItem(optimisticKey)) {
-          console.log('[ConversationStream] Assistant response received, clearing optimistic message flag');
+          console.log('[ConversationStream] New assistant response received, clearing optimistic message flag');
           sessionStorage.removeItem(optimisticKey);
         }
       }
-      if (!isStreaming) {
-        if (isThinking) {
-          console.log('[ConversationStream] Clearing stale thinking state');
-          setIsThinking(false);
-        }
-        if (optimisticMessageRef.current) {
-          console.log('[ConversationStream] Clearing stale optimistic message');
-          setOptimisticUserMessage(undefined);
-        }
+      if (isThinking) {
+        console.log('[ConversationStream] Clearing thinking state after new assistant response');
+        setIsThinking(false);
+      }
+      if (optimisticMessageRef.current) {
+        console.log('[ConversationStream] Clearing optimistic message after new assistant response');
+        setOptimisticUserMessage(undefined);
       }
     }
+    
+    // Always update ref for next comparison
+    prevMessagesLengthRef.current = messages.length;
   }, [threadId, messages.length, isThinking, isStreaming]);
 
   // Note: We navigate away on explicit 404 via onError above to avoid loops
