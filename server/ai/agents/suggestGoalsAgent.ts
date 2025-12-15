@@ -76,9 +76,8 @@ export class SuggestGoalsAgent {
 
   constructor() {
     this.model = new ChatOpenAI({
-      model: "gpt-5-mini",
-      // Note: GPT-5-mini only supports default temperature (1)
-      // LangChain doesn't support max_completion_tokens yet, so using defaults
+      model: "gpt-4o-mini",
+      temperature: 0.7,
     });
   }
 

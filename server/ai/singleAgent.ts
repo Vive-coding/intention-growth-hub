@@ -445,10 +445,8 @@ export async function createLifeCoachAgentWithTools(tools: any[], mode?: string,
   console.log("[createLifeCoachAgent] Creating agent with tools:", tools.map(t => t.name));
   
   const model = new ChatOpenAI({
-    model: "gpt-5-mini",
-    // Note: GPT-5-mini only supports default temperature (1) and max_completion_tokens
-    // LangChain doesn't support these parameters yet, so using defaults
-    // TODO: Update when LangChain adds GPT-5 support
+    model: "gpt-4o-mini",
+    temperature: 0.7,
   });
 
   // CRITICAL: Convert tools to OpenAI function format
