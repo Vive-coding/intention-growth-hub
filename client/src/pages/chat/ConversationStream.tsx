@@ -200,16 +200,22 @@ export default function ConversationStream({ threadId }: Props) {
           sessionStorage.removeItem(optimisticKey);
         }
       }
-      // Also clear thinking state if it's still active
-      if (isThinking) {
-        setIsThinking(false);
-      }
-      // Clear optimistic message if it's still showing
-      if (optimisticUserMessage) {
-        setOptimisticUserMessage(undefined);
+      // Only clear if we're NOT actively streaming a new response
+      // This prevents clearing when user sends a new message (which sets optimistic state)
+      if (!isStreaming) {
+        // Clear thinking state if it's still active
+        if (isThinking) {
+          console.log('[ConversationStream] Clearing stale thinking state');
+          setIsThinking(false);
+        }
+        // Clear optimistic message if it's still showing
+        if (optimisticUserMessage) {
+          console.log('[ConversationStream] Clearing stale optimistic message');
+          setOptimisticUserMessage(undefined);
+        }
       }
     }
-  }, [threadId, messages, isThinking, optimisticUserMessage]);
+  }, [threadId, messages, isThinking, optimisticUserMessage, isStreaming]);
 
   // Note: We navigate away on explicit 404 via onError above to avoid loops
 
