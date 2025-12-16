@@ -2,7 +2,7 @@ import { DynamicStructuredTool } from "@langchain/core/tools";
 import { z } from "zod";
 import { db } from "../../db";
 import { insights, insightLifeMetrics, insightVotes, lifeMetricDefinitions } from "../../../shared/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 import { ChatOpenAI } from "@langchain/openai";
 
 const titleModel = new ChatOpenAI({
@@ -210,5 +210,133 @@ export const voteOnInsightTool = new DynamicStructuredTool({
       throw error;
     }
   }
+});
+
+/**
+ * Tool: Create insight
+ */
+export const createInsightTool = new DynamicStructuredTool({
+  name: "create_insight",
+  description: `Capture a meaningful pattern or observation about the user.
+
+Use when you notice:
+- Recurring blockers or challenges
+- Behavior patterns (what works, what doesn't)
+- Motivation drivers or energy patterns
+- Say/do contradictions
+- Hidden strengths or blind spots
+
+NOT for generic observations like "user wants to be healthier".
+
+Good insights are:
+- Specific: "Morning momentum predicts whole-day success"
+- Non-obvious: "Starts strong but abandons at 60%"
+- Actionable: "Thrives with accountability but resists asking for help"
+
+Call proactively when patterns emerge in any conversation.`,
+
+  schema: z.object({
+    title: z.string().describe("Short, memorable insight title (5-10 words)"),
+    summary: z.string().describe("1-2 sentence explanation of the pattern"),
+    category: z.enum([
+      "motivation",
+      "blocker",
+      "strength",
+      "pattern",
+      "contradiction",
+      "energy"
+    ]).describe("Type of insight"),
+    evidence: z.string().describe("What led to this insight (conversation context, observed behavior)"),
+    confidenceLevel: z.enum(["low", "medium", "high"]).describe("How confident are you in this insight?"),
+  }),
+
+  func: async ({ title, summary, category, evidence, confidenceLevel }, config) => {
+    let userId = (config as any)?.configurable?.userId;
+    if (!userId) {
+      userId = (global as any).__TOOL_USER_ID__;
+    }
+    if (!userId) {
+      throw new Error("User ID required");
+    }
+
+    try {
+      // Check for semantically similar insights
+      const existingInsights = await db
+        .select()
+        .from(insights)
+        .where(eq(insights.userId, userId))
+        .orderBy(desc(insights.createdAt))
+        .limit(20); // Check recent 20 insights
+
+      // Simple similarity check on title/summary
+      const titleLower = title.toLowerCase();
+      const summaryLower = summary.toLowerCase();
+      
+      for (const existing of existingInsights) {
+        const existingTitleLower = (existing.title || '').toLowerCase();
+        const existingSummaryLower = (existing.explanation || '').toLowerCase();
+        
+        // Check for high overlap in key terms
+        const titleOverlap = titleLower.split(' ')
+          .filter(word => word.length > 3)
+          .some(word => existingTitleLower.includes(word));
+        
+        const summaryOverlap = summaryLower.split(' ')
+          .filter(word => word.length > 4)
+          .filter(word => existingSummaryLower.includes(word)).length;
+        
+        // If significant overlap, return existing insight
+        if (titleOverlap && summaryOverlap > 2) {
+          return {
+            type: "insight_exists",
+            message: `Similar insight already exists: "${existing.title}". Not creating duplicate.`,
+            existingInsight: {
+              id: existing.id,
+              title: existing.title,
+              summary: existing.explanation,
+            },
+          };
+        }
+      }
+
+      // Map confidence level to numeric value
+      const confidenceMap: Record<string, number> = {
+        low: 50,
+        medium: 70,
+        high: 90,
+      };
+
+      // Create new insight
+      const [created] = await db
+        .insert(insights)
+        .values({
+          userId,
+          title,
+          explanation: summary,
+          confidence: confidenceMap[confidenceLevel] || 70,
+          metadata: {
+            category,
+            evidence,
+            confidenceLevel,
+            createdVia: "agent",
+          } as any,
+        })
+        .returning();
+
+      return {
+        type: "insight_created",
+        insight: {
+          id: created.id,
+          title: created.title,
+          summary: created.explanation,
+          category,
+        },
+        message: `Insight captured: "${title}". This will help personalize future coaching.`,
+      };
+    } catch (error) {
+      console.error("[createInsightTool] Error:", error);
+      throw error;
+    }
+  },
 });
 

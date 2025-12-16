@@ -23,7 +23,7 @@ import {
   updateHabitTool,
   logHabitCompletionTool
 } from "./habitTools";
-import { shareInsightTool, voteOnInsightTool } from "./insightTool";
+import { shareInsightTool, voteOnInsightTool, createInsightTool } from "./insightTool";
 import { showProgressSummaryTool } from "./progressTool";
 import { prioritizeGoalsTool, removePriorityGoalsTool } from "./prioritizeTools";
 
@@ -48,8 +48,9 @@ export const allTools = [
   updateHabitTool,
   logHabitCompletionTool,
   
-  // Insights (1 tool - voteOnInsightTool is called from frontend)
+  // Insights (2 tools - voteOnInsightTool is called from frontend)
   shareInsightTool,
+  createInsightTool,
   
   // Progress (1 tool)
   showProgressSummaryTool,
@@ -96,6 +97,7 @@ export {
   // Insights
   shareInsightTool,
   voteOnInsightTool,
+  createInsightTool,
   
   // Progress
   showProgressSummaryTool,

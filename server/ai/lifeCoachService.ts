@@ -66,7 +66,7 @@ function packContext(opts: {
   const composedUser = `
 Profile: ${profileLine || 'n/a'}
 Onboarding: ${onboardingSummary}
-Thread: ${threadSummary ? clampTokens(threadSummary, 500) : 'n/a'}
+Thread: ${threadSummary ? clampTokens(threadSummary, 200) : 'n/a'}
 Recent:
 ${recents}
 
@@ -99,7 +99,7 @@ export async function streamLifeCoachReply(params: {
   const [profile, workingSet, recentMessages, onboardingProfile] = await Promise.all([
     ChatContextService.getProfileCapsule(userId),
     ChatContextService.getWorkingSet(userId),
-    ChatContextService.getRecentMessages(threadId, 10),
+    ChatContextService.getRecentMessages(threadId, 8),
     ChatContextService.getOnboardingProfile(userId),
   ]);
   const threadRow = await db.select().from(chatThreads).where(eq(chatThreads.id, threadId)).limit(1);

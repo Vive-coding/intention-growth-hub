@@ -57,12 +57,10 @@ export class SurpriseMeAgent {
 
   constructor() {
     this.model = new ChatOpenAI({
-      model: "gpt-5-nano",
-      // Note: GPT-5-nano only supports default temperature (1)
+      model: "gpt-5-mini",
     });
     this.structuredModel = new ChatOpenAI({
-      model: "gpt-5-nano",
-      // Note: GPT-5-nano only supports default temperature (1)
+      model: "gpt-5-mini",
     });
   }
 

@@ -1,5 +1,5 @@
 import { db } from "../db";
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, and, inArray } from "drizzle-orm";
 import {
   users,
   insights,
@@ -10,6 +10,7 @@ import {
   userOnboardingProfiles,
   chatMessages,
 } from "../../shared/schema";
+import { MyFocusService } from "./myFocusService";
 
 export interface ProfileCapsule {
   firstName?: string | null;
@@ -152,6 +153,98 @@ export class ChatContextService {
     }
 
     return row;
+  }
+
+  static async getMyFocusContext(userId: string): Promise<{
+    priorityGoals: Array<{ 
+      id: string; 
+      title: string; 
+      targetDate: string | null; 
+      status: string;
+      currentValue: number;
+      targetValue: number;
+    }>;
+    focusHabits: Array<{ 
+      name: string; 
+      streak: number;
+      frequency: string;
+      goalTitle: string;
+    }>;
+  }> {
+    // Get priority goals from My Focus
+    const myFocus = await MyFocusService.getMyFocus(userId);
+    const priorityGoalIds = myFocus.priorityGoals?.map((g: any) => g.id) || [];
+    
+    if (priorityGoalIds.length === 0) {
+      return { priorityGoals: [], focusHabits: [] };
+    }
+    
+    // Load goal details
+    const goals = await db
+      .select({
+        id: goalInstances.id,
+        title: goalDefinitions.title,
+        targetDate: goalInstances.targetDate,
+        status: goalInstances.status,
+        currentValue: goalInstances.currentValue,
+        targetValue: goalInstances.targetValue,
+      })
+      .from(goalInstances)
+      .innerJoin(goalDefinitions, eq(goalInstances.goalDefinitionId, goalDefinitions.id))
+      .where(
+        and(
+          eq(goalInstances.userId, userId),
+          inArray(goalInstances.id, priorityGoalIds)
+        )
+      );
+    
+    // Load habits for these goals
+    const habits = await db
+      .select({
+        name: habitDefinitions.name,
+        frequency: habitInstances.frequency,
+        goalTitle: goalDefinitions.title,
+      })
+      .from(habitInstances)
+      .innerJoin(habitDefinitions, eq(habitInstances.habitDefinitionId, habitDefinitions.id))
+      .innerJoin(goalInstances, eq(habitInstances.goalInstanceId, goalInstances.id))
+      .innerJoin(goalDefinitions, eq(goalInstances.goalDefinitionId, goalDefinitions.id))
+      .where(
+        and(
+          eq(habitInstances.userId, userId),
+          inArray(habitInstances.goalInstanceId, priorityGoalIds)
+        )
+      );
+    
+    // Calculate streaks (simplified - use existing streak logic from MyFocusService)
+    // For now, we'll get streaks from myFocus data if available
+    const habitsWithStreaks = habits.map(h => {
+      // Try to find streak from myFocus data
+      const focusHabit = myFocus.highLeverageHabits?.find((fh: any) => 
+        fh.title === h.name || fh.id === h.name
+      );
+      return {
+        ...h,
+        streak: focusHabit?.streak || 0,
+      };
+    });
+    
+    return {
+      priorityGoals: goals.map(g => ({
+        id: g.id,
+        title: g.title ?? "Untitled",
+        targetDate: g.targetDate ? new Date(g.targetDate).toISOString() : null,
+        status: g.status ?? "active",
+        currentValue: g.currentValue ?? 0,
+        targetValue: g.targetValue ?? 100,
+      })),
+      focusHabits: habitsWithStreaks.map(h => ({
+        name: h.name,
+        streak: h.streak,
+        frequency: h.frequency ?? "daily",
+        goalTitle: h.goalTitle ?? "Untitled",
+      })),
+    };
   }
 }
 

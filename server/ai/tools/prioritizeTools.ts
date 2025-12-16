@@ -37,8 +37,7 @@ If you cannot find 3 specific goal titles in the reasoning, choose the 3 most re
         'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
       },
       body: JSON.stringify({
-        model: 'gpt-5-nano',
-        // Note: GPT-5-nano only supports default temperature (1)
+        model: 'gpt-5-mini',
         messages: [
           { role: 'user', content: prompt }
         ],
