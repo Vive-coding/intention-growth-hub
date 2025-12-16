@@ -49,7 +49,7 @@ export const JournalsScreen: React.FC<JournalsScreenProps> = ({
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-cyan-50 p-4">
+      <div className="min-h-screen p-4">
         <div className="max-w-4xl mx-auto">
           <Card className="shadow-md border-0 bg-white/80 backdrop-blur-sm">
             <CardHeader>
@@ -163,7 +163,7 @@ export const JournalsScreen: React.FC<JournalsScreenProps> = ({
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-cyan-50 p-4 lg:p-8 pb-24 lg:pb-8">
+    <div className="min-h-screen p-4 lg:p-8 pb-24 lg:pb-8">
       <div className="max-w-7xl mx-auto space-y-6">
         {onBack && (
           <Button

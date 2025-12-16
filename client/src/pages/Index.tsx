@@ -274,6 +274,10 @@ const Index = () => {
               setSelectedJournalId(id);
               setCurrentScreen("journals");
             }}
+            onViewAll={() => {
+              setSelectedJournalId(null);
+              setCurrentScreen("journals");
+            }}
           />
         </SharedLeftNav>
         
@@ -308,6 +312,11 @@ const Index = () => {
                             <RecentJournalsNav
                               onSelectEntry={(id) => {
                                 setSelectedJournalId(id);
+                                setCurrentScreen("journals");
+                                setShowMobileNav(false);
+                              }}
+                              onViewAll={() => {
+                                setSelectedJournalId(null);
                                 setCurrentScreen("journals");
                                 setShowMobileNav(false);
                               }}

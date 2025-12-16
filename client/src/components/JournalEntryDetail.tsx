@@ -100,7 +100,7 @@ export const JournalEntryDetail = ({
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-cyan-50 p-4">
+    <div className="min-h-screen p-4">
       <div className="max-w-4xl mx-auto space-y-6">
         {/* Header */}
         <Card className="shadow-md border-0 bg-white/80 backdrop-blur-sm">
