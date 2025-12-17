@@ -48,10 +48,10 @@ export default function ConversationsList({ currentThreadId, onThreadClick }: Pr
 								}}
 							>
 								<div className="flex items-center gap-2">
-									<MessageSquare className={`w-4 h-4 ${active ? 'text-teal-700' : 'text-gray-400'}`} />
+									<MessageSquare className={`w-4 h-4 flex-shrink-0 ${active ? 'text-teal-700' : 'text-gray-400'}`} />
 									<div className={`text-sm font-medium truncate ${active ? 'text-teal-800' : 'text-gray-800'}`}>{t.title || 'Daily Coaching'}</div>
 								</div>
-								<div className="text-[11px] text-gray-500 mt-0.5">{new Date(t.createdAt || t.updatedAt || Date.now()).toLocaleDateString()}</div>
+								<div className="text-[11px] text-gray-500 mt-0.5 ml-6">{new Date(t.createdAt || t.updatedAt || Date.now()).toLocaleDateString()}</div>
                 </button>
                 {/* Desktop-only delete button - hidden on mobile */}
                 <button
