@@ -356,10 +356,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Signup route
   app.post('/api/auth/signup', async (req, res) => {
     try {
-      const { email, password, firstName, lastName } = req.body;
+      const { email, password, firstName, lastName, emailConsent } = req.body;
       
       if (!email || !password || !firstName || !lastName) {
         return res.status(400).json({ message: "All fields are required" });
+      }
+
+      if (!emailConsent) {
+        return res.status(400).json({ message: "Email consent is required to create an account" });
       }
 
       // Check if user already exists

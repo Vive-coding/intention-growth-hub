@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useAuth } from "@/hooks/useAuth";
 import { apiRequest } from "@/lib/queryClient";
@@ -21,6 +22,7 @@ export const AuthModal = ({ isOpen, onClose, initialMode = 'signup' }: AuthModal
   const [password, setPassword] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
+  const [emailConsent, setEmailConsent] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const { login } = useAuth();
@@ -38,7 +40,7 @@ export const AuthModal = ({ isOpen, onClose, initialMode = 'signup' }: AuthModal
     try {
       const endpoint = isSignup ? "/api/auth/signup" : "/api/auth/login";
       const body = isSignup 
-        ? { email, password, firstName, lastName }
+        ? { email, password, firstName, lastName, emailConsent }
         : { email, password };
 
       const data = await apiRequest(endpoint, {
@@ -75,6 +77,7 @@ export const AuthModal = ({ isOpen, onClose, initialMode = 'signup' }: AuthModal
       setPassword("");
       setFirstName("");
       setLastName("");
+      setEmailConsent(false);
     } catch (error: any) {
       setError(error.message);
     } finally {
@@ -93,9 +96,15 @@ export const AuthModal = ({ isOpen, onClose, initialMode = 'signup' }: AuthModal
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>
-            {isSignup ? "Create Account" : "Sign In"}
+            {isSignup ? "Join Private Beta" : "Sign In"}
           </DialogTitle>
         </DialogHeader>
+        
+        {isSignup && (
+          <p className="text-sm text-gray-600 mb-4">
+            An AI coach that learns your patterns and helps you build habits that stick. Start now and help us shape what this becomes.
+          </p>
+        )}
         
         <form onSubmit={handleSubmit} className="space-y-4">
           {isSignup && (
@@ -147,6 +156,23 @@ export const AuthModal = ({ isOpen, onClose, initialMode = 'signup' }: AuthModal
             />
           </div>
           
+          {isSignup && (
+            <div className="flex items-start space-x-2">
+              <Checkbox
+                id="emailConsent"
+                checked={emailConsent}
+                onCheckedChange={(checked) => setEmailConsent(checked === true)}
+                className="mt-1"
+              />
+              <Label
+                htmlFor="emailConsent"
+                className="text-sm font-normal leading-relaxed cursor-pointer"
+              >
+                I'm happy to share feedback and be contacted via email.
+              </Label>
+            </div>
+          )}
+          
           {error && (
             <div className="text-red-600 text-sm">{error}</div>
           )}
@@ -154,7 +180,7 @@ export const AuthModal = ({ isOpen, onClose, initialMode = 'signup' }: AuthModal
           <Button 
             type="submit" 
             className="w-full"
-            disabled={isLoading}
+            disabled={isLoading || (isSignup && !emailConsent)}
           >
             {isLoading ? "Loading..." : (isSignup ? "Create Account" : "Sign In")}
           </Button>
