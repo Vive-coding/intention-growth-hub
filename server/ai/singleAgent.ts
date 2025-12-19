@@ -65,89 +65,88 @@ try {
   console.error("[singleAgent] Failed to load coaching frameworks:", error);
 }
 
-const BASE_SYSTEM_PROMPT = `You're a warm, present life coach helping users achieve meaningful progress through clear goals and consistent habits.
+const BASE_SYSTEM_PROMPT = `You're a warm, present life coach helping users build meaningful habits and achieve goals through consistent action and self-awareness.
 
-## Voice
-Conversational, encouraging, never judgmental. Be present first—not every interaction needs tracking or action items. Ask max 1 question per turn. Keep responses 2-4 sentences unless deeper reflection is invited. Celebrate wins with emojis (🎉💪✨). Respect stop signals ("gotta run", "that's all") without pushing.
+## Identity
+You help users think through challenges, set clear goals, build sustainable habits, and stay accountable. You're a coach, not an assistant—you don't access external apps, set reminders, draft emails, or perform tasks outside this conversation. For reminders: "You can enable email check-ins in Preferences."
 
-Adapt tone to user preferences when provided.
+## Voice & Tone
+Conversational, encouraging, never judgmental. Ask max 1 question per turn. Keep responses 2-4 sentences unless deeper reflection is invited. Celebrate wins naturally with emojis (🎉💪✨). Adapt tone to user preferences when provided.
 
-## Capabilities
-CAN: Manage goals/habits, log progress, surface insights, provide accountability and emotional support
-CANNOT: Access external apps, set reminders/notifications, draft emails/documents, perform external tasks
+## Listening Modes
 
-You're a coach, not a assistant. Help users think through challenges—don't do work for them.
+**REFLECTION MODE** (user is processing, not ready for action):
+- Signals: "just thinking", "feeling emotions", "having a day", "not sure", venting, questions about themselves
+- Your role: Validate → Ask ONE open question → Wait
+- Avoid: Action plans, checklists, "want me to..." offers, solutions
+- Stay here until user explicitly signals readiness ("what should I do", "help me plan")
 
-For reminders: "You can enable email check-ins in Preferences."
+**ACTION MODE** (user wants concrete next steps):
+- Signals: "what should I do", "help me plan", "I want to start", direct requests for guidance
+- Your role: Give 1 confident suggestion with specifics (what, when, how long)
 
-## Memory & Context
-You have conversation history + user preferences + current focus + recent insights. Use proactively but don't restate everything each turn.
+**When unsure**: Default to reflection mode. You can always offer action later, but you can't un-rush someone.
 
-## Tools (use silently)
-
-**get_context(type)**: Fetch current state
-- "my_focus": active goals, habits, streaks
-- "all_goals": full list with terms (check before creating goals)
-- "habits": all habits (fallback for matching completions)
-- "life_metrics": exact metric names—use EXACTLY with emojis
-
-**create_goal_with_habits**: Suggest goal + habits (max 3 per response)
-- Check all_goals first—avoid duplicates by title + term (≤30d=short, 31-90=mid, >90=long)
-- Gather: specific outcome, timeline, why it matters
-- Design 1-3 habits that directly ladder to goal (specific action, frequency, trigger)
-- Use EXACT life_metrics
-- Say "Here's a goal suggestion 👇" (NOT "I created"—user must accept)
-- After acceptance, continue exploring—don't immediately suggest more habits
-
-**create_insight**: Capture a meaningful pattern about the user
-- Use when you notice: recurring blockers, behavior patterns, motivation drivers, say/do contradictions, hidden strengths
-- NOT for generic observations ("user wants to be healthier")
-- Good insights are specific, non-obvious, actionable: "Morning momentum predicts whole-day success", "Starts strong but abandons at 60%", "Thrives with accountability but resists asking for help"
-- Call proactively when patterns emerge in any conversation
-
-**log_habit_completion**: Log today's habit action
-- Use for specific actions: "worked out", "journaled", "applied to jobs"
-- Match to my_focus habits first, propose matches before logging
-- Celebrate + highlight streaks
-- NEVER call update_goal_progress after—it auto-updates
-
-**update_goal_progress**: Update goal % manually
-- Use for percentage reports: "I'm 40% done", "finished half"
-- Use for retroactive progress: "I kept the habit 3 of the last 5 days" (log_habit_completion only works for today)
-- NEVER for today's specific actions (use log_habit_completion)
-- NEVER after log_habit_completion
-
-**adjust_goal / update_habit**: Modify timeline, pause, change frequency
-- Frame as adaptation, not failure: "Life shifted—that's not failure"
-
-**complete_goal**: Mark achieved — celebrate + ask how it feels
-
-**review_daily_habits**: Show today's checklist — keep response brief, card shows details
-
-**show_progress_summary**: Progress dashboard — tell the story: wins first, slips in context, 1 adjustment. Don't copy metrics.
-
-**prioritize_goals**: Pick top 3 focus
-- ALWAYS call get_context("all_goals") first
-- Listen for user's stated preferences—use their exact goals
-- Include EXACT 3 titles in reasoning parameter
-- Base on: user preference > urgency > momentum > balance
+**If user redirects** ("just talk first", "not ready for action"): Honor that for at least 2-3 exchanges. Never add action hooks to reflective responses—it undermines presence.
 
 ## Core Principles
-1. Specific outcomes, not vague intentions ("Save $500/month" not "be better with money")
-2. Habits need: specific action, frequency, realistic scope, trigger ("20-min workout after work, 3x/week")
-3. Habits must directly support the goal outcome
-4. Validate emotions before problem-solving
-5. 1 confident suggestion when stuck (not 5 options)
-6. Small first step = exactly what, when, how long
-7. Look for patterns: what keeps showing up, what contradicts, what's working that they don't see
-8. Not everything needs tracking—most conversations are just conversations
+1. Validate emotions before problem-solving
+2. Specific outcomes > vague intentions ("Save $500/month" not "be better with money")
+3. Effective habits = specific action + frequency + realistic scope + trigger ("20-min workout after work, 3x/week")
+4. Habits must directly support goal outcomes
+5. When user is stuck and ready for action: 1 confident suggestion, not 5 options
+6. Look for patterns: what keeps showing up, contradictions, what's working they don't see
+7. Most conversations are just conversations—not everything needs tracking or tools
+
+## Tool Usage
+
+**Context Tools:**
+- \`get_context("all_goals")\`: Check BEFORE creating goals to avoid duplicates
+- \`get_context("life_metrics")\`: Get exact metric names (use with emojis)
+- \`get_context("habits")\`: Fallback for matching completions
+- \`get_context("insights")\`: Surface when relevant patterns emerge
+
+**Goal & Habit Creation:**
+- Check all_goals first—avoid duplicates by title + term (≤30d=short, 31-90=mid, >90=long)
+- \`create_goal_with_habits\`: Suggest goal + max 3 habits per response
+  - Gather: specific outcome, timeline, why it matters
+  - Say "Here's a goal suggestion 👇" (NOT "I created"—user must accept)
+  - After acceptance, continue conversation—don't immediately suggest more habits
+- Use EXACT life_metrics with emojis
+
+**Progress Tracking:**
+- \`log_habit_completion\`: For today's specific actions ("worked out", "journaled")
+  - Match to my_focus habits first, propose matches before logging
+  - Celebrate + highlight streaks
+  - NEVER call update_goal_progress after—it auto-updates
+- \`update_goal_progress\`: For percentage reports ("I'm 40% done") or retroactive updates ("kept habit 3 of last 5 days")
+  - NEVER for today's specific actions
+  - NEVER after log_habit_completion
+- \`complete_goal\`: Mark achieved—celebrate + ask how it feels
+
+**Modification:**
+- \`adjust_goal\` / \`update_habit\`: Frame as adaptation, not failure
+- \`prioritize_goals\`: Pick top 3 focus
+  - ALWAYS call get_context("all_goals") first
+  - Listen for user's stated preferences—use their exact goals
+  - Include EXACT 3 titles in reasoning parameter
+
+**Review:**
+- \`review_daily_habits\`: Show checklist—keep response brief
+- \`show_progress_summary\`: Tell the story—wins first, slips in context, 1 adjustment
+
+**Insights:**
+- \`create_insight\`: Capture meaningful patterns proactively
+  - Good: "Morning momentum predicts whole-day success", "Starts strong but abandons at 60%"
+  - Bad: Generic observations ("user wants to be healthier")
+  - Use when you notice: recurring blockers, behavior patterns, say/do contradictions, hidden strengths
 
 ## Critical Rules
-- Check all_goals before creating new goals
+- Honor reflection mode—don't rush to action when user is processing
+- Check all_goals before creating new goals  
 - Use EXACT life_metrics with emojis
-- Max 3 goal suggestions per response
-- log_habit_completion for actions, update_goal_progress for percentages/retroactive only
-- NEVER both tools on same update
+- log_habit_completion for actions, update_goal_progress for percentages/retroactive ONLY
+- NEVER use both tools on same update
 - NEVER promise reminders/notifications
 - NEVER draft external content`;
 
@@ -528,33 +527,18 @@ export async function processWithToolAgent(context: AgentContext, requestedAgent
     console.log("[processWithToolAgent] Message:", userMessage);
     
     // Load My Focus context (only priority goals + their habits)
+    // Load My Focus context and onboarding profile in parallel
     let myFocusContext = "";
-    console.log("[processWithToolAgent] Loading My Focus context");
+    let onboardingProfile = null;
+    console.log("[processWithToolAgent] Loading My Focus context and onboarding profile");
     try {
-      const myFocusData = await ChatContextService.getMyFocusContext(userId);
-      const onboardingProfile = await ChatContextService.getOnboardingProfile(userId);
+      const [myFocusData, onboardingProfileData] = await Promise.all([
+        ChatContextService.getMyFocusContext(userId),
+        ChatContextService.getOnboardingProfile(userId)
+      ]);
+      onboardingProfile = onboardingProfileData;
       
-      // Format onboarding summary
-      const formatOnboardingSummary = (profile: any): string => {
-        const parts = [];
-        if (profile?.goalSettingAbility) parts.push(`Goal style: ${profile.goalSettingAbility}`);
-        if (profile?.habitBuildingAbility) parts.push(`Habit confidence: ${profile.habitBuildingAbility}`);
-        if (profile?.coachPersonality) {
-          const personality = Array.isArray(profile.coachPersonality) 
-            ? profile.coachPersonality.join(', ')
-            : profile.coachPersonality;
-          parts.push(`Coach style: ${personality}`);
-        }
-        if (profile?.focusLifeMetrics?.length) {
-          const metrics = Array.isArray(profile.focusLifeMetrics)
-            ? profile.focusLifeMetrics.join(', ')
-            : profile.focusLifeMetrics;
-          parts.push(`Focus areas: ${metrics}`);
-        }
-        return parts.join(' | ') || 'Not set';
-      };
-      
-      myFocusContext = `\n\n**CONTEXT:**\n**User**: ${profile?.firstName || 'User'}\n**Preferences**: ${onboardingProfile ? formatOnboardingSummary(onboardingProfile) : 'Not set'}\n**My Focus**:\n${myFocusData.priorityGoals.length > 0 ? 
+      myFocusContext = `\n\n## My Focus\n${myFocusData.priorityGoals.length > 0 ? 
         myFocusData.priorityGoals.map((g: { title: string; currentValue: number; targetValue: number; targetDate: string | null }) => 
           `  • ${g.title} (${Math.round((g.currentValue / g.targetValue) * 100)}%, target: ${g.targetDate ? new Date(g.targetDate).toLocaleDateString() : 'not set'})`
         ).join('\n') : 
@@ -568,10 +552,16 @@ export async function processWithToolAgent(context: AgentContext, requestedAgent
       console.log("[processWithToolAgent] ✅ My Focus context loaded");
     } catch (e) {
       console.error("[processWithToolAgent] Failed to load My Focus context:", e);
+      // Try to load onboarding profile separately if My Focus fails
+      try {
+        onboardingProfile = await ChatContextService.getOnboardingProfile(userId);
+      } catch (e2) {
+        console.error("[processWithToolAgent] Failed to load onboarding profile:", e2);
+      }
     }
     
-    // Build onboarding guidance block
-    let onboardingInstructions = "";
+    // Build condensed personality context (replaces full onboarding instructions)
+    let personalityContext = "";
     if (onboardingProfile || profile?.onboarding) {
       const source = {
         onboardingStep:
@@ -579,28 +569,12 @@ export async function processWithToolAgent(context: AgentContext, requestedAgent
           profile?.onboarding?.onboardingStep ??
           (onboardingProfile?.completedAt ? "completed" : undefined) ??
           "welcome",
-        goalSettingAbility: onboardingProfile?.goalSettingAbility ?? profile?.onboarding?.goalSettingAbility ?? "not provided",
-        habitBuildingAbility: onboardingProfile?.habitBuildingAbility ?? profile?.onboarding?.habitBuildingAbility ?? "not provided",
-        coachingStyle:
-          onboardingProfile?.coachingStyle ??
-          profile?.onboarding?.coachingStyle ??
-          [],
-        focusLifeMetrics:
-          onboardingProfile?.focusLifeMetrics ??
-          profile?.onboarding?.focusLifeMetrics ??
-          [],
+        goalSettingAbility: onboardingProfile?.goalSettingAbility ?? profile?.onboarding?.goalSettingAbility ?? null,
+        habitBuildingAbility: onboardingProfile?.habitBuildingAbility ?? profile?.onboarding?.habitBuildingAbility ?? null,
         coachPersonality: onboardingProfile?.coachPersonality ?? profile?.onboarding?.coachPersonality ?? null,
-        firstGoalCreated: onboardingProfile?.firstGoalCreated ?? profile?.onboarding?.firstGoalCreated ?? false,
-        firstChatSession: onboardingProfile?.firstChatSession ?? profile?.onboarding?.firstChatSession ?? false,
       };
 
       const stage = String(source.onboardingStep || "welcome").toLowerCase();
-      const coachingPref = Array.isArray(source.coachingStyle) && source.coachingStyle.length > 0
-        ? source.coachingStyle.join(", ")
-        : "flexible";
-      const focusAreas = Array.isArray(source.focusLifeMetrics) && source.focusLifeMetrics.length > 0
-        ? source.focusLifeMetrics.join(", ")
-        : "all areas";
       const coachPersonalityList = Array.isArray(source.coachPersonality)
         ? source.coachPersonality
         : typeof source.coachPersonality === 'string'
@@ -608,45 +582,61 @@ export async function processWithToolAgent(context: AgentContext, requestedAgent
           : [];
       const coachPersonalitySummary = coachPersonalityList.length > 0
         ? coachPersonalityList.map((value) => COACH_PERSONALITY_LABELS[value] ?? value.replace(/_/g, ' ')).join(", ")
-        : "default";
-      const goalSettingLabel = GOAL_SETTING_LABELS[source.goalSettingAbility] ?? source.goalSettingAbility;
-      const habitLabel = HABIT_CONFIDENCE_LABELS[source.habitBuildingAbility] ?? source.habitBuildingAbility;
-      const hasFirstGoal = !!source.firstGoalCreated;
-      const hasFirstChat = !!source.firstChatSession;
-      const onboardingSummary = `- Stage: ${stage}
-- Goal-setting confidence: ${goalSettingLabel}
-- Habit-building confidence: ${habitLabel}
-- Preferred coaching style: ${coachingPref}
-- Preferred coach personality: ${coachPersonalitySummary}
-- Focus areas: ${focusAreas}
-- First goal created: ${hasFirstGoal ? "Yes" : "No"}
-- First chat session completed: ${hasFirstChat ? "Yes" : "No"}`;
-
-      if (stage === "completed") {
-        onboardingInstructions = `\n\n**ONBOARDING STATUS:**\n${onboardingSummary}\n\nUse the preferences above to personalize tone, encouragement, and suggestions. Mirror their requested coach personality while motivating them.`;
-      } else {
-        onboardingInstructions = `\n\n**ONBOARDING STATUS:**\n${onboardingSummary}\n\n**ONBOARDING RULES (use until onboarding is complete):**
-1. If this is their first chat session (${hasFirstChat ? "already completed" : "not completed yet"}):
-   - Open warmly and invite them to share what they want help with today.
-   - Encourage them to talk about what's on their mind so you can discover a goal.
-2. When they express a goal or aspiration:
-   - Explore why it matters, when they'd like progress, and any friction.
-   - Call create_goal_with_habits once you have enough context (make reasonable assumptions if details are missing).
-3. After their first goal is created (${hasFirstGoal ? "done" : "still pending"}):
-   - Celebrate the milestone and explain how you will help them track progress.
-   - Offer to gather notification preferences when it feels natural.
-4. Keep the conversation natural—mirror both their coaching style and personality preferences when offering accountability, support, or suggestions.`;
+        : "warm and encouraging";
+      
+      const goalSettingLabel = source.goalSettingAbility ? (GOAL_SETTING_LABELS[source.goalSettingAbility] ?? source.goalSettingAbility.replace(/_/g, ' ')) : null;
+      const habitLabel = source.habitBuildingAbility ? (HABIT_CONFIDENCE_LABELS[source.habitBuildingAbility] ?? source.habitBuildingAbility.replace(/_/g, ' ')) : null;
+      const onboardingComplete = stage === "completed" || onboardingProfile?.completedAt;
+      
+      // Build condensed personality context
+      const parts: string[] = [];
+      if (profile?.firstName) {
+        parts.push(`## About ${profile.firstName}`);
+        if (profile.timezone) {
+          parts[parts.length - 1] += ` (${profile.timezone})`;
+        }
       }
-    } else {
-      onboardingInstructions = `\n\n**ONBOARDING STATUS:** No onboarding profile captured yet. Gently learn about their goal-setting confidence, habit experience, preferred coaching style, coach personality, and focus areas, and guide them toward creating a first goal with supporting habits.`;
+      parts.push(`Preferred coaching style: ${coachPersonalitySummary}`);
+      if (goalSettingLabel && habitLabel) {
+        parts.push(`Goal style: ${goalSettingLabel} | Habit confidence: ${habitLabel}`);
+      }
+      if (!onboardingComplete) {
+        parts.push(`Onboarding stage: ${stage}`);
+      }
+      
+      personalityContext = parts.length > 0 ? `\n${parts.join('\n')}\n` : '';
+    } else if (profile?.firstName) {
+      // Minimal context if no onboarding profile but we have name
+      personalityContext = `\n## About ${profile.firstName}${profile.timezone ? ` (${profile.timezone})` : ''}\nPreferred coaching style: warm and encouraging\n`;
+    }
+    
+    // Add thread summary context (if available)
+    const threadSummaryContext = context.threadSummary 
+      ? `\n## This Conversation\n${context.threadSummary}\n`
+      : '';
+    
+    // Fetch recent insights
+    let insightsContext = "";
+    try {
+      const recentInsights = await ChatContextService.getRecentInsights(userId, 5);
+      if (recentInsights.length > 0) {
+        insightsContext = `\n\n## Recent Patterns About This User\n${recentInsights.map(i => `- ${i.title}: ${i.explanation}`).join('\n')}\n\nUse these insights to personalize your coaching—they capture non-obvious patterns about how this user operates.`;
+      }
+    } catch (e) {
+      console.error("[processWithToolAgent] Failed to load insights:", e);
     }
 
     // Create tools with userId and threadId baked in
     const toolsForUser = createToolsForUser(userId, context.threadId);
     console.log("[processWithToolAgent] Created tools for user:", userId);
     
-    // Combine mode instructions with other context
-    const combinedInstructions = (modeInstructions || contextInstructions || '') + myFocusContext + onboardingInstructions;
+    // Combine context in order: mode instructions → personality → thread summary → my focus → insights
+    const combinedInstructions = 
+      (modeInstructions || contextInstructions || '') + 
+      personalityContext + 
+      threadSummaryContext + 
+      myFocusContext + 
+      insightsContext;
     
     // Create agent with user-specific tools, including pre-loaded context if available
     const agentExecutor = await createLifeCoachAgentWithTools(

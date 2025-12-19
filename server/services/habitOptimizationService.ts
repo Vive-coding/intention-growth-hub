@@ -3,6 +3,7 @@ import { eq, and, desc, gte, inArray, sql } from "drizzle-orm";
 import {
   habitDefinitions,
   habitInstances,
+  habitCompletions,
   goalInstances,
   goalDefinitions,
   insights,
@@ -29,36 +30,43 @@ export class HabitOptimizationService {
     const archivedHabitIds: string[] = [];
 
     for (const habitId of habitDefinitionIds) {
-      // Check if this habit has any remaining links to active goals
+      // Check if this habit has any remaining links to ANY goals (not just active ones)
       const remainingLinks = await db
         .select({ id: habitInstances.id })
         .from(habitInstances)
-        .innerJoin(goalInstances, eq(habitInstances.goalInstanceId, goalInstances.id))
         .where(
           and(
             sql`${habitInstances.habitDefinitionId} = ${habitId}::uuid`,
-            eq(habitInstances.userId, userId),
-            eq(goalInstances.status, "active"),
-            eq(goalInstances.archived, false)
+            eq(habitInstances.userId, userId)
           )
         )
         .limit(1);
 
-      // If no remaining links, archive the habit
+      // If no remaining links, archive the habit (regardless of current isActive state)
       if (remainingLinks.length === 0) {
+        // Check if habit has completion history - always preserve habits with history
+        const hasCompletions = await db
+          .select({ id: habitCompletions.id })
+          .from(habitCompletions)
+          .where(sql`${habitCompletions.habitDefinitionId} = ${habitId}::uuid`)
+          .limit(1);
+
+        // Archive the habit (preserve data, never delete)
         await db
           .update(habitDefinitions)
           .set({ isActive: false })
           .where(
             and(
               eq(habitDefinitions.id, habitId),
-              eq(habitDefinitions.userId, userId),
-              eq(habitDefinitions.isActive, true)
+              eq(habitDefinitions.userId, userId)
             )
           );
 
         archivedHabitIds.push(habitId);
-        console.log(`[HabitOptimization] Archived orphaned habit ${habitId} (no remaining goal links)`);
+        const reason = hasCompletions.length > 0 
+          ? "no remaining goal links (preserving completion history)"
+          : "no remaining goal links";
+        console.log(`[HabitOptimization] Archived orphaned habit ${habitId} (${reason})`);
       }
     }
 
@@ -115,17 +123,8 @@ export class HabitOptimizationService {
     if (orphanedHabits.length > 0) {
       const orphanedIds = orphanedHabits.map(h => h.id);
       
-      // First, remove habit instances (associations with goals)
-      await db
-        .delete(habitInstances)
-        .where(
-          and(
-            eq(habitInstances.userId, userId),
-            inArray(habitInstances.habitDefinitionId, orphanedIds)
-          )
-        );
-
-      // Then archive the habits
+      // Archive habits first to avoid race conditions
+      // Keep habit instances for historical tracking (they may link to archived/completed goals)
       await db
         .update(habitDefinitions)
         .set({ isActive: false })
@@ -147,7 +146,7 @@ export class HabitOptimizationService {
         });
       }
 
-      console.log(`[HabitOptimization] Archived ${orphanedHabits.length} orphaned habits`);
+      console.log(`[HabitOptimization] Archived ${orphanedHabits.length} orphaned habits (instances preserved for historical tracking)`);
     }
 
     return {

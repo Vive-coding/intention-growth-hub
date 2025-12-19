@@ -155,6 +155,17 @@ export class ChatContextService {
     return row;
   }
 
+  static async getRecentInsights(userId: string, limit: number = 5): Promise<Array<{ title: string; explanation: string }>> {
+    const rows = await db
+      .select({ title: insights.title, explanation: insights.explanation })
+      .from(insights)
+      .where(eq(insights.userId, userId))
+      .orderBy(desc(insights.createdAt))
+      .limit(limit);
+    
+    return rows.map(i => ({ title: i.title, explanation: i.explanation }));
+  }
+
   static async getMyFocusContext(userId: string): Promise<{
     priorityGoals: Array<{ 
       id: string; 

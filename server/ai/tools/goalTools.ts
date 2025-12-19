@@ -6,6 +6,7 @@ import {
   goalInstances,
   habitDefinitions,
   habitInstances,
+  habitCompletions,
   lifeMetricDefinitions,
   insights,
 } from "../../../shared/schema";
@@ -903,33 +904,42 @@ IMPORTANT:
         // and archive them if they have no remaining goal links
         // We check within the transaction context to see if there are remaining links
         for (const habitId of remove_habit_ids) {
+          // Check for ANY remaining habit instances (regardless of goal status)
           const remainingLinks = await tx
             .select({ id: habitInstances.id })
             .from(habitInstances)
-            .innerJoin(goalInstances, eq(habitInstances.goalInstanceId, goalInstances.id))
             .where(
               and(
                 eq(habitInstances.habitDefinitionId, habitId),
-                eq(habitInstances.userId, userId),
-                eq(goalInstances.status, "active"),
-                eq(goalInstances.archived, false)
+                eq(habitInstances.userId, userId)
               )
             )
             .limit(1);
 
-          // If no remaining links, archive the habit
+          // If no remaining links, archive the habit (regardless of current isActive state)
           if (remainingLinks.length === 0) {
+            // Check if habit has completion history - always preserve habits with history
+            const hasCompletions = await tx
+              .select({ id: habitCompletions.id })
+              .from(habitCompletions)
+              .where(eq(habitCompletions.habitDefinitionId, habitId))
+              .limit(1);
+
+            // Archive the habit (preserve data, never delete)
             await tx
               .update(habitDefinitions)
               .set({ isActive: false })
               .where(
                 and(
                   eq(habitDefinitions.id, habitId),
-                  eq(habitDefinitions.userId, userId),
-                  eq(habitDefinitions.isActive, true)
+                  eq(habitDefinitions.userId, userId)
                 )
               );
-            console.log(`[swapHabitsForGoal] Archived orphaned habit ${habitId} (no remaining goal links)`);
+            
+            const reason = hasCompletions.length > 0 
+              ? "no remaining goal links (preserving completion history)"
+              : "no remaining goal links";
+            console.log(`[swapHabitsForGoal] Archived orphaned habit ${habitId} (${reason})`);
           }
         }
       }

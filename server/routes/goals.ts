@@ -2504,35 +2504,43 @@ router.delete("/:goalId/habits/:habitId", async (req: Request, res: Response) =>
       return res.status(404).json({ error: "Habit association not found" });
     }
 
-    // Check if this habit has any remaining links to active goals
+    // Check if this habit has any remaining links to ANY goals (not just active ones)
     // If not, archive it to prevent it from being auto-added back to other goals
     const remainingLinks = await db
       .select({ id: habitInstances.id })
       .from(habitInstances)
-      .innerJoin(goalInstances, eq(habitInstances.goalInstanceId, goalInstances.id))
       .where(
         and(
           eq(habitInstances.habitDefinitionId, habitDefinitionId),
-          eq(habitInstances.userId, userId),
-          eq(goalInstances.status, "active"),
-          eq(goalInstances.archived, false)
+          eq(habitInstances.userId, userId)
         )
       )
       .limit(1);
 
-    // If no remaining links, archive the habit
+    // If no remaining links, archive the habit (regardless of current isActive state)
     if (remainingLinks.length === 0) {
+      // Check if habit has completion history - always preserve habits with history
+      const hasCompletions = await db
+        .select({ id: habitCompletions.id })
+        .from(habitCompletions)
+        .where(eq(habitCompletions.habitDefinitionId, habitDefinitionId))
+        .limit(1);
+
+      // Archive the habit (preserve data, never delete)
       await db
         .update(habitDefinitions)
         .set({ isActive: false })
         .where(
           and(
             eq(habitDefinitions.id, habitDefinitionId),
-            eq(habitDefinitions.userId, userId),
-            eq(habitDefinitions.isActive, true)
+            eq(habitDefinitions.userId, userId)
           )
         );
-      console.log(`[goals] Archived orphaned habit ${habitDefinitionId} (no remaining goal links)`);
+      
+      const reason = hasCompletions.length > 0 
+        ? "no remaining goal links (preserving completion history)"
+        : "no remaining goal links";
+      console.log(`[goals] Archived orphaned habit ${habitDefinitionId} (${reason})`);
     }
 
     res.json({ message: "Habit removed from goal successfully" });
