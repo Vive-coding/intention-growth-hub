@@ -26,6 +26,8 @@ export default function ConversationStream({ threadId }: Props) {
   const optimisticMessageRef = useRef<string | undefined>(undefined);
   const prevMessagesLengthRef = useRef(0);
   const hasStartedStreamingRef = useRef(false);
+  const pendingStreamingTextRef = useRef<string>(""); // Keep streaming text until message appears
+  const isStreamingRef = useRef(false); // Track streaming state in ref for timeout
   const [, navigate] = useLocation();
   const [recentlyCompleted, setRecentlyCompleted] = useState<Record<string, boolean>>({});
   const [habitCardSubmitted, setHabitCardSubmitted] = useState<Record<string, boolean>>({});
@@ -207,7 +209,30 @@ export default function ConversationStream({ threadId }: Props) {
     // 2. The new message is from assistant (not user)
     // 3. We're not actively streaming (response is complete, not mid-stream)
     // This ensures we don't clear thinking state when user message gets persisted
-    if (messagesLengthIncreased && lastMessage?.role === 'assistant' && !isStreaming) {
+    if (messagesLengthIncreased && lastMessage?.role === 'assistant') {
+      // If we have streaming text, check if the persisted message matches it
+      const persistedContent = String(lastMessage.content || '').split('\n---json---\n')[0].trim();
+      const streamingContent = streamingText.trim();
+      
+      // Clear streaming state if:
+      // 1. We have streaming text AND the persisted message contains it (or matches it)
+      // 2. OR we don't have streaming text (empty response)
+      const shouldClearStreaming = isStreaming && (
+        !streamingContent || 
+        persistedContent.includes(streamingContent) || 
+        streamingContent === persistedContent ||
+        persistedContent.length > 0 // If we got a persisted message, assume it's ours
+      );
+      
+      if (shouldClearStreaming) {
+        console.log('[ConversationStream] Persisted assistant message received - clearing streaming state');
+        setIsStreaming(false);
+        isStreamingRef.current = false;
+        setStreamingText("");
+        pendingStreamingTextRef.current = "";
+      }
+      
+      // Clear thinking/optimistic state when we get the persisted assistant message
       const thinkingKey = `thinking_thread_${threadId}`;
       const optimisticKey = `optimistic_message_${threadId}`;
       if (typeof window !== 'undefined') {
@@ -283,9 +308,11 @@ export default function ConversationStream({ threadId }: Props) {
       setStreamingText("");
       setIsThinking(true);
       setIsStreaming(false);
+      isStreamingRef.current = false;
       setCta(undefined);
       setStreamingStructuredData(undefined);
       hasStartedStreamingRef.current = false; // Reset streaming flag
+      pendingStreamingTextRef.current = ""; // Reset pending text
       // Persist thinking state in sessionStorage so it survives page refresh
       if (threadId && typeof window !== 'undefined') {
         sessionStorage.setItem(`thinking_thread_${threadId}`, 'true');
@@ -299,6 +326,7 @@ export default function ConversationStream({ threadId }: Props) {
         console.log('[ConversationStream] First token received - clearing thinking state and starting stream');
         setIsThinking(false);
         setIsStreaming(true);
+        isStreamingRef.current = true;
         hasStartedStreamingRef.current = true;
         // Clear thinking flag from sessionStorage immediately
         if (threadId && typeof window !== 'undefined') {
@@ -308,14 +336,23 @@ export default function ConversationStream({ threadId }: Props) {
       } else {
         // Already streaming, just append
         setIsStreaming(true);
+        isStreamingRef.current = true;
       }
-      setStreamingText((s) => s + token);
+      setStreamingText((s) => {
+        const newText = s + token;
+        pendingStreamingTextRef.current = newText;
+        return newText;
+      });
     },
     end: () => {
-      console.log('[ConversationStream] Ending stream - clearing all streaming states');
-      setIsStreaming(false);
+      console.log('[ConversationStream] Ending stream - keeping streaming text visible until message persists');
+      // CRITICAL: Don't clear isStreaming immediately - keep it true so streaming text stays visible
+      // until the persisted message appears in the messages array
+      // This prevents the message from disappearing if there's a delay in persistence/refetch
       setIsThinking(false);
       hasStartedStreamingRef.current = false; // Reset for next message
+      // Store the current streaming text so we can keep showing it
+      pendingStreamingTextRef.current = streamingText;
       // CRITICAL: Always clear thinking state when stream ends, even if no tokens were received
       // This handles cases where the agent responds very quickly or there's an error
       if (threadId && typeof window !== 'undefined') {
@@ -324,6 +361,28 @@ export default function ConversationStream({ threadId }: Props) {
       }
       // Don't clear optimistic message here - let the query refresh handle it
       // It will be cleared when we see the assistant response in messages
+      // Don't clear isStreaming here - it will be cleared when the persisted message appears
+      
+      // Safety timeout: if message doesn't appear within 5 seconds, clear streaming state anyway
+      // This prevents the UI from getting stuck if something goes wrong
+      const currentStreamingText = streamingText;
+      if (currentStreamingText.trim().length > 0) {
+        setTimeout(() => {
+          // Only clear if we're still in streaming state (message didn't appear)
+          // Use refs to check current state (avoid closure issues)
+          if (isStreamingRef.current && pendingStreamingTextRef.current === currentStreamingText) {
+            console.warn('[ConversationStream] Timeout: persisted message did not appear, clearing streaming state');
+            setIsStreaming(false);
+            isStreamingRef.current = false;
+            setStreamingText("");
+            pendingStreamingTextRef.current = "";
+          }
+        }, 5000);
+      } else {
+        // No streaming text, clear immediately
+        setIsStreaming(false);
+        isStreamingRef.current = false;
+      }
     },
     cta: (label: string) => setCta(label),
     structuredData: (data: any) => setStreamingStructuredData(data),

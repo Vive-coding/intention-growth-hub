@@ -374,7 +374,24 @@ router.post("/respond", async (req: any, res) => {
       console.error('[chat] life coach stream failed', e);
       send(JSON.stringify({ type: 'error', message: 'Assistant failed to respond' }));
     }
-    send(JSON.stringify({ type: "end" }));
+
+    // CRITICAL: Persist assistant message BEFORE sending end event
+    // This ensures the message is in the database when the frontend refetches
+    if (finalText?.trim().length > 0) {
+      let saveContent = finalText.trim();
+      try {
+        if (structuredPayload && typeof structuredPayload === 'object') {
+          saveContent += `\n---json---\n${JSON.stringify(structuredPayload)}`;
+        }
+      } catch {}
+      try {
+        await ChatThreadService.appendMessage({ threadId, role: "assistant", content: saveContent, status: "complete" } as any);
+        console.log('[chat/respond] ✅ Assistant message persisted to database');
+      } catch (persistError) {
+        console.error('[chat/respond] ❌ Failed to persist assistant message:', persistError);
+        // Continue anyway - we'll send the end event so frontend can recover
+      }
+    }
 
     // Track message received
     const responseTime = Date.now() - responseStartTime;
@@ -388,14 +405,8 @@ router.post("/respond", async (req: any, res) => {
       user_id: userId,
     }, userId);
 
-    if (finalText?.trim().length > 0) {
-      let saveContent = finalText.trim();
-      try {
-        if (structuredPayload && typeof structuredPayload === 'object') {
-          saveContent += `\n---json---\n${JSON.stringify(structuredPayload)}`;
-        }
-      } catch {}
-      await ChatThreadService.appendMessage({ threadId, role: "assistant", content: saveContent, status: "complete" } as any);
+    // Send end event AFTER message is persisted
+    send(JSON.stringify({ type: "end" }));
       
       // Generate smart title if this is still the default title
       console.log('[chat] Starting title generation check for thread:', threadId);
