@@ -408,33 +408,31 @@ router.post("/respond", async (req: any, res) => {
     // Send end event AFTER message is persisted
     send(JSON.stringify({ type: "end" }));
       
-      // Generate smart title if this is still the default title
-      console.log('[chat] Starting title generation check for thread:', threadId);
-      try {
-        const [thread] = await db.select().from(chatThreads).where(eq(chatThreads.id, threadId)).limit(1);
-        console.log('[chat] Thread found for title generation:', { id: thread?.id, title: thread?.title, userId: thread?.userId });
-        if (thread && (thread.title === 'Daily Coaching' || thread.title === null)) {
-          // Get recent messages to understand conversation theme
-          const recentMessages = await db
-            .select({ content: chatMessages.content, role: chatMessages.role })
-            .from(chatMessages)
-            .where(eq(chatMessages.threadId, threadId))
-            .orderBy(desc(chatMessages.createdAt))
-            .limit(6);
-          
-          // Skip title generation if messages are just generic greetings
-          const userMessages = recentMessages.filter(m => m.role === 'user').map(m => m.content.toLowerCase().trim());
-          const hasSubstantialContent = userMessages.some(msg => {
-            // Skip generic greetings and small talk
-            const genericPatterns = /^(hi|hello|hey|how are you|how's it going|what's up|good morning|good afternoon|good evening|thanks|thank you|bye|goodbye)$/;
-            return !genericPatterns.test(msg) && msg.length > 10;
-          });
-          
-          if (!hasSubstantialContent) {
-            console.log('[chat] Skipping title generation - only generic greetings detected');
-            return;
-          }
-          
+    // Generate smart title if this is still the default title
+    console.log('[chat] Starting title generation check for thread:', threadId);
+    try {
+      const [thread] = await db.select().from(chatThreads).where(eq(chatThreads.id, threadId)).limit(1);
+      console.log('[chat] Thread found for title generation:', { id: thread?.id, title: thread?.title, userId: thread?.userId });
+      if (thread && (thread.title === 'Daily Coaching' || thread.title === null)) {
+        // Get recent messages to understand conversation theme
+        const recentMessages = await db
+          .select({ content: chatMessages.content, role: chatMessages.role })
+          .from(chatMessages)
+          .where(eq(chatMessages.threadId, threadId))
+          .orderBy(desc(chatMessages.createdAt))
+          .limit(6);
+        
+        // Skip title generation if messages are just generic greetings
+        const userMessages = recentMessages.filter(m => m.role === 'user').map(m => m.content.toLowerCase().trim());
+        const hasSubstantialContent = userMessages.some(msg => {
+          // Skip generic greetings and small talk
+          const genericPatterns = /^(hi|hello|hey|how are you|how's it going|what's up|good morning|good afternoon|good evening|thanks|thank you|bye|goodbye)$/;
+          return !genericPatterns.test(msg) && msg.length > 10;
+        });
+        
+        if (!hasSubstantialContent) {
+          console.log('[chat] Skipping title generation - only generic greetings detected');
+        } else {
           // Generate title based on conversation content
           const allText = recentMessages.map(m => m.content).join(' ').toLowerCase();
           let title = 'Daily Coaching';
@@ -476,9 +474,9 @@ router.post("/respond", async (req: any, res) => {
             console.log('[chat] No specific title pattern matched for thread:', threadId, 'content:', allText.substring(0, 100));
           }
         }
-      } catch (e) {
-        console.error('[chat] Failed to generate thread title:', e);
       }
+    } catch (e) {
+      console.error('[chat] Failed to generate thread title:', e);
     }
 
     try {
