@@ -759,6 +759,106 @@ export const adjustGoalTool = new DynamicStructuredTool({
 });
 
 /**
+ * Tool 6: Archive one or more goals
+ *
+ * Archives goals in bulk. This is intentionally a dedicated tool (instead of overloading adjust_goal)
+ * because users often want to archive many goals at once (cleanup / reprioritization).
+ */
+export const archiveGoalsTool = new DynamicStructuredTool({
+  name: "archive_goals",
+  description: `Archives one or more goals (soft-remove from active focus).
+
+Use when:
+- The user says to archive / drop / deprioritize goals
+- You identified low-signal goals and the user confirms to archive them
+
+Input:
+- goal_ids: list of goal INSTANCE ids (preferred) OR goal DEFINITION ids.
+  Use get_context('my_focus') or get_context('all_goals') to find the correct IDs.
+
+Behavior:
+- Sets goal instance: status='archived', archived=true
+- Sets goal definition: archived=true and removes life metric association (lifeMetricId=null)`,
+
+  schema: z.object({
+    goal_ids: z
+      .array(z.string())
+      .min(1)
+      .describe("Goal INSTANCE IDs (preferred) or goal DEFINITION IDs to archive"),
+    reason: z
+      .string()
+      .optional()
+      .describe("Optional reason/context to include in the response"),
+  }),
+
+  func: async ({ goal_ids, reason }, config) => {
+    let userId = (config as any)?.configurable?.userId;
+    if (!userId) {
+      userId = (global as any).__TOOL_USER_ID__;
+    }
+    if (!userId) {
+      throw new Error("User ID required");
+    }
+
+    const archived: Array<{ goalInstanceId: string; goalDefinitionId: string; title: string }> = [];
+    const skipped: Array<{ goalId: string; error: string }> = [];
+
+    for (const rawId of goal_ids) {
+      const id = String(rawId || "").trim();
+      if (!id) continue;
+
+      const resolved = await resolveGoalInstance(userId, id);
+      if (!resolved?.instance || !resolved?.definition) {
+        skipped.push({ goalId: id, error: "Goal not found" });
+        continue;
+      }
+
+      // Archive the goal definition (mirrors the REST archive endpoint behavior)
+      await db
+        .update(goalDefinitions)
+        .set({
+          lifeMetricId: null,
+          archived: true,
+        })
+        .where(eq(goalDefinitions.id, resolved.definition.id));
+
+      // Archive the goal instance
+      await db
+        .update(goalInstances)
+        .set({
+          status: "archived",
+          archived: true,
+        })
+        .where(and(eq(goalInstances.id, resolved.instance.id), eq(goalInstances.userId, userId)));
+
+      archived.push({
+        goalInstanceId: resolved.instance.id,
+        goalDefinitionId: resolved.definition.id,
+        title: resolved.definition.title,
+      });
+    }
+
+    const archivedTitles = archived.map((g) => g.title).filter(Boolean);
+    const lines: string[] = [];
+    if (archivedTitles.length > 0) {
+      lines.push(`Archived ${archivedTitles.length} goal${archivedTitles.length === 1 ? "" : "s"}:`);
+      lines.push(...archivedTitles.map((t) => `- ${t}`));
+    }
+    if (skipped.length > 0) {
+      lines.push("");
+      lines.push(`Skipped ${skipped.length} (not found):`);
+      lines.push(...skipped.map((s) => `- ${s.goalId}`));
+    }
+    if (reason) {
+      lines.push("");
+      lines.push(`Reason: ${String(reason)}`);
+    }
+
+    return lines.join("\n").trim() || "No goals were archived.";
+  },
+});
+
+/**
  * Tool 6: Swap habits for an existing goal
  *
  * Use this ONLY after the user explicitly confirms they want to update

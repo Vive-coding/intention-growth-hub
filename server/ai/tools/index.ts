@@ -17,6 +17,7 @@ import {
   updateGoalProgressTool,
   completeGoalTool,
   adjustGoalTool,
+  archiveGoalsTool,
   swapHabitsForGoalTool
 } from "./goalTools";
 import {
@@ -30,18 +31,19 @@ import { prioritizeGoalsTool, removePriorityGoalsTool } from "./prioritizeTools"
 
 /**
  * All tools available to the life coach agent
- * Total: 13 core tools (added prioritize_goals and log_habit_completion)
+ * Total: 14 core tools (includes bulk goal archiving)
  */
 export const allTools = [
   // Context (1 tool)
   getContextTool,
   
-  // Goals (5 tools)
+  // Goals
   createGoalWithHabitsTool,
   suggestHabitsForGoalTool,
   updateGoalProgressTool,
   completeGoalTool,
   adjustGoalTool,
+  archiveGoalsTool,
   swapHabitsForGoalTool,
   
   // Habits (3 tools)
