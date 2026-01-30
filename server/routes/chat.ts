@@ -6,6 +6,8 @@ import { ChatThreadService } from "../services/chatThreadService";
 import { streamLifeCoachReply } from "../ai/lifeCoachService";
 import { MyFocusService } from "../services/myFocusService";
 import { generateShortTitle, generateTitleLLM } from "../ai/utils/journal";
+import { validateModelAccess, getModelForThread, getUserPreferredModel } from "../services/modelService";
+import { type ModelName } from "../ai/modelFactory";
 
 const router = Router();
 
@@ -158,8 +160,37 @@ router.post("/threads", async (req: any, res) => {
     const userId = req.user?.id || req.user?.claims?.sub;
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
-    const { title, isTest, privacyScope } = req.body || {};
-    console.log('[chat] Creating thread for user:', userId, 'title:', title);
+    const { title, isTest, privacyScope, model } = req.body || {};
+    console.log('[chat] Creating thread for user:', userId, 'title:', title, 'model:', model);
+    
+    // Determine model to use: provided model, user preference, or default
+    let modelToUse: ModelName = "gpt-5-mini";
+    if (model && (model === "gpt-5-mini" || model === "claude-haiku" || model === "claude-opus")) {
+      // Validate access to the requested model
+      const hasAccess = await validateModelAccess(userId, model as ModelName);
+      if (hasAccess) {
+        modelToUse = model as ModelName;
+      } else {
+        console.warn('[chat] User does not have access to model:', model, 'falling back to default');
+        // Fallback to user preference or default
+        const userPreferred = await getUserPreferredModel(userId);
+        if (userPreferred) {
+          const hasPreferredAccess = await validateModelAccess(userId, userPreferred);
+          if (hasPreferredAccess) {
+            modelToUse = userPreferred;
+          }
+        }
+      }
+    } else {
+      // No model provided, use user preference or default
+      const userPreferred = await getUserPreferredModel(userId);
+      if (userPreferred) {
+        const hasPreferredAccess = await validateModelAccess(userId, userPreferred);
+        if (hasPreferredAccess) {
+          modelToUse = userPreferred;
+        }
+      }
+    }
     
     const thread = await ChatThreadService.createThread({
       userId,
@@ -167,6 +198,7 @@ router.post("/threads", async (req: any, res) => {
       isTest: Boolean(isTest),
       privacyScope: privacyScope ?? null,
       summary: null,
+      model: modelToUse,
     } as any);
     
     console.log('[chat] Created thread:', { id: thread.id, userId: thread.userId, title: thread.title });
@@ -269,13 +301,46 @@ router.post("/respond", async (req: any, res) => {
   try {
     const userId = req.user?.id || req.user?.claims?.sub;
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
-    const { threadId, content, requestedAgentType } = req.body || {};
+    const { threadId, content, requestedAgentType, model } = req.body || {};
     if (!threadId || typeof content !== "string") {
       return res.status(400).json({ message: "threadId and content are required" });
     }
 
     const [own] = await db.select().from(chatThreads).where(eq(chatThreads.id, threadId)).limit(1);
     if (!own || own.userId !== userId) return res.status(404).json({ message: "Thread not found" });
+
+    // Check if this is the first message in the thread (before persisting this message)
+    const existingMessages = await ChatThreadService.getMessages(threadId, 1);
+    const isFirstMessage = existingMessages.length === 0;
+    
+    // Determine model to use
+    const validModels = ["gpt-5-mini", "claude-haiku", "claude-opus"];
+    let modelToUse: ModelName;
+    if (isFirstMessage && model && validModels.includes(model)) {
+      // First message - can set/update model
+      const hasAccess = await validateModelAccess(userId, model as ModelName);
+      if (hasAccess) {
+        modelToUse = model as ModelName;
+        // Update thread with model (will be saved before message is persisted)
+        await db.update(chatThreads)
+          .set({ model: modelToUse, updatedAt: new Date() })
+          .where(eq(chatThreads.id, threadId));
+        console.log('[chat] Set model for thread:', threadId, 'model:', modelToUse);
+      } else {
+        console.warn('[chat] User does not have access to model:', model);
+        modelToUse = await getModelForThread(userId, own.model || null);
+        // Update thread with determined model if it wasn't set
+        if (!own.model) {
+          await db.update(chatThreads)
+            .set({ model: modelToUse, updatedAt: new Date() })
+            .where(eq(chatThreads.id, threadId));
+        }
+      }
+    } else {
+      // Not first message - use thread's model (locked)
+      modelToUse = await getModelForThread(userId, own.model || null);
+      console.log('[chat] Using locked model for thread:', threadId, 'model:', modelToUse);
+    }
 
     // Persist user message
     await ChatThreadService.appendMessage({ threadId, role: "user", content, status: "complete" } as any);
@@ -333,6 +398,7 @@ router.post("/respond", async (req: any, res) => {
         userId,
         threadId,
         input: content,
+        modelName: modelToUse,
         onToken: (delta: string) => {
           finalText += delta;
           send(JSON.stringify({ type: "delta", content: delta }));

@@ -1,4 +1,5 @@
 import { ChatOpenAI } from '@langchain/openai';
+import { createModel, type ModelName } from "./modelFactory";
 
 interface HabitSuggestionRequest {
   goalTitle: string;
@@ -17,7 +18,10 @@ interface HabitSuggestion {
   isNew?: boolean;
 }
 
-export async function generateHabitSuggestions(request: HabitSuggestionRequest): Promise<HabitSuggestion[]> {
+export async function generateHabitSuggestions(
+  request: HabitSuggestionRequest,
+  modelName: ModelName = "gpt-5-mini"
+): Promise<HabitSuggestion[]> {
   const { goalTitle, goalDescription, lifeMetric, userId, limit = 5 } = request;
 
   const prompt = `
@@ -52,8 +56,7 @@ Generate ${limit} unique, high-quality habit suggestions that directly support t
 `;
 
   try {
-    const model = new ChatOpenAI({
-      model: "gpt-4o-mini",
+    const model = createModel(modelName, {
       temperature: 0.7,
       maxTokens: 1000
     });

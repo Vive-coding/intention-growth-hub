@@ -1,4 +1,6 @@
 import { ChatOpenAI } from "@langchain/openai";
+import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
+import { createModel, type ModelName } from "./modelFactory";
 import { PromptTemplate } from "@langchain/core/prompts";
 import { StructuredOutputParser } from "langchain/output_parsers";
 import { z } from "zod";
@@ -181,12 +183,11 @@ export interface OptimizationContext {
 }
 
 export class HabitOptimizationAgent {
-  private model: ChatOpenAI;
+  private model: BaseChatModel;
   private promptTemplate: PromptTemplate;
 
-  constructor() {
-    this.model = new ChatOpenAI({
-      modelName: "gpt-4o",
+  constructor(modelName: ModelName = "gpt-5-mini") {
+    this.model = createModel(modelName, {
       temperature: 0.7,
       maxTokens: 4000,
     });

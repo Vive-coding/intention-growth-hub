@@ -116,7 +116,7 @@ declare global {
     amplitude: {
       track: (eventName: string, properties?: any) => void;
       identify: (identify: any) => void;
-      setUserId: (userId: string) => void;
+      setUserId: (userId: string | null) => void;
       init: (apiKey: string, options?: any) => void;
       add: (plugin: any) => void;
       Identify: new () => {
@@ -144,6 +144,13 @@ class AnalyticsService {
 
   private init() {
     if (typeof window === 'undefined') return;
+
+    // Disable analytics on localhost to avoid noisy CORS / replay errors during dev.
+    // (Also makes it much easier to see our own debug logs.)
+    const host = window.location?.hostname;
+    if (host === 'localhost' || host === '127.0.0.1') {
+      return;
+    }
     
     // Wait for Amplitude to load from CDN
     const checkAmplitude = () => {

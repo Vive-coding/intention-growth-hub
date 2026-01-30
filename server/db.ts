@@ -202,3 +202,31 @@ export async function ensureGoalTermColumn(): Promise<void> {
     console.warn('ensureGoalTermColumn: failed to add term column', e);
   }
 }
+
+export async function ensureModelSelectionColumns(): Promise<void> {
+  try {
+    // Add columns to users table
+    await client`
+      ALTER TABLE "users"
+      ADD COLUMN IF NOT EXISTS "preferred_model" varchar(50),
+      ADD COLUMN IF NOT EXISTS "is_premium" boolean DEFAULT false NOT NULL
+    `;
+    
+    // Add column to chat_threads table
+    await client`
+      ALTER TABLE "chat_threads"
+      ADD COLUMN IF NOT EXISTS "model" varchar(50)
+    `;
+    
+    // Set existing threads to 'gpt-5-mini' for backward compatibility
+    await client`
+      UPDATE "chat_threads"
+      SET "model" = 'gpt-5-mini'
+      WHERE "model" IS NULL
+    `;
+    
+    console.log('✅ Model selection columns ensured');
+  } catch (e) {
+    console.warn('ensureModelSelectionColumns: failed to add model selection columns', e);
+  }
+}

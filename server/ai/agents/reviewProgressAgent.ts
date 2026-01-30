@@ -1,4 +1,6 @@
 import { ChatOpenAI } from "@langchain/openai";
+import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
+import { createModel, type ModelName } from "../modelFactory";
 import { AgentContext, AgentResponse, HabitReviewData } from "./types";
 import { db } from "../../db";
 import { eq, desc, and, gte, inArray } from "drizzle-orm";
@@ -85,8 +87,8 @@ IMPORTANT:
 Your goal is to get a sense of what they've accomplished today and provide a personalized summary of their progress with habit completion cards.`;
 
 export class ReviewProgressAgent {
-  private model: ChatOpenAI;
-  private extractionModel: ChatOpenAI;
+  private model: BaseChatModel;
+  private extractionModel: BaseChatModel;
   private static readonly extractionSchema = z.object({
     completions: z
       .array(
@@ -100,13 +102,9 @@ export class ReviewProgressAgent {
       .default([]),
   });
 
-  constructor() {
-    this.model = new ChatOpenAI({
-      model: "gpt-5-mini",
-    });
-    this.extractionModel = new ChatOpenAI({
-      model: "gpt-5-mini",
-    });
+  constructor(modelName: ModelName = "gpt-5-mini") {
+    this.model = createModel(modelName);
+    this.extractionModel = createModel(modelName);
   }
 
   async processMessage(context: AgentContext): Promise<AgentResponse> {

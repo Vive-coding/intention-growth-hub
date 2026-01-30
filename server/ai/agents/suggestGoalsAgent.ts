@@ -1,4 +1,6 @@
 import { ChatOpenAI } from "@langchain/openai";
+import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
+import { createModel, type ModelName } from "../modelFactory";
 import { AgentContext, AgentResponse, GoalSuggestionData } from "./types";
 import { db } from "../../db";
 import { eq, desc } from "drizzle-orm";
@@ -72,12 +74,10 @@ CONVERSATION PRINCIPLES:
 - Keep reinforcing the connection: goals + habits = progress`;
 
 export class SuggestGoalsAgent {
-  private model: ChatOpenAI;
+  private model: BaseChatModel;
 
-  constructor() {
-    this.model = new ChatOpenAI({
-      model: "gpt-5-mini",
-    });
+  constructor(modelName: ModelName = "gpt-5-mini") {
+    this.model = createModel(modelName);
   }
 
   async processMessage(context: AgentContext): Promise<AgentResponse> {

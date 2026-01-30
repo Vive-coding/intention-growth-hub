@@ -1,4 +1,6 @@
 import { ChatOpenAI } from '@langchain/openai';
+import { type ModelName } from "./modelFactory";
+import { getModelForThread } from "../services/modelService";
 import { db } from "../db";
 import { chatThreads } from "../../shared/schema";
 import { eq } from "drizzle-orm";
@@ -92,8 +94,9 @@ export async function streamLifeCoachReply(params: {
   onToken: (delta: string) => void;
   onStructuredData?: (data: any) => void;
   requestedAgentType?: AgentType;
+  modelName?: ModelName;
 }): Promise<{ finalText: string; cta?: string; structuredData?: any }>{
-  const { userId, threadId, input, onToken, onStructuredData, requestedAgentType } = params;
+  const { userId, threadId, input, onToken, onStructuredData, requestedAgentType, modelName } = params;
 
   // Load context
   const [profile, workingSet, recentMessages, onboardingProfile] = await Promise.all([
@@ -104,6 +107,9 @@ export async function streamLifeCoachReply(params: {
   ]);
   const threadRow = await db.select().from(chatThreads).where(eq(chatThreads.id, threadId)).limit(1);
   const threadSummary = threadRow[0]?.summary ?? null;
+  
+  // Get model for this thread (use provided modelName or determine from thread/user preferences)
+  const effectiveModelName = modelName || await getModelForThread(userId, threadRow[0]?.model || null);
 
   const agentContext = {
     userId,
@@ -127,7 +133,7 @@ export async function streamLifeCoachReply(params: {
     
     try {
       // Use new tool-based single agent
-      result = await processWithToolAgent(agentContext, requestedAgentType);
+      result = await processWithToolAgent(agentContext, requestedAgentType, effectiveModelName);
       console.log('[lifeCoachService] Tool agent result:', {
         textLength: result.finalText.length,
         hasStructuredData: !!result.structuredData,

@@ -1,4 +1,6 @@
 import { ChatOpenAI } from "@langchain/openai";
+import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
+import { createModel, type ModelName } from "../modelFactory";
 import { AgentContext, AgentResponse, OptimizationData } from "./types";
 import { db } from "../../db";
 import { eq, desc } from "drizzle-orm";
@@ -49,12 +51,10 @@ CRITICAL OUTPUT RULES:
 - You can prioritize just 1 goal if appropriate (especially for new users or urgent items).`;
 
 export class PrioritizeOptimizeAgent {
-  private model: ChatOpenAI;
+  private model: BaseChatModel;
 
-  constructor() {
-    this.model = new ChatOpenAI({
-      model: "gpt-5-mini",
-    });
+  constructor(modelName: ModelName = "gpt-5-mini") {
+    this.model = createModel(modelName);
   }
 
   async processMessage(context: AgentContext): Promise<AgentResponse> {

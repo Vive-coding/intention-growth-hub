@@ -26,6 +26,8 @@ import {
   suggestedGoals,
   suggestedHabits,
 } from "../shared/schema";
+import { validateModelAccess, getUserPreferredModel } from "./services/modelService";
+import { type ModelName } from "./ai/modelFactory";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Auth middleware based on environment
@@ -681,6 +683,85 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error saving notification preferences:', error);
       res.status(500).json({ message: 'Failed to save notification preferences' });
+    }
+  });
+
+  // Get user's model preference
+  app.get('/api/user/preferences/model', authMiddleware, async (req: any, res) => {
+    try {
+      const userId = req.user.id || req.user.claims.sub;
+      const preferredModel = await getUserPreferredModel(userId);
+      const [user] = await db
+        .select({ isPremium: users.isPremium, email: users.email })
+        .from(users)
+        .where(eq(users.id, userId))
+        .limit(1);
+      res.json({
+        preferredModel: preferredModel || "gpt-5-mini",
+        isPremium: user?.isPremium || false,
+      });
+    } catch (error) {
+      console.error('Error fetching model preference:', error);
+      res.status(500).json({ message: 'Failed to fetch model preference' });
+    }
+  });
+
+  // Update user's model preference
+  app.put('/api/user/preferences/model', authMiddleware, async (req: any, res) => {
+    try {
+      const userId = req.user.id || req.user.claims.sub;
+      const { model } = req.body || {};
+      
+      if (!model || (model !== "gpt-5-mini" && model !== "claude-haiku" && model !== "claude-opus")) {
+        return res.status(400).json({ message: "Invalid model. Must be 'gpt-5-mini', 'claude-haiku', or 'claude-opus'" });
+      }
+
+      // Validate access to the requested model
+      const hasAccess = await validateModelAccess(userId, model as ModelName);
+      if (!hasAccess) {
+        return res.status(403).json({ message: "You don't have access to this model. Premium required for Claude Opus." });
+      }
+
+      await db
+        .update(users)
+        .set({ preferredModel: model, updatedAt: new Date() })
+        .where(eq(users.id, userId));
+
+      res.json({ success: true, preferredModel: model });
+    } catch (error) {
+      console.error('Error updating model preference:', error);
+      res.status(500).json({ message: 'Failed to update model preference' });
+    }
+  });
+
+  // Admin endpoint: Set premium status for a user (by email)
+  // In production, add proper admin authentication
+  app.post('/api/admin/set-premium', authMiddleware, async (req: any, res) => {
+    try {
+      const { email, isPremium } = req.body || {};
+      
+      if (!email || typeof isPremium !== 'boolean') {
+        return res.status(400).json({ message: "email and isPremium (boolean) are required" });
+      }
+
+      const result = await db
+        .update(users)
+        .set({ isPremium, updatedAt: new Date() })
+        .where(eq(users.email, email))
+        .returning({ id: users.id, email: users.email, isPremium: users.isPremium });
+
+      if (result.length === 0) {
+        return res.status(404).json({ message: `User with email ${email} not found` });
+      }
+
+      res.json({ 
+        success: true, 
+        user: result[0],
+        message: `Premium status set to ${isPremium} for ${email}`
+      });
+    } catch (error) {
+      console.error('Error setting premium status:', error);
+      res.status(500).json({ message: 'Failed to set premium status' });
     }
   });
 

@@ -7,14 +7,8 @@ async function fetchWithCredentials(url: string, config?: RequestInit) {
   // Get the API base URL from environment variable
   const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
   
-  // Debug: Log the environment variable
-  console.log('🔍 VITE_API_URL:', import.meta.env.VITE_API_URL);
-  console.log('🔍 apiBaseUrl:', apiBaseUrl);
-  
   // If it's a relative URL, prepend the API base URL
   const fullUrl = url.startsWith('/') ? `${apiBaseUrl}${url}` : url;
-  
-  console.log(`🌐 Making request to ${fullUrl} with token: ${token ? 'present' : 'missing'}`);
   
   const headers = {
     'Content-Type': 'application/json',
@@ -27,8 +21,6 @@ async function fetchWithCredentials(url: string, config?: RequestInit) {
     credentials: 'include', // Include cookies for authentication
     headers,
   });
-
-  console.log(`🌐 Response from ${url}: ${response.status} ${response.statusText}`);
 
   if (!response.ok) {
     // Try to get the response body for better error handling
@@ -58,7 +50,6 @@ async function fetchWithCredentials(url: string, config?: RequestInit) {
     
     // Only clear token on actual auth errors, not network errors
     if (response.status === 401) {
-      console.log(`🌐 Auth error detected for ${url}: ${errorMessage}`);
       // Clear token for explicit auth errors or when checking current user
       if (
         errorMessage.includes('Invalid token') ||
@@ -66,11 +57,8 @@ async function fetchWithCredentials(url: string, config?: RequestInit) {
         errorMessage.includes('User not authenticated') ||
         String(url).includes('/api/auth/user')
       ) {
-        console.log('🌐 Clearing token due to auth error in queryClient');
         localStorage.removeItem("token");
         localStorage.removeItem("user");
-      } else {
-        console.log('🌐 401 error but not clearing token (different error type)');
       }
     }
     

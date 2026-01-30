@@ -18,6 +18,8 @@
     "ai:index-user": "NODE_ENV=development tsx server/ai/scripts/indexUserHistory.ts",
     "snapshots:daily": "NODE_ENV=production node server/scripts/daily-snapshot-job.js",
     "db:ensure:onboarding": "tsx server/scripts/ensureOnboardingProfileSchema.ts",
+    "db:ensure:model-selection": "tsx server/scripts/ensureModelSelectionSchema.ts",
+    "premium:set": "node server/scripts/setPremiumStatus.js",
     "eval": "NODE_ENV=development tsx server/ai/evaluation/runEvals.ts",
     "eval:ls:comprehensive": "NODE_ENV=development tsx server/ai/evaluation/runComprehensiveEvaluator.ts"
   },
@@ -25,6 +27,7 @@
     "@amplitude/analytics-node": "^1.5.7",
     "@hookform/resolvers": "^3.10.0",
     "@jridgewell/trace-mapping": "^0.3.25",
+    "@langchain/anthropic": "^0.3.0",
     "@langchain/openai": "^0.6.3",
     "@neondatabase/serverless": "^0.10.4",
     "@radix-ui/react-accordion": "^1.2.4",

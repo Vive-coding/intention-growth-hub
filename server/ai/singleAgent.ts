@@ -5,16 +5,13 @@
  * that has access to 11 specialized tools for goal/habit management.
  */
 
-import { ChatOpenAI } from "@langchain/openai";
+import { createModel, type ModelName } from "./modelFactory";
 import { ChatPromptTemplate, MessagesPlaceholder } from "@langchain/core/prompts";
-import { AgentExecutor } from "langchain/agents";
+import { AgentExecutor, createToolCallingAgent } from "langchain/agents";
 import { createToolsForUser } from "./tools/index";
 import type { AgentContext } from "./agents/types";
-import { formatToOpenAIFunctionMessages } from "langchain/agents/format_scratchpad";
-import { OpenAIFunctionsAgentOutputParser } from "langchain/agents/openai/output_parser";
 import { RunnableSequence } from "@langchain/core/runnables";
-import { convertToOpenAIFunction } from "@langchain/core/utils/function_calling";
-import { HumanMessage, AIMessage, SystemMessage, FunctionMessage } from "@langchain/core/messages";
+import { HumanMessage, AIMessage } from "@langchain/core/messages";
 import { MyFocusService } from "../services/myFocusService";
 import { ChatContextService } from "../services/chatContextService";
 import { createTracingCallbacks, generateTraceTags, generateTraceMetadata } from "./utils/langsmithTracing";
@@ -211,21 +208,15 @@ const LIFE_COACH_PROMPT = BASE_SYSTEM_PROMPT; // Keep for backward compatibility
 /**
  * Create the tool-calling agent with specific tools
  */
-export async function createLifeCoachAgentWithTools(tools: any[], mode?: string, modeInstructions?: string): Promise<AgentExecutor> {
-  console.log("[createLifeCoachAgent] Creating agent with tools:", tools.map(t => t.name));
+export async function createLifeCoachAgentWithTools(
+  tools: any[], 
+  mode?: string, 
+  modeInstructions?: string,
+  modelName: ModelName = "gpt-5-mini"
+): Promise<AgentExecutor> {
+  console.log("[createLifeCoachAgent] Creating agent with tools:", tools.map(t => t.name), "model:", modelName);
   
-  const model = new ChatOpenAI({
-    model: "gpt-5-mini",
-    // LangChain doesn't support these parameters yet, so using defaults
-  });
-
-  // CRITICAL: Convert tools to OpenAI function format
-  // Use LangChain's utility to properly convert Zod schemas to JSON Schema
-  const modelWithTools = model.bind({
-    functions: tools.map(tool => convertToOpenAIFunction(tool)),
-  });
-
-  console.log("[createLifeCoachAgent] Tools bound to model");
+  const model = createModel(modelName);
 
   // Build complete system prompt with mode and context
   let systemPrompt = LIFE_COACH_PROMPT;
@@ -240,154 +231,21 @@ export async function createLifeCoachAgentWithTools(tools: any[], mode?: string,
     systemPrompt += `\n\n${modeInstructions}`;
   }
 
-  // Build messages manually to avoid MessagesPlaceholder conversion issues
-  const agent = RunnableSequence.from([
-    (i: { input: string; chat_history?: any[]; steps?: any[] }) => {
-      const messages: any[] = [];
-      
-      // System prompt (must be a SystemMessage)
-      messages.push(new SystemMessage(systemPrompt));
-      
-      // Normalize and append chat history
-      if (Array.isArray(i.chat_history)) {
-        for (const msg of i.chat_history) {
-          try {
-            // If already a LangChain message, use it directly
-            if (msg instanceof HumanMessage || msg instanceof AIMessage || msg instanceof SystemMessage) {
-              // Validate that the message has content
-              if (msg.content && (typeof msg.content === 'string' || Array.isArray(msg.content))) {
-                messages.push(msg);
-              } else {
-                console.warn("[chat_history] Skipping LangChain message with invalid content:", msg.constructor.name);
-              }
-              continue;
-            }
-            // Convert plain objects to LangChain messages
-            if (msg && typeof msg === "object") {
-              const role = (msg as any).role;
-              const rawContent = (msg as any).content;
-              
-              // Ensure content is valid
-              if (rawContent === null || rawContent === undefined) {
-                console.warn("[chat_history] Skipping message with null/undefined content:", { role });
-                continue;
-              }
-              
-              const content = String(rawContent);
-              if (!content) {
-                console.warn("[chat_history] Skipping message with empty content:", { role });
-                continue;
-              }
-              
-              if (role === "human" || role === "user") {
-                messages.push(new HumanMessage(content));
-              } else if (role === "ai" || role === "assistant") {
-                messages.push(new AIMessage(content));
-              }
-            }
-          } catch (e) {
-            console.error("[chat_history] Skip invalid message:", e, "Message:", msg);
-          }
-        }
-      }
-      
-      // Human input
-      messages.push(new HumanMessage(i.input ?? ""));
-      
-      // Agent scratchpad (tool call traces)
-      try {
-        const steps = Array.isArray(i.steps) ? i.steps : [];
-        const scratchpad = formatToOpenAIFunctionMessages(steps);
-        if (Array.isArray(scratchpad)) {
-          // Validate each message in scratchpad before adding
-          for (const msg of scratchpad) {
-            // GPT-5-mini doesn't support 'function' role - filter out FunctionMessage objects
-            // Convert function results to AIMessage format instead
-            const msgType = msg instanceof FunctionMessage 
-              ? 'function' 
-              : (msg as any)?.getType?.() || (msg as any)?._getType?.() || (msg as any)?.role;
-            
-            if (msg instanceof FunctionMessage || msgType === 'function' || (msg as any)?.role === 'function') {
-              // Convert function message to AIMessage with function result in content
-              const functionResult = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content);
-              const functionName = (msg as any).name || 'function';
-              messages.push(new AIMessage(`[Function ${functionName} result]: ${functionResult}`));
-              continue;
-            }
-            
-            // Ensure the message has valid content (string or array, not undefined/null)
-            if (msg && (msg.content !== undefined && msg.content !== null)) {
-              // If content is empty string, that's fine - but ensure it's a string
-              if (typeof msg.content !== 'string' && !Array.isArray(msg.content)) {
-                console.warn("[agent_scratchpad] Skipping message with invalid content type:", typeof msg.content, msg);
-                continue;
-              }
-              messages.push(msg);
-            } else {
-              console.warn("[agent_scratchpad] Skipping message with undefined/null content:", msg?.constructor?.name);
-            }
-          }
-        }
-      } catch (e) {
-        console.error("[agent_scratchpad] Error formatting steps:", e);
-        console.error("[agent_scratchpad] Steps causing error:", JSON.stringify(i.steps, null, 2).substring(0, 500));
-      }
-      
-      // Final filter: Convert any messages with 'function' role to AIMessage (GPT-5-mini compatibility)
-      // This is a safety net in case any FunctionMessage objects slipped through earlier filters
-      const filteredMessages = messages.map((msg) => {
-        // Check multiple ways the role might be stored
-        const msgRole = (msg as any)?._getType?.() 
-          || (msg as any)?.getType?.() 
-          || (msg as any)?.role
-          || (msg instanceof FunctionMessage ? 'function' : null);
-        
-        if (msgRole === 'function' || msg instanceof FunctionMessage) {
-          console.warn("[agent/messages] Converting FunctionMessage to AIMessage:", {
-            type: msg?.constructor?.name,
-            role: msgRole,
-            content: String((msg as any)?.content ?? '').substring(0, 100)
-          });
-          // Convert to AIMessage instead of filtering out
-          const functionResult = typeof (msg as any).content === 'string' 
-            ? (msg as any).content 
-            : JSON.stringify((msg as any).content || {});
-          const functionName = (msg as any).name || 'function';
-          return new AIMessage(`[Function ${functionName} result]: ${functionResult}`);
-        }
-        return msg;
-      });
-      
-      // DEBUG: Log messages being sent to the model
-      try {
-        console.log("[agent/messages] count:", filteredMessages.length, "(filtered from", messages.length, ")");
-        filteredMessages.forEach((m, idx) => {
-          const type = (m && (m as any).constructor && (m as any).constructor.name) || typeof m;
-          const content = String((m as any)?.content ?? "");
-          const role = (m as any)?._getType?.() || (m as any)?.getType?.() || (m as any)?.role || 'unknown';
-          console.log(`  [${idx}] type=${type} role=${role} content="${content.slice(0, 160)}"`);
-          
-          // Validate content is not undefined/null
-          if ((m as any)?.content === undefined || (m as any)?.content === null) {
-            console.error(`  ⚠️  [${idx}] INVALID: content is ${(m as any)?.content === undefined ? 'undefined' : 'null'}`);
-          }
-          
-          // Warn if we still see function role
-          if (role === 'function') {
-            console.error(`  ❌ [${idx}] ERROR: Function role still present after filtering!`);
-          }
-        });
-      } catch (e) {
-        console.error("[agent/messages] Logging error:", e);
-      }
-      
-      return filteredMessages;
-    },
-    modelWithTools,
-    new OpenAIFunctionsAgentOutputParser(),
+  // Use LangChain's tool-calling agent (works with both OpenAI + Anthropic chat models)
+  const prompt = ChatPromptTemplate.fromMessages([
+    ["system", systemPrompt],
+    new MessagesPlaceholder("chat_history"),
+    ["human", "{input}"],
+    new MessagesPlaceholder("agent_scratchpad"),
   ]);
 
-  console.log("[createLifeCoachAgent] Agent chain created successfully");
+  const agent = createToolCallingAgent({
+    llm: model as any,
+    tools,
+    prompt,
+  });
+
+  console.log("[createLifeCoachAgent] Tool-calling agent created successfully");
 
   const executor = new AgentExecutor({
     agent,
@@ -408,7 +266,11 @@ export async function createLifeCoachAgentWithTools(tools: any[], mode?: string,
  * Process a message with the tool-calling agent
  * This is the main entry point that will replace AgentRouter
  */
-export async function processWithToolAgent(context: AgentContext, requestedAgentType?: string): Promise<{
+export async function processWithToolAgent(
+  context: AgentContext, 
+  requestedAgentType?: string,
+  modelName: ModelName = "gpt-5-mini"
+): Promise<{
   finalText: string;
   structuredData?: any;
   cta?: string;
@@ -642,7 +504,8 @@ export async function processWithToolAgent(context: AgentContext, requestedAgent
     const agentExecutor = await createLifeCoachAgentWithTools(
       toolsForUser, 
       mode, 
-      combinedInstructions
+      combinedInstructions,
+      modelName
     );
     
     // Build chat history from recent messages (convert to LangChain message format)
@@ -895,7 +758,43 @@ export async function processWithToolAgent(context: AgentContext, requestedAgent
     }
     
     // If the agent returns empty output, provide a helpful fallback
-    let finalText = result.output;
+    const normalizeOutputToText = (output: any): string => {
+      if (typeof output === "string") return output;
+      if (Array.isArray(output)) {
+        // Anthropic (and some other chat models) can return content blocks:
+        // [{ type: "text", text: "..." }, ...]
+        const parts: string[] = [];
+        for (const part of output) {
+          if (!part) continue;
+          if (typeof part === "string") {
+            parts.push(part);
+            continue;
+          }
+          if (typeof part?.text === "string") {
+            parts.push(part.text);
+            continue;
+          }
+          if (typeof part?.content === "string") {
+            parts.push(part.content);
+            continue;
+          }
+          // Last resort: stringify unknown block
+          try {
+            parts.push(JSON.stringify(part));
+          } catch {}
+        }
+        return parts.join("");
+      }
+      // Some LangChain message objects carry content on .content
+      if (output && typeof output === "object") {
+        const content = (output as any).content;
+        if (typeof content === "string") return content;
+        if (Array.isArray(content)) return normalizeOutputToText(content);
+      }
+      return "";
+    };
+
+    let finalText = normalizeOutputToText((result as any).output);
 
     // Align assistant text to prioritization card exactly (prevents hallucination)
     if (structuredData && structuredData.type === 'prioritization' && Array.isArray(structuredData.items)) {

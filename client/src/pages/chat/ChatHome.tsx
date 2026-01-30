@@ -19,6 +19,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { NotificationSetupModal } from "@/components/NotificationSetupModal";
 import { ModeToggle } from "@/components/ui/ModeToggle";
 import { HabitsSidePanel } from "@/components/chat/HabitsSidePanel";
+import ModelSwitcher from "@/pages/chat/components/ModelSwitcher";
 
 export default function ChatHome() {
   const [, navigate] = useLocation();
@@ -386,7 +387,7 @@ export default function ChatHome() {
         {/* Top header: hamburger + mode toggle + habit pill (no bottom border for seamless surface) */}
         <div className="px-3 sm:px-4 py-3 bg-gradient-to-br from-green-50 via-white to-blue-50 z-30 overflow-x-hidden shrink-0">
           <div className="flex items-center justify-between gap-2 min-w-0">
-            <div className="flex items-center gap-2 min-w-0 flex-1">
+            <div className="flex items-center gap-2 min-w-0 flex-1 flex-wrap">
               <div className="lg:hidden">
                 <Sheet open={showMobileNav} onOpenChange={setShowMobileNav}>
                   <SheetTrigger asChild>
@@ -440,6 +441,10 @@ export default function ChatHome() {
               {/* Chat title (thread title only; no generic page title) */}
               <div className="text-sm sm:text-base md:text-lg font-semibold text-gray-800 truncate min-w-0">
                 {activeThread?.title ?? ""}
+              </div>
+              {/* Model switcher - show for new chats or threads without messages */}
+              <div className="shrink-0">
+                <ModelSwitcher threadId={threadId} threadModel={activeThread?.model} />
               </div>
             </div>
             <div className="flex items-center gap-2 flex-wrap justify-end flex-shrink-0 pr-1 sm:pr-2">

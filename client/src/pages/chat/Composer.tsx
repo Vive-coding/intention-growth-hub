@@ -1,5 +1,5 @@
 import { useCallback, useState, useRef, useEffect } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { Send } from "lucide-react";
 import { useLocation } from "wouter";
 import { apiRequest } from "@/lib/queryClient";
@@ -17,6 +17,32 @@ export default function Composer({ threadId }: Props) {
   const [, navigate] = useLocation();
   const pendingAgentTypeRef = useRef<string | undefined>(undefined);
   const turnNumberRef = useRef<number>(0);
+  const selectedModelRef = useRef<string | null>(null);
+
+  // Get user's model preference
+  const { data: preferences } = useQuery({
+    queryKey: ["/api/user/preferences/model"],
+    queryFn: async () => {
+      const data = await apiRequest("/api/user/preferences/model");
+      return data as { preferredModel: string; isPremium: boolean };
+    },
+  });
+
+  // Listen for model changes from ModelSwitcher
+  useEffect(() => {
+    const handleModelChange = (event: CustomEvent<{ model: string }>) => {
+      selectedModelRef.current = event.detail.model;
+    };
+    window.addEventListener('modelChanged' as any, handleModelChange as EventListener);
+    return () => {
+      window.removeEventListener('modelChanged' as any, handleModelChange as EventListener);
+    };
+  }, []);
+
+  // Get model to use: selected from switcher, or user preference, or default
+  const getModelToUse = useCallback(() => {
+    return selectedModelRef.current || preferences?.preferredModel || "gpt-5-mini";
+  }, [preferences]);
 
   useEffect(() => {
     (window as any).chatComposer = {
@@ -40,8 +66,8 @@ export default function Composer({ threadId }: Props) {
   }, [text]);
 
   // Shared streaming sender for buttons and Composer
-  (window as any).sendServerStream = async (opts: { threadId: string; content: string; requestedAgentType?: string }) => {
-    const { threadId: tid, content, requestedAgentType } = opts;
+  (window as any).sendServerStream = async (opts: { threadId: string; content: string; requestedAgentType?: string; model?: string }) => {
+    const { threadId: tid, content, requestedAgentType, model } = opts;
     const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
     const url = `${apiBaseUrl}/api/chat/respond`;
 
@@ -52,7 +78,7 @@ export default function Composer({ threadId }: Props) {
     const resp = await fetch(url, {
       method: 'POST',
       headers,
-      body: JSON.stringify({ threadId: tid, content, requestedAgentType }),
+      body: JSON.stringify({ threadId: tid, content, requestedAgentType, model }),
     });
 
     if (!resp.body) throw new Error('No response body');
@@ -108,7 +134,11 @@ export default function Composer({ threadId }: Props) {
       let targetThreadId = threadId;
       let isNewThread = false;
       if (!targetThreadId) {
-        const t = await apiRequest("/api/chat/threads", { method: "POST" } as any);
+        const modelToUse = getModelToUse();
+        const t = await apiRequest("/api/chat/threads", { 
+          method: "POST",
+          body: JSON.stringify({ model: modelToUse })
+        } as any);
         await queryClient.invalidateQueries({ queryKey: ["/api/chat/threads"] });
         targetThreadId = (t.id || (t as any).threadId) as string;
         isNewThread = true;
@@ -165,7 +195,28 @@ export default function Composer({ threadId }: Props) {
         }
       }
 
-      await (window as any).sendServerStream({ threadId: targetThreadId as string, content: messageText, requestedAgentType: pendingAgentTypeRef.current });
+      // Check if this is the first message (thread has no messages yet)
+      // For new threads, we know it's the first message
+      // For existing threads, check message count
+      let isFirstMessage = isNewThread;
+      if (!isNewThread) {
+        try {
+          const existingMessages = await apiRequest(`/api/chat/threads/${targetThreadId}/messages?limit=1`);
+          isFirstMessage = !Array.isArray(existingMessages) || existingMessages.length === 0;
+        } catch (e) {
+          // If we can't check, assume it's not the first message to be safe
+          console.warn('[Composer] Could not check message count, assuming not first message');
+          isFirstMessage = false;
+        }
+      }
+      const modelToUse = isFirstMessage ? getModelToUse() : undefined; // Only send model on first message
+      
+      await (window as any).sendServerStream({ 
+        threadId: targetThreadId as string, 
+        content: messageText, 
+        requestedAgentType: pendingAgentTypeRef.current,
+        model: modelToUse
+      });
       pendingAgentTypeRef.current = undefined;
             } catch (e) {
               console.error('Chat stream error', e);
@@ -173,7 +224,7 @@ export default function Composer({ threadId }: Props) {
             } finally {
               setSending(false);
             }
-  }, [text, threadId, navigate, queryClient]);
+  }, [text, threadId, navigate, queryClient, getModelToUse]);
 
   // Expose a helper so QuickActions can trigger a send in blank state
   (window as any).composeAndSend = async (preset: string, agentType?: string) => {

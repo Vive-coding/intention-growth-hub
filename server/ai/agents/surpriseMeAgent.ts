@@ -1,4 +1,6 @@
 import { ChatOpenAI } from "@langchain/openai";
+import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
+import { createModel, type ModelName } from "../modelFactory";
 import { AgentContext, AgentResponse, InsightData } from "./types";
 import { db } from "../../db";
 import { eq, desc } from "drizzle-orm";
@@ -47,21 +49,17 @@ const SURPRISE_RESPONSE_SCHEMA = z.object({
     confidence: z.number().min(0).max(100).describe("Confidence (0-100)."),
     noveltyReason: z.string().describe("Why this insight is non-obvious or surprising."),
     actionableNextStep: z.string().optional().describe("Optional suggestion for how the user can leverage the insight."),
-    lifeMetricNames: z.array(z.string()).default([]).describe("Life metrics that relate to this insight."),
+    lifeMetricNames: z.array(z.string()).optional().describe("Life metrics that relate to this insight."),
   }),
 });
 
 export class SurpriseMeAgent {
-  private model: ChatOpenAI;
-  private structuredModel: ChatOpenAI;
+  private model: BaseChatModel;
+  private structuredModel: BaseChatModel;
 
-  constructor() {
-    this.model = new ChatOpenAI({
-      model: "gpt-5-mini",
-    });
-    this.structuredModel = new ChatOpenAI({
-      model: "gpt-5-mini",
-    });
+  constructor(modelName: ModelName = "gpt-5-mini") {
+    this.model = createModel(modelName);
+    this.structuredModel = createModel(modelName);
   }
 
   async processMessage(context: AgentContext): Promise<AgentResponse> {
@@ -91,18 +89,24 @@ export class SurpriseMeAgent {
       name: "surprise_me_response",
     });
 
-    let structured: z.infer<typeof SURPRISE_RESPONSE_SCHEMA>;
+    let structured: z.infer<typeof SURPRISE_RESPONSE_SCHEMA> | undefined;
     let noveltyCheck = { isGeneric: false, reasons: [] as string[], score: 1 };
     let retryInstruction = "";
 
     for (let attempt = 0; attempt < 2; attempt++) {
-      structured = await parser.invoke([
+      const result = await parser.invoke([
         {
           role: 'system',
           content: `${prompt}\n\nProduce a JSON response following the provided schema. Avoid repeating any existing insights. Focus on traits that are genuinely surprising.${retryInstruction}`,
         },
         { role: 'user', content: userMessage },
       ]);
+      
+      structured = result as z.infer<typeof SURPRISE_RESPONSE_SCHEMA>;
+
+      if (!structured) {
+        continue;
+      }
 
       const candidateExplanation = [structured.insight.explanation, structured.insight.noveltyReason]
         .filter(Boolean)
@@ -121,7 +125,11 @@ export class SurpriseMeAgent {
       retryInstruction = `\n\nThe previous insight felt generic because: ${noveltyCheck.reasons.join(", ")}. Provide a more unexpected observation tied to specific evidence from the context.`;
     }
 
-    const mappedLifeMetricIds = this.mapLifeMetricNames(structured.insight.lifeMetricNames, lifeMetrics);
+    if (!structured) {
+      throw new Error("Failed to generate insight after retries");
+    }
+
+    const mappedLifeMetricIds = this.mapLifeMetricNames(structured.insight.lifeMetricNames || [], lifeMetrics);
     const explanationParts = [structured.insight.explanation.trim()];
     if (structured.insight.noveltyReason) {
       explanationParts.push(`Why this is unique: ${structured.insight.noveltyReason.trim()}`);

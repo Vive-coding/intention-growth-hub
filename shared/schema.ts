@@ -40,6 +40,8 @@ export const users = pgTable("users", {
   firstGoalCreated: boolean("first_goal_created").default(false),
   firstChatSession: boolean("first_chat_session").default(false),
   timezone: varchar("timezone"),
+  preferredModel: varchar("preferred_model", { length: 50 }),
+  isPremium: boolean("is_premium").default(false).notNull(),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -309,6 +311,7 @@ export const chatThreads = pgTable("chat_threads", {
   summary: text("summary"),
   isTest: boolean("is_test").default(false).notNull(),
   privacyScope: jsonb("privacy_scope"),
+  model: varchar("model", { length: 50 }),
   deletedAt: timestamp("deleted_at"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),

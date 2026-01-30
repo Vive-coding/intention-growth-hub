@@ -7,6 +7,7 @@ import { notificationFollowups } from "../../shared/schema";
 import { sendEmail } from "./emailService";
 import { ChatThreadService } from "./chatThreadService";
 import { ChatOpenAI } from "@langchain/openai";
+import { createModel, type ModelName } from "../ai/modelFactory";
 import { HumanMessage, SystemMessage } from "@langchain/core/messages";
 
 const ACTIVE_FOLLOWUP_STATUSES = ["pending", "sent"] as const;
@@ -33,7 +34,7 @@ export class GoalFollowUpService {
     goals: any[],
     habits: any[],
     firstName: string | null,
-    options?: { timezone?: string | null; now?: Date }
+    options?: { timezone?: string | null; now?: Date; modelName?: ModelName }
   ): Promise<string[]> {
     try {
       const now = options?.now ?? new Date();
@@ -127,11 +128,8 @@ export class GoalFollowUpService {
         .join('\n');
 
       // Use AI to generate personalized email content
-      const model = new ChatOpenAI({
-        model: "gpt-5-mini",
-        // Note: GPT-5-mini only supports default temperature (1)
-        // LangChain doesn't support max_completion_tokens yet, so using defaults
-      });
+      const modelName = options?.modelName || "gpt-5-mini";
+      const model = createModel(modelName);
 
       const systemPrompt = `You are a warm, encouraging life coach writing a brief check-in email. Your goal is to:
 1. Start with where the last conversation left off - reference what was discussed, what next steps were mentioned, or what they were working through

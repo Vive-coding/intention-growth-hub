@@ -1,4 +1,5 @@
 import { ChatOpenAI } from "@langchain/openai";
+import { createModel, type ModelName } from "./modelFactory";
 import { PromptTemplate } from "@langchain/core/prompts";
 import { RunnableSequence } from "@langchain/core/runnables";
 import { StringOutputParser } from "@langchain/core/output_parsers";
@@ -161,12 +162,7 @@ class SimilarityChecker {
   }
 }
 
-// Initialize OpenAI model
-const model = new ChatOpenAI({
-  model: "gpt-4o-mini",
-  temperature: 0.7,
-  maxTokens: 4000, // Increased for comprehensive two-phase analysis
-});
+// Model will be created per-instance in constructor
 
 // Define prompt templates
 const TEMPLATE = `You are an expert life coach analyzing a journal entry. Your task is to identify TRULY NOVEL patterns and insights about the user's unique behavior patterns.
@@ -378,9 +374,15 @@ interface JournalContext {
 export class InsightAgent {
   private chain: RunnableSequence;
   private initialized: boolean = false;
+  private model: any;
 
-  constructor() {
-          this.chain = RunnableSequence.from([
+  constructor(modelName: ModelName = "gpt-5-mini") {
+    this.model = createModel(modelName, {
+      temperature: 0.7,
+      maxTokens: 4000, // Increased for comprehensive two-phase analysis
+    });
+    
+    this.chain = RunnableSequence.from([
         {
           researchBrief: () => loadResearchBriefCapped(6000),
           researchSupport: async (input: JournalContext) => {
@@ -420,7 +422,7 @@ export class InsightAgent {
           currentDailyHabitCount: (input: JournalContext) => input.currentDailyHabitCount,
         },
       insightAnalysisPrompt,
-      model,
+      this.model,
       new StringOutputParser(),
     ]);
   }

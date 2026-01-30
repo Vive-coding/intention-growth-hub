@@ -1,4 +1,6 @@
 import { ChatOpenAI } from "@langchain/openai";
+import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
+import { createModel, type ModelName } from "../modelFactory";
 import { AgentContext, AgentResponse, AgentType } from "./types";
 import { ChatContextService } from "../../services/chatContextService";
 import { MyFocusService } from "../../services/myFocusService";
@@ -39,13 +41,11 @@ const MASTER_AGENT_SYSTEM_PROMPT = `You are a master life coach conducting conve
 Remember: Your goal is to help them achieve their current focus OR intelligently suggest changes when needed. Make decisions quickly based on quality information.`;
 
 export class MasterAgent {
-  private model: ChatOpenAI;
+  private model: BaseChatModel;
   private static readonly MAX_FOCUS_GOALS = 3;
 
-  constructor() {
-    this.model = new ChatOpenAI({
-      model: "gpt-5-mini",
-    });
+  constructor(modelName: ModelName = "gpt-5-mini") {
+    this.model = createModel(modelName);
   }
 
   async processMessage(context: AgentContext): Promise<AgentResponse> {

@@ -718,7 +718,6 @@ export default function ConversationStream({ threadId }: Props) {
           </div>
         </div>
       )}
-      {optimisticUserMessage && console.log('[ConversationStream] Rendering optimistic message:', optimisticUserMessage)}
 
       {(isThinking || isStreaming) && (
         <div className="flex justify-start">
