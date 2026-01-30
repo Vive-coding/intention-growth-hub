@@ -82,6 +82,52 @@ async function generateHabitSuggestions(goalTitle: string, lifeMetric: string, u
 }
 
 async function resolveGoalInstance(userId: string, identifier: string) {
+  const isUuid = (value: string) =>
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      value,
+    );
+
+  const normalize = (s: string) =>
+    String(s || "")
+      .toLowerCase()
+      .trim()
+      .replace(/[_-]+/g, " ")
+      .replace(/[^a-z0-9 ]+/g, "")
+      .replace(/\s+/g, " ");
+
+  // If identifier isn't a UUID, try resolving by title/slug safely (avoid Postgres UUID cast errors).
+  if (!isUuid(identifier)) {
+    const needle = normalize(identifier);
+    if (!needle) return null;
+
+    // Fetch a small set of the user's non-archived goals and match in JS.
+    const candidates = await db
+      .select({
+        inst: goalInstances,
+        def: goalDefinitions,
+      })
+      .from(goalInstances)
+      .innerJoin(goalDefinitions, eq(goalInstances.goalDefinitionId, goalDefinitions.id))
+      .where(
+        and(
+          eq(goalInstances.userId, userId),
+          eq(goalInstances.archived, false),
+          eq(goalDefinitions.userId, userId),
+          eq(goalDefinitions.archived, false),
+        ),
+      )
+      .orderBy(desc(goalInstances.createdAt))
+      .limit(200);
+
+    const match =
+      candidates.find((c) => normalize(c.def.title) === needle) ||
+      candidates.find((c) => normalize(c.def.title).includes(needle)) ||
+      candidates.find((c) => needle.includes(normalize(c.def.title)));
+
+    if (!match) return null;
+    return { instance: match.inst, definition: match.def };
+  }
+
   const [instance] = await db
     .select()
     .from(goalInstances)
