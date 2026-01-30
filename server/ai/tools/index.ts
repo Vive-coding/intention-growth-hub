@@ -10,6 +10,7 @@
  */
 
 import { getContextTool } from "./contextTool";
+import { DynamicStructuredTool } from "@langchain/core/tools";
 import { 
   createGoalWithHabitsTool,
   suggestHabitsForGoalTool,
@@ -61,6 +62,39 @@ export const allTools = [
 ];
 
 /**
+ * Anthropic tool-calling requires tool result message content to be a string (or an array of content blocks).
+ * Some of our tools return objects/arrays, which can crash @langchain/anthropic during payload formatting
+ * ("content.map is not a function") when the agent executes multiple tool actions.
+ *
+ * We wrap tools so their outputs are always strings (JSON if needed).
+ */
+function wrapToolToStringOutput(tool: any) {
+  // Only wrap DynamicStructuredTool-like tools that have a schema and invoke().
+  // Keep name/description/schema identical so the agent sees the same tool contract.
+  const name = tool?.name;
+  const description = tool?.description;
+  const schema = tool?.schema;
+  if (!name || !schema || typeof tool?.invoke !== "function") {
+    return tool;
+  }
+
+  return new DynamicStructuredTool({
+    name,
+    description,
+    schema,
+    func: async (input: any) => {
+      const out = await tool.invoke(input);
+      if (typeof out === "string") return out;
+      try {
+        return JSON.stringify(out);
+      } catch {
+        return String(out);
+      }
+    },
+  });
+}
+
+/**
  * Create tools with userId and threadId baked into their execution context
  * This ensures tools can access user data without relying on LangChain's config passing
  */
@@ -70,7 +104,7 @@ export function createToolsForUser(userId: string, threadId: string) {
   (global as any).__TOOL_USER_ID__ = userId;
   (global as any).__TOOL_THREAD_ID__ = threadId;
   
-  return allTools;
+  return allTools.map(wrapToolToStringOutput);
 }
 
 // Log tools on module load
