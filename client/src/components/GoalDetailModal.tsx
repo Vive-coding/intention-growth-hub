@@ -159,6 +159,28 @@ export const GoalDetailModal = ({
   const [newSuggestionsCount, setNewSuggestionsCount] = useState(0);
   const [newSuggestedHabits, setNewSuggestedHabits] = useState<any[]>([]);
   const [showNewSuggestions, setShowNewSuggestions] = useState(false);
+
+  // Search helpers: normalize punctuation so "Claude - Try" matches "Claude — Try".
+  const normalizeForSearch = (input: string) =>
+    String(input || "")
+      .toLowerCase()
+      .normalize("NFKD")
+      // normalize common dash variants to hyphen
+      .replace(/[\u2010\u2011\u2012\u2013\u2014\u2015]/g, "-")
+      // strip punctuation to spaces
+      .replace(/[^a-z0-9]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+  const habitMatchesSearch = (habit: any, term: string) => {
+    const needle = normalizeForSearch(term);
+    if (!needle) return true;
+    const haystack = normalizeForSearch(
+      `${habit?.title || habit?.name || ""} ${habit?.description || ""}`,
+    );
+    const tokens = needle.split(" ").filter(Boolean);
+    return tokens.every((t) => haystack.includes(t));
+  };
   
   // Calculate periods based on goal target date and frequency
   const calculatePeriodsFromTargetDate = (frequency: string, weekdaysOnly: boolean = false) => {
@@ -1245,10 +1267,7 @@ export const GoalDetailModal = ({
                             
                             // Combine all habits - existing recommendations first, then new suggestions
                             const allHabits = [...relevantDashboardHabits, ...semanticHabits, ...highScoringExisting, ...newHabits]
-                              .filter((habit: any) =>
-                                (habit.title || habit.name)?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                                habit.description?.toLowerCase().includes(searchTerm.toLowerCase())
-                              )
+                              .filter((habit: any) => habitMatchesSearch(habit, searchTerm))
                               .filter((habit: any) => 
                                 !goalData.habits.some((associatedHabit: any) => 
                                   associatedHabit.id === habit.id
@@ -1354,10 +1373,7 @@ export const GoalDetailModal = ({
                         </div>
                           <div>
                         {existingHabits
-                          .filter((habit: any) =>
-                            habit.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                            habit.description?.toLowerCase().includes(searchTerm.toLowerCase())
-                          )
+                          .filter((habit: any) => habitMatchesSearch(habit, searchTerm))
                           .filter((habit: any) => 
                             !goalData.habits.some((associatedHabit: any) => 
                               associatedHabit.id === habit.id

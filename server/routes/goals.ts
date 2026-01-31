@@ -3,8 +3,7 @@ import { db } from "../db";
 import { HabitOptimizationService } from "../services/habitOptimizationService";
 import { logHabitCompletion } from "../services/habitCompletionService";
 
-console.log('=== GOALS ROUTES FILE === Loading goals routes file...');
-import { and, eq, desc, sql, inArray, gte, lt, lte } from "drizzle-orm";
+import { and, eq, desc, sql, inArray, gte, lt, lte, or, isNull } from "drizzle-orm";
 import { 
   goalDefinitions, 
   goalInstances,
@@ -1093,12 +1092,19 @@ router.get("/habits/all", async (req: Request, res: Response) => {
       return res.status(401).json({ message: "User not authenticated" });
     }
 
-    // Get all habits (active and inactive) for goal selection
+    const requestedLimit = Number(req.query.limit ?? 2000);
+    const selectionLimit = Number.isFinite(requestedLimit)
+      ? Math.max(1, Math.min(5000, requestedLimit))
+      : 2000;
+
+    // Get all habits (active and inactive) for goal selection.
+    // Important: use stable ordering + sufficiently high limit so items aren't "randomly missing".
     const habits = await db
       .select()
       .from(habitDefinitions)
       .where(eq(habitDefinitions.userId, userId))
-      .limit(100); // Higher limit for goal selection
+      .orderBy(desc(habitDefinitions.updatedAt), desc(habitDefinitions.createdAt))
+      .limit(selectionLimit);
 
     // Simplified response for goal selection
     const habitsForSelection = habits.map((habit) => ({
@@ -1348,6 +1354,10 @@ router.get("/habits", async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user?.id;
     const statusFilter = req.query.status as string || 'active';
+    const requestedLimit = Number(req.query.limit ?? 500);
+    const habitLimit = Number.isFinite(requestedLimit)
+      ? Math.max(1, Math.min(1000, requestedLimit))
+      : 500;
     
     if (!userId) {
       return res.status(401).json({ message: "User not authenticated" });
@@ -1356,7 +1366,8 @@ router.get("/habits", async (req: Request, res: Response) => {
     // Build status condition based on filter
     let statusCondition;
     if (statusFilter === 'active') {
-      statusCondition = eq(habitDefinitions.isActive, true);
+      // Back-compat: older rows may have isActive=NULL (treat as active).
+      statusCondition = or(eq(habitDefinitions.isActive, true), isNull(habitDefinitions.isActive));
     } else if (statusFilter === 'archived') {
       statusCondition = eq(habitDefinitions.isActive, false);
     } else {
@@ -1364,7 +1375,26 @@ router.get("/habits", async (req: Request, res: Response) => {
       statusCondition = undefined;
     }
 
-    // First get all habits with their associated goals and life metrics
+    // IMPORTANT:
+    // - We must NOT apply LIMIT to the joined rows, otherwise habits get "randomly dropped"
+    //   (each habit can join to multiple goals/life-metrics and consume multiple rows).
+    // - Instead, select habit IDs first (limit applies to habits), then join to hydrate metrics.
+    const habitIdRows = await db
+      .select({ id: habitDefinitions.id })
+      .from(habitDefinitions)
+      .where(and(
+        eq(habitDefinitions.userId, userId),
+        ...(statusCondition ? [statusCondition] : []),
+      ))
+      .orderBy(desc(habitDefinitions.updatedAt), desc(habitDefinitions.createdAt))
+      .limit(habitLimit);
+
+    const habitIds = habitIdRows.map((r) => r.id);
+    if (habitIds.length === 0) {
+      return res.json([]);
+    }
+
+    // Hydrate habits with their associated goals and life metrics
     const habitsWithLifeMetrics = await db
       .select({
         habit: habitDefinitions,
@@ -1378,9 +1408,10 @@ router.get("/habits", async (req: Request, res: Response) => {
       .leftJoin(lifeMetricDefinitions, eq(goalDefinitions.lifeMetricId, lifeMetricDefinitions.id))
       .where(and(
         eq(habitDefinitions.userId, userId),
-        ...(statusCondition ? [statusCondition] : [])
+        ...(statusCondition ? [statusCondition] : []),
+        inArray(habitDefinitions.id, habitIds),
       ))
-      .limit(50); // Limit to 50 habits for performance
+      .orderBy(desc(habitDefinitions.updatedAt), desc(habitDefinitions.createdAt));
 
     // Group habits by ID and collect their life metrics
     const habitMap = new Map();
